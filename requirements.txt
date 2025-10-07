@@ -1,0 +1,38 @@
+python-dotenv
+
+agno
+
+google-genai
+genai_processors
+
+yfinance
+
+mcp
+
+googlesearch-python
+ddgs
+pycountry
+baidusearch
+
+curl-cffi==0.8.1b9
+wasmtime
+numpy
+nodriver
+drissionpage
+fastapi
+uvicorn
+pyvirtualdisplay
+
+# pip install droidrun[google] -e utils/droidrun/.
+
+# ~/apps/illm/utils/EvoAgentX/Wonderful_workflow_corpus/invest/stock_analysis.py
+# pip install -r  ~/apps/illm/utils/EvoAgentX/requirements.txt
+evoagentx
+matplotlib
+akshare
+telephon
+
+# Reflex project
+reflex
+
+reflex==0.8.13

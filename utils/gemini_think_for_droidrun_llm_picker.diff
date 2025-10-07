@@ -1,0 +1,28 @@
+diff --git a/droidrun/agent/utils/llm_picker.py b/droidrun/agent/utils/llm_picker.py
+index 068dec0..00a1675 100644
+--- a/droidrun/agent/utils/llm_picker.py
++++ b/droidrun/agent/utils/llm_picker.py
+@@ -32,6 +32,23 @@ def load_llm(provider_name: str, **kwargs: Any) -> LLM:
+     """
+     if not provider_name:
+         raise ValueError("provider_name cannot be empty.")
++
++    # Check for thinking mode configuration for GoogleGenAI
++    if provider_name == "GoogleGenAI":
++        thinking_budget = os.getenv('GEMINI_THINKING_BUDGET')
++        if thinking_budget is not None:
++            try:
++                thinking_budget_val = int(thinking_budget)
++                logger.info(f"Loading GoogleGenAI with thinking mode: budget={thinking_budget_val}")
++                from .gemini_thinking import create_gemini_with_thinking
++                return create_gemini_with_thinking(
++                    thinking_budget=thinking_budget_val,
++                    **kwargs
++                )
++            except (ImportError, ValueError) as e:
++                logger.warning(
++                    f"Failed to load thinking mode for Gemini: {e}. Using standard mode."
++                )
+     if provider_name == "OpenAILike":
+         module_provider_part = "openai_like"
+         kwargs.setdefault("is_chat_model", True)

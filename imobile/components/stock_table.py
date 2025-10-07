@@ -18,11 +18,10 @@ def stock_table() -> rx.Component:
                     align="start",
                 ),
             ),
-            # Current Price
+            # Market Value
             rx.table.cell(
                 rx.text(
-                    stock.price,
-                    weight="medium",
+                    stock.market_value,
                     size="2",
                     style={"font_variant_numeric": "tabular-nums"},
                 ),
@@ -43,28 +42,19 @@ def stock_table() -> rx.Component:
                 ),
                 text_align="right",
             ),
-            # Market Value
+            # holdings/available_shares
             rx.table.cell(
                 rx.text(
-                    stock.volume,
+                    f"{stock.holdings}({stock.available_shares})",
                     size="2",
                     style={"font_variant_numeric": "tabular-nums"},
                 ),
                 text_align="right",
             ),
-            # Holdings
+            # current_price/cost_basis_total
             rx.table.cell(
                 rx.text(
-                    stock.amount,
-                    size="2",
-                    style={"font_variant_numeric": "tabular-nums"},
-                ),
-                text_align="right",
-            ),
-            # Cost
-            rx.table.cell(
-                rx.text(
-                    stock.market_value,
+                    f"{stock.current_price}({stock.cost_basis_total})",
                     size="2",
                     style={"font_variant_numeric": "tabular-nums"},
                 ),
@@ -103,7 +93,7 @@ def stock_table() -> rx.Component:
             # Actions
             rx.table.cell(
                 rx.hstack(
-                    rx.button("记录", variant="ghost", size="1", color_scheme="blue"),
+                    rx.button("分析", variant="ghost", size="1", color_scheme="blue"),
                     rx.button("卖出", variant="ghost", size="1", color_scheme="blue"),
                     rx.button(
                         rx.icon("x", size=14),
@@ -123,13 +113,12 @@ def stock_table() -> rx.Component:
             rx.table.header(
                 rx.table.row(
                     rx.table.column_header_cell("名称/代码", align="left"),
-                    rx.table.column_header_cell("现价", align="right"),
-                    rx.table.column_header_cell("涨跌", align="right"),
                     rx.table.column_header_cell("市值", align="right"),
-                    rx.table.column_header_cell("持仓", align="right"),
-                    rx.table.column_header_cell("成本/成本", align="right"),
+                    rx.table.column_header_cell("涨跌/涨幅", align="right"),
+                    rx.table.column_header_cell("持仓/可用", align="right"),
+                    rx.table.column_header_cell("现价/成本", align="right"),
                     rx.table.column_header_cell("浮动盘变化", align="right"),
-                    rx.table.column_header_cell("累计变化", align="right"),
+                    rx.table.column_header_cell("胜率", align="right"),
                     rx.table.column_header_cell("操作", align="right"),
                 ),
             ),

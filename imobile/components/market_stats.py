@@ -10,8 +10,8 @@ def market_stats() -> rx.Component:
         """Create a statistics card."""
         return rx.vstack(
             rx.text(label, size="1", color="gray"),
-            rx.text(value, size="1", weight="medium", color=color),
-            spacing="1",
+            rx.text(value, size="2", weight="medium", color=color),
+            spacing="0",
             align="start",
         )
     
@@ -53,24 +53,27 @@ def market_stats() -> rx.Component:
             ),
             stat_card(
                 "浮动盘变化",
-                f"+{PortfolioState.float_change:.2f}(+{PortfolioState.float_change_percent:.2f}%)",
-                color="#e74c3c",
+                f"{PortfolioState.float_change:.2f}({PortfolioState.float_change_percent:.2f}%)",
+                color=rx.cond(PortfolioState.float_change >= 0, "#e74c3c", "#27ae60"), # type: ignore
             ),
             stat_card(
-                "累计变化",
-                f"+{PortfolioState.cumulative_change:.2f}(+{PortfolioState.cumulative_change_percent:.2f}%)",
-                color="#e74c3c",
-            ),
-            stat_card(
-                "现金",
-                f"{PortfolioState.cash:.2f}",
+                "仓位",
+                f"+{PortfolioState.position_percent:.2f}({PortfolioState.position_percent:.2f}%)",
             ),
             stat_card(
                 "本金",
                 f"{PortfolioState.principal:.2f}",
             ),
-            columns="5",
-            spacing="6",
+            stat_card(
+                "可用",
+                f"{PortfolioState.withdrawable:.2f}",
+            ),
+            stat_card(
+                "可取",
+                f"{PortfolioState.cash:.2f}",
+            ),
+            columns="6",
+            spacing="7",
             width="100%",
         ),
         spacing="1",

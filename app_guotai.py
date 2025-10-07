@@ -458,3 +458,8 @@ if __name__ == "__main__":
     #goal="Open Settings and check battery level, then go back to home screen"
 
     cron_sync_app_data_to_db()
+
+    # TODO: 
+    # - Fixed principal(本金) = 300000, When withdraw or deposit, principal will change, need manual adjust.
+    # - After trading date 15:30
+    #   - 登录 ->交易 ->当日盈亏 ->total_table: today_pnl, today_pnl_percent

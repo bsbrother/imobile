@@ -8,16 +8,18 @@ class Stock(rx.Base):
     """Stock data model for display."""
     name: str
     code: str
-    price: float
+    current_price: float
     change: float
     change_percent: float
-    volume: float  # market_value from DB
-    amount: int  # holdings from DB
-    market_value: float  # market_value from DB (in 万)
+    market_value: float  # market_value from DB
+    volume: float  # market_value from DB (in 万)
+    holdings: int  # holdings from DB
+    available_shares: int # available shares from DB
     float_change: float  # pnl_float from DB
     float_change_percent: float  # pnl_float_percent from DB
     cumulative_change: float  # pnl_cumulative from DB
     cumulative_change_percent: float  # pnl_cumulative_percent from DB
+    cost_basis_total: float  # cost_basis_total from DB
 
 
 class PortfolioState(rx.State):
@@ -45,8 +47,10 @@ class PortfolioState(rx.State):
     cumulative_change: float = 0.0
     cumulative_change_percent: float = 0.0
     total_assets: float = 0.0
-    cash: float = 0.0
-    principal: float = 0.0
+    principal: float = 300000.0 # 本金, manual adjust when withdraw or deposit.
+    position_percent: float = 0.0  # 仓位
+    withdrawable: float = 0.0  # 可用金额
+    cash: float = 0.0 # 可提现金
     
     # Stock data
     stocks: List[Stock] = []
@@ -72,7 +76,7 @@ class PortfolioState(rx.State):
                 SELECT total_market_value, today_pnl, today_pnl_percent,
                        cumulative_pnl, cumulative_pnl_percent, cash,
                        floating_pnl_summary, floating_pnl_summary_percent,
-                       total_assets, principal
+                       total_assets, principal, position_percent, withdrawable
                 FROM total_table
                 WHERE user_id = :user_id
                 LIMIT 1
@@ -90,12 +94,14 @@ class PortfolioState(rx.State):
                 self.float_change_percent = total_result[7] or 0.0
                 self.total_assets = total_result[8] or 0.0
                 self.principal = total_result[9] or 0.0
+                self.position_percent = total_result[10] or 0.0
+                self.withdrawable = total_result[11] or 0.0
             
             # Query stocks_table for the user's stocks
             stocks_query = text("""
                 SELECT code, name, current_price, change, change_percent,
-                       market_value, holdings, pnl_float, pnl_float_percent,
-                       pnl_cumulative, pnl_cumulative_percent
+                       market_value, holdings, available_shares, pnl_float, pnl_float_percent,
+                       pnl_cumulative, pnl_cumulative_percent, cost_basis_total
                 FROM stocks_table
                 WHERE user_id = :user_id
                 ORDER BY market_value DESC
@@ -108,16 +114,18 @@ class PortfolioState(rx.State):
                 stock = Stock(
                     code=row[0],
                     name=row[1],
-                    price=row[2] or 0.0,
+                    current_price=row[2] or 0.0,
                     change=row[3] or 0.0,
                     change_percent=row[4] or 0.0,
-                    volume=row[5] or 0.0,  # market_value
-                    amount=row[6] or 0,  # holdings
-                    market_value=(row[5] or 0.0) / 10000,  # Convert to 万
-                    float_change=row[7] or 0.0,
-                    float_change_percent=row[8] or 0.0,
-                    cumulative_change=row[9] or 0.0,
-                    cumulative_change_percent=row[10] or 0.0,
+                    market_value=row[5] or 0.0,  # market_value
+                    volume=(row[5] or 0.0) / 10000,  # Convert to 万
+                    holdings=row[6] or 0,  # holdings
+                    available_shares=row[7] or 0,  # available_shares
+                    float_change=row[8] or 0.0,
+                    float_change_percent=row[9] or 0.0,
+                    cumulative_change=row[10] or 0.0,
+                    cumulative_change_percent=row[11] or 0.0,
+                    cost_basis_total=row[12] or 0.0,  # cost_basis_total
                 )
                 self.stocks.append(stock)
         

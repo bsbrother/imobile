@@ -1,0 +1,1 @@
+import"./react-BlMuVt3q.js";import{t as e}from"./createLucideIcon-_RNsHuqm.js";var t=[[`path`,{d:`M7.2 14.8a2 2 0 0 1 2 2`,key:`1tw9gg`}],[`circle`,{cx:`18.5`,cy:`8.5`,r:`3.5`,key:`1wadoa`}],[`circle`,{cx:`7.5`,cy:`16.5`,r:`5.5`,key:`6mdt3g`}],[`circle`,{cx:`7.5`,cy:`4.5`,r:`2.5`,key:`637s54`}]],n=e(`bubbles`,t);export{t as __iconNode,n as default};

@@ -1,0 +1,345 @@
+[
+  {
+    "index": 1,
+    "resourceId": "",
+    "className": "FrameLayout",
+    "text": "FrameLayout",
+    "bounds": "0, 0, 1440, 2880",
+    "children": [
+      {
+        "index": 2,
+        "resourceId": "",
+        "className": "WebView",
+        "text": "WebView",
+        "bounds": "0, 84, 1440, 2712",
+        "children": [
+          {
+            "index": 3,
+            "resourceId": "",
+            "className": "WebView",
+            "text": "jh-trade-new-smart-order",
+            "bounds": "0, 84, 1445, 2713",
+            "children": [
+              {
+                "index": 4,
+                "resourceId": "app",
+                "className": "View",
+                "text": "app",
+                "bounds": "0, 84, 1445, 2713",
+                "children": [
+                  {
+                    "index": 5,
+                    "resourceId": "",
+                    "className": "View",
+                    "text": "View",
+                    "bounds": "0, 84, 1445, 2713",
+                    "children": [
+                      {
+                        "index": 6,
+                        "resourceId": "",
+                        "className": "View",
+                        "text": "View",
+                        "bounds": "0, 84, 1445, 255",
+                        "children": [
+                          {
+                            "index": 7,
+                            "resourceId": "",
+                            "className": "Button",
+                            "text": "关闭页面",
+                            "bounds": "0, 84, 185, 255",
+                            "children": []
+                          },
+                          {
+                            "index": 8,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "智能订单",
+                            "bounds": "581, 126, 861, 210",
+                            "children": []
+                          },
+                          {
+                            "index": 9,
+                            "resourceId": "",
+                            "className": "View",
+                            "text": "View",
+                            "bounds": "1309, 126, 1393, 210",
+                            "children": []
+                          }
+                        ]
+                      },
+                      {
+                        "index": 10,
+                        "resourceId": "",
+                        "className": "View",
+                        "text": "为超200万名客户提供稳定服务",
+                        "bounds": "56, 343, 1386, 528",
+                        "children": []
+                      },
+                      {
+                        "index": 11,
+                        "resourceId": "",
+                        "className": "TextView",
+                        "text": "条件下单",
+                        "bounds": "238, 588, 427, 644",
+                        "children": []
+                      },
+                      {
+                        "index": 12,
+                        "resourceId": "",
+                        "className": "TextView",
+                        "text": "多日有效",
+                        "bounds": "514, 588, 703, 644",
+                        "children": []
+                      },
+                      {
+                        "index": 13,
+                        "resourceId": "",
+                        "className": "TextView",
+                        "text": "智能盯盘",
+                        "bounds": "791, 588, 980, 644",
+                        "children": []
+                      },
+                      {
+                        "index": 14,
+                        "resourceId": "",
+                        "className": "TextView",
+                        "text": "自动委托",
+                        "bounds": "1067, 588, 1256, 644",
+                        "children": []
+                      },
+                      {
+                        "index": 15,
+                        "resourceId": "",
+                        "className": "View",
+                        "text": "View",
+                        "bounds": "56, 644, 1386, 759",
+                        "children": [
+                          {
+                            "index": 16,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "了解更多",
+                            "bounds": "602, 703, 794, 763",
+                            "children": []
+                          },
+                          {
+                            "index": 17,
+                            "resourceId": "",
+                            "className": "View",
+                            "text": "View",
+                            "bounds": "787, 707, 840, 759",
+                            "children": []
+                          }
+                        ]
+                      },
+                      {
+                        "index": 18,
+                        "resourceId": "",
+                        "className": "Button",
+                        "text": "新建订单",
+                        "bounds": "133, 829, 1309, 1004",
+                        "children": []
+                      },
+                      {
+                        "index": 19,
+                        "resourceId": "",
+                        "className": "View",
+                        "text": "我的智能订单",
+                        "bounds": "56, 1190, 1386, 1274",
+                        "children": []
+                      },
+                      {
+                        "index": 20,
+                        "resourceId": "",
+                        "className": "View",
+                        "text": "登录交易账号，查看订单详情",
+                        "bounds": "308, 1414, 1134, 1540",
+                        "children": []
+                      },
+                      {
+                        "index": 21,
+                        "resourceId": "",
+                        "className": "View",
+                        "text": "热门智能订单",
+                        "bounds": "56, 1718, 1386, 1802",
+                        "children": []
+                      },
+                      {
+                        "index": 22,
+                        "resourceId": "",
+                        "className": "View",
+                        "text": "View",
+                        "bounds": "56, 1914, 497, 2303",
+                        "children": [
+                          {
+                            "index": 23,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "到价买入",
+                            "bounds": "157, 2159, 392, 2233",
+                            "children": []
+                          },
+                          {
+                            "index": 24,
+                            "resourceId": "",
+                            "className": "View",
+                            "text": "View",
+                            "bounds": "56, 2296, 493, 2303",
+                            "children": [
+                              {
+                                "index": 25,
+                                "resourceId": "",
+                                "className": "View",
+                                "text": "View",
+                                "bounds": "108, 2296, 493, 2303",
+                                "children": []
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "index": 26,
+                        "resourceId": "",
+                        "className": "View",
+                        "text": "View",
+                        "bounds": "493, 1914, 934, 2303",
+                        "children": [
+                          {
+                            "index": 27,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "到价卖出",
+                            "bounds": "595, 2159, 829, 2233",
+                            "children": []
+                          },
+                          {
+                            "index": 28,
+                            "resourceId": "",
+                            "className": "View",
+                            "text": "View",
+                            "bounds": "493, 2296, 931, 2303",
+                            "children": [
+                              {
+                                "index": 29,
+                                "resourceId": "",
+                                "className": "View",
+                                "text": "View",
+                                "bounds": "493, 2296, 931, 2303",
+                                "children": []
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "index": 30,
+                        "resourceId": "",
+                        "className": "View",
+                        "text": "View",
+                        "bounds": "931, 1914, 1375, 2303",
+                        "children": [
+                          {
+                            "index": 31,
+                            "resourceId": "",
+                            "className": "View",
+                            "text": "View",
+                            "bounds": "1197, 1960, 1316, 2019",
+                            "children": []
+                          },
+                          {
+                            "index": 32,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "止盈止损",
+                            "bounds": "1036, 2159, 1270, 2233",
+                            "children": []
+                          },
+                          {
+                            "index": 33,
+                            "resourceId": "",
+                            "className": "View",
+                            "text": "View",
+                            "bounds": "931, 2296, 1375, 2303",
+                            "children": [
+                              {
+                                "index": 34,
+                                "resourceId": "",
+                                "className": "View",
+                                "text": "View",
+                                "bounds": "931, 2296, 1319, 2303",
+                                "children": []
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "index": 35,
+                        "resourceId": "",
+                        "className": "View",
+                        "text": "View",
+                        "bounds": "56, 2299, 497, 2688",
+                        "children": [
+                          {
+                            "index": 36,
+                            "resourceId": "",
+                            "className": "View",
+                            "text": "View",
+                            "bounds": "315, 2341, 437, 2404",
+                            "children": []
+                          },
+                          {
+                            "index": 37,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "ETF定投",
+                            "bounds": "164, 2544, 385, 2614",
+                            "children": []
+                          }
+                        ]
+                      },
+                      {
+                        "index": 38,
+                        "resourceId": "",
+                        "className": "View",
+                        "text": "反弹买入",
+                        "bounds": "493, 2299, 934, 2688",
+                        "children": []
+                      },
+                      {
+                        "index": 39,
+                        "resourceId": "",
+                        "className": "View",
+                        "text": "View",
+                        "bounds": "931, 2299, 1375, 2688",
+                        "children": [
+                          {
+                            "index": 40,
+                            "resourceId": "",
+                            "className": "View",
+                            "text": "View",
+                            "bounds": "1197, 2341, 1316, 2404",
+                            "children": []
+                          },
+                          {
+                            "index": 41,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "网格交易",
+                            "bounds": "1036, 2544, 1270, 2614",
+                            "children": []
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+]

@@ -1,0 +1,1 @@
+import"./react-BlMuVt3q.js";import{t as e}from"./createLucideIcon-_RNsHuqm.js";var t=[[`circle`,{cx:`12`,cy:`12`,r:`10`,key:`1mglay`}],[`path`,{d:`m10 8 4 4-4 4`,key:`1wy4r4`}]],n=e(`circle-chevron-right`,t);export{t as __iconNode,n as default};

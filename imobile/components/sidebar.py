@@ -104,7 +104,7 @@ def sidebar() -> rx.Component:
         side="right",
     )
     
-    # Desktop toggle button (next to Home icon)
+    # Desktop toggle button (positioned at top right of sidebar)
     desktop_toggle_button = rx.button(
         rx.icon(
             rx.cond(
@@ -118,11 +118,11 @@ def sidebar() -> rx.Component:
         variant="ghost",
         size="1",
         padding="2",
+        position="absolute",
+        right="-12px",
+        top="1rem",
         class_name="desktop-toggle-btn",
         style={
-            "position": "absolute",
-            "right": "-12px",
-            "top": "12px",
             "border_radius": "50%",
             "background": "var(--color-panel)",
             "border": "1px solid var(--gray-5)",
@@ -131,28 +131,31 @@ def sidebar() -> rx.Component:
     )
     
     return rx.box(
+        # Desktop toggle button (positioned outside the main vstack)
+        desktop_toggle_button,
+        
         rx.vstack(
-            # Header with toggle button (desktop only)
-            rx.box(
-                desktop_toggle_button,
-                position="relative",
-                width="100%",
-                height="0",
-            ),
+            # Add some top padding to account for toggle button
+            rx.box(height="2rem"),
+            
             # Navigation items
             rx.vstack(
                 *[menu_button(item["icon"], item["label"]) for item in menu_items],
-                spacing="1",
+                spacing="3",
                 width="100%",
             ),
+            
             # Settings section at bottom
             rx.spacer(),
             rx.divider(),
             theme_button,
             settings_button,
+            
             spacing="4",
             height="100vh",
             padding="4",
+            padding_top="2",
+            justify="start",
         ),
         position="fixed",
         left="0",
@@ -163,6 +166,10 @@ def sidebar() -> rx.Component:
         background="var(--color-panel)",
         transition="width 0.3s ease",
         z_index="50",
+        overflow="hidden",
+        style={
+            "box-sizing": "border-box",
+        },
         # Hide on mobile by default, show when is_sidebar_visible_on_mobile is True
         class_name=rx.cond(
             PortfolioState.is_sidebar_visible_on_mobile,

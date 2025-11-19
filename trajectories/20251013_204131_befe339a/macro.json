@@ -1,0 +1,28 @@
+{
+  "version": "1.0",
+  "description": "Open '\u56fd\u6cf0\u6d77\u901a\u541b\u5f18', then tap '\u6211\u7684\u6301\u4ed3'",
+  "timestamp": "20251013_204131",
+  "total_actions": 2,
+  "actions": [
+    {
+      "type": "TapActionEvent",
+      "action_type": "tap",
+      "description": "Tap element at index 11: '\u56fd\u6cf0\u6d77\u901a\u541b\u5f18' (TextView) at coordinates (720, 2450)",
+      "x": 720,
+      "y": 2450,
+      "element_index": 11,
+      "element_text": "\u56fd\u6cf0\u6d77\u901a\u541b\u5f18",
+      "element_bounds": "586, 2293, 855, 2608"
+    },
+    {
+      "type": "TapActionEvent",
+      "action_type": "tap",
+      "description": "Tap element at index 27: '\u6211\u7684\u6301\u4ed3' (TextView) at coordinates (462, 527)",
+      "x": 462,
+      "y": 527,
+      "element_index": 27,
+      "element_text": "\u6211\u7684\u6301\u4ed3",
+      "element_bounds": "350, 450, 574, 604"
+    }
+  ]
+}

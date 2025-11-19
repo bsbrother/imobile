@@ -1,0 +1,1 @@
+import"./react-BlMuVt3q.js";import{t as e}from"./createLucideIcon-_RNsHuqm.js";var t=[[`path`,{d:`M2 20h.01`,key:`4haj6o`}]],n=e(`signal-zero`,t);export{t as __iconNode,n as default};

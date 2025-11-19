@@ -1,0 +1,1 @@
+import"./react-BlMuVt3q.js";import{t as e}from"./createLucideIcon-_RNsHuqm.js";var t=[[`rect`,{width:`20`,height:`6`,x:`2`,y:`4`,rx:`2`,key:`qdearl`}],[`rect`,{width:`20`,height:`6`,x:`2`,y:`14`,rx:`2`,key:`1xrn6j`}]],n=e(`stretch-horizontal`,t);export{t as __iconNode,n as default};

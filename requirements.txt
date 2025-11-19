@@ -1,5 +1,7 @@
 python-dotenv
 
+loguru
+
 agno
 
 google-genai
@@ -30,9 +32,35 @@ pyvirtualdisplay
 evoagentx
 matplotlib
 akshare
-telephon
+telethon
 
 # Reflex project
 reflex
 
-reflex==0.8.13
+# ibacktest
+backtesting
+pandas
+numpy
+
+# Stock API
+tushare
+akshare
+
+# Data analysis and visualization
+matplotlib
+seaborn
+plotly
+
+# Technical indicators
+ta
+
+# Utilities
+python-dateutil
+requests
+pyyaml
+
+# Optional: Jupyter support
+jupyter
+ipywidgets
+
+reflex==0.8.15

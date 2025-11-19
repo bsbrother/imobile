@@ -69,3 +69,18 @@ if __name__ == "__main__":
     )
     response = llm.complete(prompt)
     print(f"Response: {response}")
+
+    # Test model vision capabilities by input a simple image URL
+    vision_prompt = ("Analyze the image at this URL and describe its contents in detail: "
+                     "https://www.gstatic.com/webp/gallery/1.jpg")
+    print('Vision Prompt: ', vision_prompt )
+    llm_vision = create_gemini_with_thinking(
+        api_key=GOOGLE_API_KEY,
+        model='gemini-2.5-flash',
+        thinking_budget=0,
+        temperature=0.1,
+        vision=True,         # Set to True for vision models, False for text-only
+        reflection=True,     # Enable reflection for vision tasks
+    )
+    vision_response = llm_vision.complete(vision_prompt)
+    print(f"Vision Response: {vision_response}")

@@ -1,0 +1,1192 @@
+[
+  {
+    "index": 1,
+    "resourceId": "",
+    "className": "FrameLayout",
+    "text": "FrameLayout",
+    "bounds": "0, 0, 1440, 2880",
+    "children": [
+      {
+        "index": 2,
+        "resourceId": "com.guotai.dazhihui:id/tv_free_stock_free",
+        "className": "TextView",
+        "text": "自选",
+        "bounds": "56, 114, 210, 208",
+        "children": []
+      },
+      {
+        "index": 3,
+        "resourceId": "com.guotai.dazhihui:id/tv_free_stock_market",
+        "className": "TextView",
+        "text": "行情",
+        "bounds": "266, 127, 392, 205",
+        "children": []
+      },
+      {
+        "index": 4,
+        "resourceId": "com.guotai.dazhihui:id/rl_set_text_size",
+        "className": "RelativeLayout",
+        "text": "rl_set_text_size",
+        "bounds": "1020, 98, 1104, 224",
+        "children": []
+      },
+      {
+        "index": 5,
+        "resourceId": "com.guotai.dazhihui:id/title_manage_group",
+        "className": "RelativeLayout",
+        "text": "按钮,自选定制",
+        "bounds": "1160, 98, 1244, 224",
+        "children": []
+      },
+      {
+        "index": 6,
+        "resourceId": "com.guotai.dazhihui:id/title_search",
+        "className": "RelativeLayout",
+        "text": "按钮,搜索",
+        "bounds": "1300, 98, 1384, 224",
+        "children": []
+      },
+      {
+        "index": 7,
+        "resourceId": "com.guotai.dazhihui:id/free_stock_pager",
+        "className": "ViewPager",
+        "text": "free_stock_pager",
+        "bounds": "0, 238, 1440, 2519",
+        "children": [
+          {
+            "index": 8,
+            "resourceId": "com.guotai.dazhihui:id/rv_market_index",
+            "className": "RecyclerView",
+            "text": "rv_market_index",
+            "bounds": "25, 238, 1004, 392",
+            "children": [
+              {
+                "index": 9,
+                "resourceId": "",
+                "className": "LinearLayout",
+                "text": "LinearLayout",
+                "bounds": "25, 249, 355, 392",
+                "children": [
+                  {
+                    "index": 10,
+                    "resourceId": "com.guotai.dazhihui:id/tv_price",
+                    "className": "TextView",
+                    "text": "3889.50",
+                    "bounds": "79, 249, 301, 340",
+                    "children": []
+                  },
+                  {
+                    "index": 11,
+                    "resourceId": "com.guotai.dazhihui:id/tv_zdf",
+                    "className": "TextView",
+                    "text": "沪 -0.19%",
+                    "bounds": "98, 340, 281, 392",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "index": 12,
+                "resourceId": "",
+                "className": "LinearLayout",
+                "text": "LinearLayout",
+                "bounds": "355, 249, 685, 392",
+                "children": [
+                  {
+                    "index": 13,
+                    "resourceId": "com.guotai.dazhihui:id/tv_price",
+                    "className": "TextView",
+                    "text": "13231.47",
+                    "bounds": "392, 249, 648, 340",
+                    "children": []
+                  },
+                  {
+                    "index": 14,
+                    "resourceId": "com.guotai.dazhihui:id/tv_zdf",
+                    "className": "TextView",
+                    "text": "深 -0.93%",
+                    "bounds": "428, 340, 611, 392",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "index": 15,
+                "resourceId": "",
+                "className": "LinearLayout",
+                "text": "LinearLayout",
+                "bounds": "685, 249, 1004, 392",
+                "children": [
+                  {
+                    "index": 16,
+                    "resourceId": "com.guotai.dazhihui:id/tv_price",
+                    "className": "TextView",
+                    "text": "3078.76",
+                    "bounds": "739, 249, 961, 340",
+                    "children": []
+                  },
+                  {
+                    "index": 17,
+                    "resourceId": "com.guotai.dazhihui:id/tv_zdf",
+                    "className": "TextView",
+                    "text": "创 -1.11%",
+                    "bounds": "758, 340, 941, 392",
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "index": 18,
+            "resourceId": "com.guotai.dazhihui:id/ll_show_index_container",
+            "className": "LinearLayout",
+            "text": "ll_show_index_container",
+            "bounds": "1004, 238, 1092, 392",
+            "children": []
+          },
+          {
+            "index": 19,
+            "resourceId": "com.guotai.dazhihui:id/ll_multi_stock",
+            "className": "LinearLayout",
+            "text": "ll_multi_stock",
+            "bounds": "1092, 238, 1238, 392",
+            "children": [
+              {
+                "index": 20,
+                "resourceId": "",
+                "className": "TextView",
+                "text": "多股",
+                "bounds": "1154, 333, 1238, 385",
+                "children": []
+              }
+            ]
+          },
+          {
+            "index": 21,
+            "resourceId": "com.guotai.dazhihui:id/news_free_stock",
+            "className": "LinearLayout",
+            "text": "news_free_stock",
+            "bounds": "1238, 238, 1384, 392",
+            "children": [
+              {
+                "index": 22,
+                "resourceId": "",
+                "className": "TextView",
+                "text": "资讯",
+                "bounds": "1300, 333, 1384, 385",
+                "children": []
+              }
+            ]
+          },
+          {
+            "index": 23,
+            "resourceId": "com.guotai.dazhihui:id/rv_groupName",
+            "className": "RecyclerView",
+            "text": "rv_groupName",
+            "bounds": "56, 450, 1265, 604",
+            "children": [
+              {
+                "index": 24,
+                "resourceId": "",
+                "className": "RelativeLayout",
+                "text": "RelativeLayout",
+                "bounds": "56, 450, 280, 604",
+                "children": [
+                  {
+                    "index": 25,
+                    "resourceId": "com.guotai.dazhihui:id/tv_group_name",
+                    "className": "TextView",
+                    "text": "我的自选",
+                    "bounds": "56, 450, 280, 604",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "index": 26,
+                "resourceId": "",
+                "className": "RelativeLayout",
+                "text": "RelativeLayout",
+                "bounds": "350, 450, 574, 604",
+                "children": [
+                  {
+                    "index": 27,
+                    "resourceId": "com.guotai.dazhihui:id/tv_group_name",
+                    "className": "TextView",
+                    "text": "我的持仓",
+                    "bounds": "350, 450, 574, 604",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "index": 28,
+                "resourceId": "",
+                "className": "RelativeLayout",
+                "text": "RelativeLayout",
+                "bounds": "644, 450, 756, 604",
+                "children": [
+                  {
+                    "index": 29,
+                    "resourceId": "com.guotai.dazhihui:id/tv_group_name",
+                    "className": "TextView",
+                    "text": "低空",
+                    "bounds": "644, 450, 756, 604",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "index": 30,
+                "resourceId": "",
+                "className": "RelativeLayout",
+                "text": "RelativeLayout",
+                "bounds": "826, 450, 938, 604",
+                "children": [
+                  {
+                    "index": 31,
+                    "resourceId": "com.guotai.dazhihui:id/tv_group_name",
+                    "className": "TextView",
+                    "text": "重组",
+                    "bounds": "826, 450, 938, 604",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "index": 32,
+                "resourceId": "",
+                "className": "RelativeLayout",
+                "text": "RelativeLayout",
+                "bounds": "1008, 450, 1232, 604",
+                "children": [
+                  {
+                    "index": 33,
+                    "resourceId": "com.guotai.dazhihui:id/tv_group_name",
+                    "className": "TextView",
+                    "text": "跨境支付",
+                    "bounds": "1008, 450, 1232, 604",
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "index": 34,
+            "resourceId": "com.guotai.dazhihui:id/iv_hideOrShowGroup",
+            "className": "ImageView",
+            "text": "iv_hideOrShowGroup",
+            "bounds": "1286, 450, 1405, 604",
+            "children": []
+          },
+          {
+            "index": 35,
+            "resourceId": "com.guotai.dazhihui:id/scroll_table_view_head",
+            "className": "RelativeLayout",
+            "text": "scroll_table_view_head",
+            "bounds": "0, 604, 1440, 709",
+            "children": [
+              {
+                "index": 36,
+                "resourceId": "com.guotai.dazhihui:id/tv_holdSync",
+                "className": "TextView",
+                "text": "同步",
+                "bounds": "56, 630, 201, 682",
+                "children": []
+              },
+              {
+                "index": 37,
+                "resourceId": "com.guotai.dazhihui:id/line_scroll_view",
+                "className": "HorizontalScrollView",
+                "text": "line_scroll_view",
+                "bounds": "416, 612, 1384, 700",
+                "children": [
+                  {
+                    "index": 38,
+                    "resourceId": "",
+                    "className": "RelativeLayout",
+                    "text": "RelativeLayout",
+                    "bounds": "416, 612, 744, 700",
+                    "children": [
+                      {
+                        "index": 39,
+                        "resourceId": "",
+                        "className": "TextView",
+                        "text": "最新",
+                        "bounds": "434, 630, 674, 682",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "index": 40,
+                    "resourceId": "",
+                    "className": "RelativeLayout",
+                    "text": "RelativeLayout",
+                    "bounds": "744, 612, 1072, 700",
+                    "children": [
+                      {
+                        "index": 41,
+                        "resourceId": "",
+                        "className": "TextView",
+                        "text": "涨幅",
+                        "bounds": "762, 630, 1002, 682",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "index": 42,
+                    "resourceId": "",
+                    "className": "RelativeLayout",
+                    "text": "RelativeLayout",
+                    "bounds": "1072, 612, 1384, 700",
+                    "children": [
+                      {
+                        "index": 43,
+                        "resourceId": "",
+                        "className": "TextView",
+                        "text": "涨跌",
+                        "bounds": "1090, 630, 1330, 682",
+                        "children": []
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "index": 44,
+            "resourceId": "com.guotai.dazhihui:id/table_view_body",
+            "className": "ListView",
+            "text": "table_view_body",
+            "bounds": "56, 709, 1384, 2519",
+            "children": [
+              {
+                "index": 45,
+                "resourceId": "",
+                "className": "FrameLayout",
+                "text": "FrameLayout",
+                "bounds": "56, 709, 1384, 909",
+                "children": [
+                  {
+                    "index": 46,
+                    "resourceId": "com.guotai.dazhihui:id/item_main_content",
+                    "className": "RelativeLayout",
+                    "text": "中科三环，最新价15.45元，涨幅+6.99%",
+                    "bounds": "56, 709, 1384, 909",
+                    "children": [
+                      {
+                        "index": 47,
+                        "resourceId": "com.guotai.dazhihui:id/tv_name",
+                        "className": "TextView",
+                        "text": "中科三环",
+                        "bounds": "56, 730, 316, 810",
+                        "children": []
+                      },
+                      {
+                        "index": 48,
+                        "resourceId": "com.guotai.dazhihui:id/tv_code",
+                        "className": "TextView",
+                        "text": "000970",
+                        "bounds": "56, 821, 224, 888",
+                        "children": []
+                      },
+                      {
+                        "index": 49,
+                        "resourceId": "com.guotai.dazhihui:id/tv_loan",
+                        "className": "TextView",
+                        "text": "融",
+                        "bounds": "231, 832, 280, 876",
+                        "children": []
+                      },
+                      {
+                        "index": 50,
+                        "resourceId": "com.guotai.dazhihui:id/line_scroll_view",
+                        "className": "HorizontalScrollView",
+                        "text": "line_scroll_view",
+                        "bounds": "416, 709, 1384, 909",
+                        "children": [
+                          {
+                            "index": 51,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "15.45",
+                            "bounds": "416, 764, 744, 854",
+                            "children": []
+                          },
+                          {
+                            "index": 52,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "+6.99%",
+                            "bounds": "744, 764, 1072, 854",
+                            "children": []
+                          },
+                          {
+                            "index": 53,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "+1.01",
+                            "bounds": "1072, 764, 1384, 854",
+                            "children": []
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "index": 54,
+                "resourceId": "",
+                "className": "FrameLayout",
+                "text": "FrameLayout",
+                "bounds": "56, 909, 1384, 1109",
+                "children": [
+                  {
+                    "index": 55,
+                    "resourceId": "com.guotai.dazhihui:id/item_main_content",
+                    "className": "RelativeLayout",
+                    "text": "中南股份，最新价2.84元，涨幅+0.35%",
+                    "bounds": "56, 909, 1384, 1109",
+                    "children": [
+                      {
+                        "index": 56,
+                        "resourceId": "com.guotai.dazhihui:id/tv_name",
+                        "className": "TextView",
+                        "text": "中南股份",
+                        "bounds": "56, 930, 316, 1010",
+                        "children": []
+                      },
+                      {
+                        "index": 57,
+                        "resourceId": "com.guotai.dazhihui:id/tv_code",
+                        "className": "TextView",
+                        "text": "000717",
+                        "bounds": "56, 1021, 224, 1088",
+                        "children": []
+                      },
+                      {
+                        "index": 58,
+                        "resourceId": "com.guotai.dazhihui:id/tv_loan",
+                        "className": "TextView",
+                        "text": "融",
+                        "bounds": "231, 1032, 280, 1076",
+                        "children": []
+                      },
+                      {
+                        "index": 59,
+                        "resourceId": "com.guotai.dazhihui:id/line_scroll_view",
+                        "className": "HorizontalScrollView",
+                        "text": "line_scroll_view",
+                        "bounds": "416, 909, 1384, 1109",
+                        "children": [
+                          {
+                            "index": 60,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "2.84",
+                            "bounds": "416, 964, 744, 1054",
+                            "children": []
+                          },
+                          {
+                            "index": 61,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "+0.35%",
+                            "bounds": "744, 964, 1072, 1054",
+                            "children": []
+                          },
+                          {
+                            "index": 62,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "+0.01",
+                            "bounds": "1072, 964, 1384, 1054",
+                            "children": []
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "index": 63,
+                "resourceId": "",
+                "className": "FrameLayout",
+                "text": "FrameLayout",
+                "bounds": "56, 1109, 1384, 1309",
+                "children": [
+                  {
+                    "index": 64,
+                    "resourceId": "com.guotai.dazhihui:id/item_main_content",
+                    "className": "RelativeLayout",
+                    "text": "盈方微，最新价8.64元，涨幅-0.92%",
+                    "bounds": "56, 1109, 1384, 1309",
+                    "children": [
+                      {
+                        "index": 65,
+                        "resourceId": "com.guotai.dazhihui:id/tv_name",
+                        "className": "TextView",
+                        "text": "盈方微",
+                        "bounds": "56, 1130, 251, 1210",
+                        "children": []
+                      },
+                      {
+                        "index": 66,
+                        "resourceId": "com.guotai.dazhihui:id/tv_code",
+                        "className": "TextView",
+                        "text": "000670",
+                        "bounds": "56, 1221, 224, 1288",
+                        "children": []
+                      },
+                      {
+                        "index": 67,
+                        "resourceId": "com.guotai.dazhihui:id/line_scroll_view",
+                        "className": "HorizontalScrollView",
+                        "text": "line_scroll_view",
+                        "bounds": "416, 1109, 1384, 1309",
+                        "children": [
+                          {
+                            "index": 68,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "8.64",
+                            "bounds": "416, 1164, 744, 1254",
+                            "children": []
+                          },
+                          {
+                            "index": 69,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "-0.92%",
+                            "bounds": "744, 1164, 1072, 1254",
+                            "children": []
+                          },
+                          {
+                            "index": 70,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "-0.08",
+                            "bounds": "1072, 1164, 1384, 1254",
+                            "children": []
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "index": 71,
+                "resourceId": "",
+                "className": "FrameLayout",
+                "text": "FrameLayout",
+                "bounds": "56, 1309, 1384, 1509",
+                "children": [
+                  {
+                    "index": 72,
+                    "resourceId": "com.guotai.dazhihui:id/item_main_content",
+                    "className": "RelativeLayout",
+                    "text": "深圳华强，最新价27.66元，涨幅-2.09%",
+                    "bounds": "56, 1309, 1384, 1509",
+                    "children": [
+                      {
+                        "index": 73,
+                        "resourceId": "com.guotai.dazhihui:id/tv_name",
+                        "className": "TextView",
+                        "text": "深圳华强",
+                        "bounds": "56, 1330, 316, 1410",
+                        "children": []
+                      },
+                      {
+                        "index": 74,
+                        "resourceId": "com.guotai.dazhihui:id/tv_code",
+                        "className": "TextView",
+                        "text": "000062",
+                        "bounds": "56, 1421, 224, 1488",
+                        "children": []
+                      },
+                      {
+                        "index": 75,
+                        "resourceId": "com.guotai.dazhihui:id/tv_loan",
+                        "className": "TextView",
+                        "text": "融",
+                        "bounds": "231, 1432, 280, 1476",
+                        "children": []
+                      },
+                      {
+                        "index": 76,
+                        "resourceId": "com.guotai.dazhihui:id/line_scroll_view",
+                        "className": "HorizontalScrollView",
+                        "text": "line_scroll_view",
+                        "bounds": "416, 1309, 1384, 1509",
+                        "children": [
+                          {
+                            "index": 77,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "27.66",
+                            "bounds": "416, 1364, 744, 1454",
+                            "children": []
+                          },
+                          {
+                            "index": 78,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "-2.09%",
+                            "bounds": "744, 1364, 1072, 1454",
+                            "children": []
+                          },
+                          {
+                            "index": 79,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "-0.59",
+                            "bounds": "1072, 1364, 1384, 1454",
+                            "children": []
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "index": 80,
+                "resourceId": "",
+                "className": "FrameLayout",
+                "text": "FrameLayout",
+                "bounds": "56, 1509, 1384, 1709",
+                "children": [
+                  {
+                    "index": 81,
+                    "resourceId": "com.guotai.dazhihui:id/item_main_content",
+                    "className": "RelativeLayout",
+                    "text": "中国宝安，最新价11.89元，涨幅-2.14%",
+                    "bounds": "56, 1509, 1384, 1709",
+                    "children": [
+                      {
+                        "index": 82,
+                        "resourceId": "com.guotai.dazhihui:id/tv_name",
+                        "className": "TextView",
+                        "text": "中国宝安",
+                        "bounds": "56, 1530, 316, 1610",
+                        "children": []
+                      },
+                      {
+                        "index": 83,
+                        "resourceId": "com.guotai.dazhihui:id/tv_code",
+                        "className": "TextView",
+                        "text": "000009",
+                        "bounds": "56, 1621, 224, 1688",
+                        "children": []
+                      },
+                      {
+                        "index": 84,
+                        "resourceId": "com.guotai.dazhihui:id/tv_loan",
+                        "className": "TextView",
+                        "text": "融",
+                        "bounds": "231, 1632, 280, 1676",
+                        "children": []
+                      },
+                      {
+                        "index": 85,
+                        "resourceId": "com.guotai.dazhihui:id/line_scroll_view",
+                        "className": "HorizontalScrollView",
+                        "text": "line_scroll_view",
+                        "bounds": "416, 1509, 1384, 1709",
+                        "children": [
+                          {
+                            "index": 86,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "11.89",
+                            "bounds": "416, 1564, 744, 1654",
+                            "children": []
+                          },
+                          {
+                            "index": 87,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "-2.14%",
+                            "bounds": "744, 1564, 1072, 1654",
+                            "children": []
+                          },
+                          {
+                            "index": 88,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "-0.26",
+                            "bounds": "1072, 1564, 1384, 1654",
+                            "children": []
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "index": 89,
+                "resourceId": "",
+                "className": "FrameLayout",
+                "text": "FrameLayout",
+                "bounds": "56, 1709, 1384, 1909",
+                "children": [
+                  {
+                    "index": 90,
+                    "resourceId": "com.guotai.dazhihui:id/item_main_content",
+                    "className": "RelativeLayout",
+                    "text": "深振业Ａ，最新价13.13元，涨幅+9.97%",
+                    "bounds": "56, 1709, 1384, 1909",
+                    "children": [
+                      {
+                        "index": 91,
+                        "resourceId": "com.guotai.dazhihui:id/tv_name",
+                        "className": "TextView",
+                        "text": "深振业Ａ",
+                        "bounds": "56, 1730, 316, 1810",
+                        "children": []
+                      },
+                      {
+                        "index": 92,
+                        "resourceId": "com.guotai.dazhihui:id/tv_code",
+                        "className": "TextView",
+                        "text": "000006",
+                        "bounds": "56, 1821, 224, 1888",
+                        "children": []
+                      },
+                      {
+                        "index": 93,
+                        "resourceId": "com.guotai.dazhihui:id/tv_loan",
+                        "className": "TextView",
+                        "text": "融",
+                        "bounds": "231, 1832, 280, 1876",
+                        "children": []
+                      },
+                      {
+                        "index": 94,
+                        "resourceId": "com.guotai.dazhihui:id/line_scroll_view",
+                        "className": "HorizontalScrollView",
+                        "text": "line_scroll_view",
+                        "bounds": "416, 1709, 1384, 1909",
+                        "children": [
+                          {
+                            "index": 95,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "13.13",
+                            "bounds": "416, 1764, 744, 1854",
+                            "children": []
+                          },
+                          {
+                            "index": 96,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "+9.97%",
+                            "bounds": "744, 1764, 1072, 1854",
+                            "children": []
+                          },
+                          {
+                            "index": 97,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "+1.19",
+                            "bounds": "1072, 1764, 1384, 1854",
+                            "children": []
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "index": 98,
+                "resourceId": "",
+                "className": "FrameLayout",
+                "text": "FrameLayout",
+                "bounds": "56, 1909, 1384, 2109",
+                "children": [
+                  {
+                    "index": 99,
+                    "resourceId": "com.guotai.dazhihui:id/item_main_content",
+                    "className": "RelativeLayout",
+                    "text": "安井食品，最新价69.93元，涨幅-1.10%",
+                    "bounds": "56, 1909, 1384, 2109",
+                    "children": [
+                      {
+                        "index": 100,
+                        "resourceId": "com.guotai.dazhihui:id/tv_name",
+                        "className": "TextView",
+                        "text": "安井食品",
+                        "bounds": "56, 1930, 316, 2010",
+                        "children": []
+                      },
+                      {
+                        "index": 101,
+                        "resourceId": "com.guotai.dazhihui:id/tv_code",
+                        "className": "TextView",
+                        "text": "603345",
+                        "bounds": "56, 2021, 224, 2088",
+                        "children": []
+                      },
+                      {
+                        "index": 102,
+                        "resourceId": "com.guotai.dazhihui:id/tv_loan",
+                        "className": "TextView",
+                        "text": "融",
+                        "bounds": "231, 2032, 280, 2076",
+                        "children": []
+                      },
+                      {
+                        "index": 103,
+                        "resourceId": "com.guotai.dazhihui:id/line_scroll_view",
+                        "className": "HorizontalScrollView",
+                        "text": "line_scroll_view",
+                        "bounds": "416, 1909, 1384, 2109",
+                        "children": [
+                          {
+                            "index": 104,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "69.93",
+                            "bounds": "416, 1964, 744, 2054",
+                            "children": []
+                          },
+                          {
+                            "index": 105,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "-1.10%",
+                            "bounds": "744, 1964, 1072, 2054",
+                            "children": []
+                          },
+                          {
+                            "index": 106,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "-0.78",
+                            "bounds": "1072, 1964, 1384, 2054",
+                            "children": []
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "index": 107,
+                "resourceId": "",
+                "className": "FrameLayout",
+                "text": "FrameLayout",
+                "bounds": "56, 2109, 1384, 2309",
+                "children": [
+                  {
+                    "index": 108,
+                    "resourceId": "com.guotai.dazhihui:id/item_main_content",
+                    "className": "RelativeLayout",
+                    "text": "美凯龙，最新价2.80元，涨幅-1.41%",
+                    "bounds": "56, 2109, 1384, 2309",
+                    "children": [
+                      {
+                        "index": 109,
+                        "resourceId": "com.guotai.dazhihui:id/tv_name",
+                        "className": "TextView",
+                        "text": "美凯龙",
+                        "bounds": "56, 2130, 251, 2210",
+                        "children": []
+                      },
+                      {
+                        "index": 110,
+                        "resourceId": "com.guotai.dazhihui:id/tv_code",
+                        "className": "TextView",
+                        "text": "601828",
+                        "bounds": "56, 2221, 224, 2288",
+                        "children": []
+                      },
+                      {
+                        "index": 111,
+                        "resourceId": "com.guotai.dazhihui:id/tv_loan",
+                        "className": "TextView",
+                        "text": "融",
+                        "bounds": "231, 2232, 280, 2276",
+                        "children": []
+                      },
+                      {
+                        "index": 112,
+                        "resourceId": "com.guotai.dazhihui:id/line_scroll_view",
+                        "className": "HorizontalScrollView",
+                        "text": "line_scroll_view",
+                        "bounds": "416, 2109, 1384, 2309",
+                        "children": [
+                          {
+                            "index": 113,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "2.80",
+                            "bounds": "416, 2164, 744, 2254",
+                            "children": []
+                          },
+                          {
+                            "index": 114,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "-1.41%",
+                            "bounds": "744, 2164, 1072, 2254",
+                            "children": []
+                          },
+                          {
+                            "index": 115,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "-0.04",
+                            "bounds": "1072, 2164, 1384, 2254",
+                            "children": []
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "index": 116,
+                "resourceId": "",
+                "className": "FrameLayout",
+                "text": "FrameLayout",
+                "bounds": "56, 2309, 1384, 2509",
+                "children": [
+                  {
+                    "index": 117,
+                    "resourceId": "com.guotai.dazhihui:id/item_main_content",
+                    "className": "RelativeLayout",
+                    "text": "华安证券，最新价6.39元，涨幅-0.31%",
+                    "bounds": "56, 2309, 1384, 2509",
+                    "children": [
+                      {
+                        "index": 118,
+                        "resourceId": "com.guotai.dazhihui:id/tv_name",
+                        "className": "TextView",
+                        "text": "华安证券",
+                        "bounds": "56, 2330, 316, 2410",
+                        "children": []
+                      },
+                      {
+                        "index": 119,
+                        "resourceId": "com.guotai.dazhihui:id/tv_code",
+                        "className": "TextView",
+                        "text": "600909",
+                        "bounds": "56, 2421, 224, 2488",
+                        "children": []
+                      },
+                      {
+                        "index": 120,
+                        "resourceId": "com.guotai.dazhihui:id/tv_loan",
+                        "className": "TextView",
+                        "text": "融",
+                        "bounds": "231, 2432, 280, 2476",
+                        "children": []
+                      },
+                      {
+                        "index": 121,
+                        "resourceId": "com.guotai.dazhihui:id/line_scroll_view",
+                        "className": "HorizontalScrollView",
+                        "text": "line_scroll_view",
+                        "bounds": "416, 2309, 1384, 2509",
+                        "children": [
+                          {
+                            "index": 122,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "6.39",
+                            "bounds": "416, 2364, 744, 2454",
+                            "children": []
+                          },
+                          {
+                            "index": 123,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "-0.31%",
+                            "bounds": "744, 2364, 1072, 2454",
+                            "children": []
+                          },
+                          {
+                            "index": 124,
+                            "resourceId": "",
+                            "className": "TextView",
+                            "text": "-0.02",
+                            "bounds": "1072, 2364, 1384, 2454",
+                            "children": []
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "index": 125,
+                "resourceId": "",
+                "className": "FrameLayout",
+                "text": "FrameLayout",
+                "bounds": "56, 2509, 1384, 2519",
+                "children": [
+                  {
+                    "index": 126,
+                    "resourceId": "com.guotai.dazhihui:id/item_main_content",
+                    "className": "RelativeLayout",
+                    "text": "亚泰集团，最新价1.92元，涨幅-2.04%",
+                    "bounds": "56, 2509, 1384, 2519",
+                    "children": [
+                      {
+                        "index": 127,
+                        "resourceId": "com.guotai.dazhihui:id/line_scroll_view",
+                        "className": "HorizontalScrollView",
+                        "text": "line_scroll_view",
+                        "bounds": "416, 2509, 1384, 2519",
+                        "children": []
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "index": 128,
+        "resourceId": "com.guotai.dazhihui:id/bottom_menu_button1",
+        "className": "LinearLayout",
+        "text": "bottom_menu_button1",
+        "bounds": "0, 2519, 288, 2712",
+        "children": [
+          {
+            "index": 129,
+            "resourceId": "com.guotai.dazhihui:id/btm_image1",
+            "className": "ImageView",
+            "text": "发现",
+            "bounds": "102, 2544, 186, 2628",
+            "children": []
+          },
+          {
+            "index": 130,
+            "resourceId": "com.guotai.dazhihui:id/btm_text1",
+            "className": "TextView",
+            "text": "发现",
+            "bounds": "0, 2628, 288, 2686",
+            "children": []
+          }
+        ]
+      },
+      {
+        "index": 131,
+        "resourceId": "com.guotai.dazhihui:id/bottom_menu_button2",
+        "className": "LinearLayout",
+        "text": "bottom_menu_button2",
+        "bounds": "288, 2519, 576, 2712",
+        "children": [
+          {
+            "index": 132,
+            "resourceId": "com.guotai.dazhihui:id/btm_image2",
+            "className": "ImageView",
+            "text": "行情",
+            "bounds": "390, 2544, 474, 2628",
+            "children": []
+          },
+          {
+            "index": 133,
+            "resourceId": "com.guotai.dazhihui:id/btm_text2",
+            "className": "TextView",
+            "text": "行情",
+            "bounds": "288, 2628, 576, 2686",
+            "children": []
+          }
+        ]
+      },
+      {
+        "index": 134,
+        "resourceId": "com.guotai.dazhihui:id/bottom_menu_button3",
+        "className": "LinearLayout",
+        "text": "bottom_menu_button3",
+        "bounds": "576, 2519, 864, 2712",
+        "children": [
+          {
+            "index": 135,
+            "resourceId": "com.guotai.dazhihui:id/btm_image3",
+            "className": "ImageView",
+            "text": "交易",
+            "bounds": "678, 2544, 762, 2628",
+            "children": []
+          },
+          {
+            "index": 136,
+            "resourceId": "com.guotai.dazhihui:id/btm_text3",
+            "className": "TextView",
+            "text": "交易",
+            "bounds": "576, 2628, 864, 2686",
+            "children": []
+          }
+        ]
+      },
+      {
+        "index": 137,
+        "resourceId": "com.guotai.dazhihui:id/bottom_menu_button4",
+        "className": "LinearLayout",
+        "text": "bottom_menu_button4",
+        "bounds": "864, 2519, 1152, 2712",
+        "children": [
+          {
+            "index": 138,
+            "resourceId": "com.guotai.dazhihui:id/btm_image4",
+            "className": "ImageView",
+            "text": "理财",
+            "bounds": "966, 2544, 1050, 2628",
+            "children": []
+          },
+          {
+            "index": 139,
+            "resourceId": "com.guotai.dazhihui:id/btm_text4",
+            "className": "TextView",
+            "text": "理财",
+            "bounds": "864, 2628, 1152, 2686",
+            "children": []
+          }
+        ]
+      },
+      {
+        "index": 140,
+        "resourceId": "com.guotai.dazhihui:id/bottom_menu_button5",
+        "className": "LinearLayout",
+        "text": "bottom_menu_button5",
+        "bounds": "1152, 2519, 1440, 2712",
+        "children": [
+          {
+            "index": 141,
+            "resourceId": "com.guotai.dazhihui:id/btm_image5",
+            "className": "ImageView",
+            "text": "我的",
+            "bounds": "1254, 2544, 1338, 2628",
+            "children": []
+          },
+          {
+            "index": 142,
+            "resourceId": "com.guotai.dazhihui:id/btm_text5",
+            "className": "TextView",
+            "text": "我的",
+            "bounds": "1152, 2628, 1440, 2686",
+            "children": []
+          }
+        ]
+      }
+    ]
+  }
+]

@@ -1,0 +1,572 @@
+[
+  {
+    "index": 1,
+    "resourceId": "",
+    "className": "FrameLayout",
+    "text": "FrameLayout",
+    "bounds": "0, 0, 1440, 2880",
+    "children": [
+      {
+        "index": 2,
+        "resourceId": "com.guotai.dazhihui:id/page_indicator_trade_home",
+        "className": "HorizontalScrollView",
+        "text": "page_indicator_trade_home",
+        "bounds": "18, 104, 584, 218",
+        "children": [
+          {
+            "index": 3,
+            "resourceId": "",
+            "className": "TextView",
+            "text": "普通",
+            "bounds": "18, 104, 228, 218",
+            "children": []
+          },
+          {
+            "index": 4,
+            "resourceId": "",
+            "className": "TextView",
+            "text": "信用",
+            "bounds": "224, 117, 406, 214",
+            "children": []
+          },
+          {
+            "index": 5,
+            "resourceId": "",
+            "className": "TextView",
+            "text": "期货",
+            "bounds": "402, 117, 584, 214",
+            "children": []
+          }
+        ]
+      },
+      {
+        "index": 6,
+        "resourceId": "com.guotai.dazhihui:id/iv_trade_head_xiaojun",
+        "className": "ImageView",
+        "text": "iv_trade_head_xiaojun",
+        "bounds": "1303, 119, 1387, 203",
+        "children": []
+      },
+      {
+        "index": 7,
+        "resourceId": "com.guotai.dazhihui:id/tv_system_alert",
+        "className": "TextView",
+        "text": "当前系统清算中，资产数据可能存在不准确的情况，预计将于10月23日01时00分结束",
+        "bounds": "0, 238, 1440, 346",
+        "children": []
+      },
+      {
+        "index": 8,
+        "resourceId": "com.guotai.dazhihui:id/pager_firm_trade_home",
+        "className": "ViewPager",
+        "text": "pager_firm_trade_home",
+        "bounds": "0, 346, 1440, 2519",
+        "children": [
+          {
+            "index": 9,
+            "resourceId": "com.guotai.dazhihui:id/sv_trade_menu",
+            "className": "ScrollView",
+            "text": "sv_trade_menu",
+            "bounds": "0, 346, 1440, 2519",
+            "children": [
+              {
+                "index": 10,
+                "resourceId": "com.guotai.dazhihui:id/tv_login_remark",
+                "className": "TextView",
+                "text": "登录即享资产分析等服务",
+                "bounds": "53, 412, 592, 473",
+                "children": []
+              },
+              {
+                "index": 11,
+                "resourceId": "com.guotai.dazhihui:id/btn_trade_login",
+                "className": "TextView",
+                "text": "立即登录",
+                "bounds": "1100, 387, 1387, 498",
+                "children": []
+              },
+              {
+                "index": 12,
+                "resourceId": "com.guotai.dazhihui:id/gridview",
+                "className": "GridView",
+                "text": "gridview",
+                "bounds": "0, 581, 1440, 1314",
+                "children": [
+                  {
+                    "index": 13,
+                    "resourceId": "",
+                    "className": "FrameLayout",
+                    "text": "FrameLayout",
+                    "bounds": "0, 609, 360, 830",
+                    "children": [
+                      {
+                        "index": 14,
+                        "resourceId": "com.guotai.dazhihui:id/tvName",
+                        "className": "TextView",
+                        "text": "买入",
+                        "bounds": "14, 756, 346, 809",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "index": 15,
+                    "resourceId": "",
+                    "className": "FrameLayout",
+                    "text": "FrameLayout",
+                    "bounds": "360, 609, 720, 831",
+                    "children": [
+                      {
+                        "index": 16,
+                        "resourceId": "com.guotai.dazhihui:id/tvName",
+                        "className": "TextView",
+                        "text": "卖出",
+                        "bounds": "374, 756, 706, 810",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "index": 17,
+                    "resourceId": "",
+                    "className": "FrameLayout",
+                    "text": "FrameLayout",
+                    "bounds": "720, 609, 1080, 831",
+                    "children": [
+                      {
+                        "index": 18,
+                        "resourceId": "com.guotai.dazhihui:id/tvName",
+                        "className": "TextView",
+                        "text": "撤单",
+                        "bounds": "734, 756, 1066, 810",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "index": 19,
+                    "resourceId": "",
+                    "className": "FrameLayout",
+                    "text": "FrameLayout",
+                    "bounds": "1080, 609, 1440, 831",
+                    "children": [
+                      {
+                        "index": 20,
+                        "resourceId": "com.guotai.dazhihui:id/tvName",
+                        "className": "TextView",
+                        "text": "持仓",
+                        "bounds": "1094, 756, 1426, 810",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "index": 21,
+                    "resourceId": "",
+                    "className": "FrameLayout",
+                    "text": "FrameLayout",
+                    "bounds": "0, 831, 360, 1053",
+                    "children": [
+                      {
+                        "index": 22,
+                        "resourceId": "com.guotai.dazhihui:id/tvName",
+                        "className": "TextView",
+                        "text": "当日交易",
+                        "bounds": "14, 978, 346, 1032",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "index": 23,
+                    "resourceId": "",
+                    "className": "FrameLayout",
+                    "text": "FrameLayout",
+                    "bounds": "360, 831, 720, 1053",
+                    "children": [
+                      {
+                        "index": 24,
+                        "resourceId": "com.guotai.dazhihui:id/tvName",
+                        "className": "TextView",
+                        "text": "综合查询",
+                        "bounds": "374, 978, 706, 1032",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "index": 25,
+                    "resourceId": "",
+                    "className": "FrameLayout",
+                    "text": "FrameLayout",
+                    "bounds": "720, 831, 1080, 1053",
+                    "children": [
+                      {
+                        "index": 26,
+                        "resourceId": "com.guotai.dazhihui:id/tvName",
+                        "className": "TextView",
+                        "text": "转账",
+                        "bounds": "734, 978, 1066, 1032",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "index": 27,
+                    "resourceId": "",
+                    "className": "FrameLayout",
+                    "text": "FrameLayout",
+                    "bounds": "1080, 831, 1440, 1053",
+                    "children": [
+                      {
+                        "index": 28,
+                        "resourceId": "com.guotai.dazhihui:id/tvName",
+                        "className": "TextView",
+                        "text": "新三板交易",
+                        "bounds": "1094, 978, 1426, 1032",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "index": 29,
+                    "resourceId": "",
+                    "className": "FrameLayout",
+                    "text": "FrameLayout",
+                    "bounds": "0, 1053, 360, 1275",
+                    "children": [
+                      {
+                        "index": 30,
+                        "resourceId": "com.guotai.dazhihui:id/tvName",
+                        "className": "TextView",
+                        "text": "更多",
+                        "bounds": "14, 1200, 346, 1254",
+                        "children": []
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "index": 31,
+                "resourceId": "com.guotai.dazhihui:id/tv_xgsg_upgrade_tag",
+                "className": "TextView",
+                "text": "升级",
+                "bounds": "343, 1454, 429, 1509",
+                "children": []
+              },
+              {
+                "index": 32,
+                "resourceId": "com.guotai.dazhihui:id/cl_xgsg",
+                "className": "ViewGroup",
+                "text": "cl_xgsg",
+                "bounds": "98, 1559, 524, 1687",
+                "children": [
+                  {
+                    "index": 33,
+                    "resourceId": "com.guotai.dazhihui:id/tv_xgsg_str",
+                    "className": "TextView",
+                    "text": "新股",
+                    "bounds": "126, 1597, 210, 1649",
+                    "children": []
+                  },
+                  {
+                    "index": 34,
+                    "resourceId": "com.guotai.dazhihui:id/tv_xgsg_count",
+                    "className": "TextView",
+                    "text": "0",
+                    "bounds": "462, 1584, 496, 1662",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "index": 35,
+                "resourceId": "com.guotai.dazhihui:id/cl_kzz",
+                "className": "ViewGroup",
+                "text": "cl_kzz",
+                "bounds": "98, 1729, 524, 1857",
+                "children": [
+                  {
+                    "index": 36,
+                    "resourceId": "com.guotai.dazhihui:id/tv_kzz_str",
+                    "className": "TextView",
+                    "text": "新债",
+                    "bounds": "126, 1767, 210, 1819",
+                    "children": []
+                  },
+                  {
+                    "index": 37,
+                    "resourceId": "com.guotai.dazhihui:id/tv_kzz_count",
+                    "className": "TextView",
+                    "text": "0",
+                    "bounds": "462, 1754, 496, 1832",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "index": 38,
+                "resourceId": "com.guotai.dazhihui:id/cl_strategy_card",
+                "className": "ViewGroup",
+                "text": "cl_strategy_card",
+                "bounds": "608, 1412, 1384, 1643",
+                "children": [
+                  {
+                    "index": 39,
+                    "resourceId": "",
+                    "className": "TextView",
+                    "text": "轻松下单自动盯盘",
+                    "bounds": "650, 1560, 1097, 1611",
+                    "children": []
+                  },
+                  {
+                    "index": 40,
+                    "resourceId": "com.guotai.dazhihui:id/tv_use_pp",
+                    "className": "TextView",
+                    "text": "创建订单",
+                    "bounds": "1104, 1528, 1342, 1618",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "index": 41,
+                "resourceId": "com.guotai.dazhihui:id/cl_smart_card",
+                "className": "ViewGroup",
+                "text": "cl_smart_card",
+                "bounds": "608, 1685, 1384, 1916",
+                "children": [
+                  {
+                    "index": 42,
+                    "resourceId": "",
+                    "className": "TextView",
+                    "text": "定制专属策略",
+                    "bounds": "650, 1833, 1097, 1884",
+                    "children": []
+                  },
+                  {
+                    "index": 43,
+                    "resourceId": "com.guotai.dazhihui:id/tv_go_use",
+                    "className": "TextView",
+                    "text": "立即定制",
+                    "bounds": "1104, 1801, 1342, 1891",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "index": 44,
+                "resourceId": "",
+                "className": "LinearLayout",
+                "text": "LinearLayout",
+                "bounds": "0, 2014, 1440, 2190",
+                "children": [
+                  {
+                    "index": 45,
+                    "resourceId": "com.guotai.dazhihui:id/trade_yw_tv",
+                    "className": "TextView",
+                    "text": "ETF基金",
+                    "bounds": "60, 2014, 270, 2189",
+                    "children": []
+                  },
+                  {
+                    "index": 46,
+                    "resourceId": "com.guotai.dazhihui:id/trade_yw_sub_tv",
+                    "className": "TextView",
+                    "text": "HOT",
+                    "bounds": "288, 2072, 377, 2130",
+                    "children": []
+                  },
+                  {
+                    "index": 47,
+                    "resourceId": "com.guotai.dazhihui:id/trade_yw_summary_tv",
+                    "className": "TextView",
+                    "text": "新增策略、投教、互动圈子",
+                    "bounds": "377, 2014, 1310, 2189",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "index": 48,
+                "resourceId": "",
+                "className": "LinearLayout",
+                "text": "LinearLayout",
+                "bounds": "0, 2190, 1440, 2366",
+                "children": [
+                  {
+                    "index": 49,
+                    "resourceId": "com.guotai.dazhihui:id/trade_yw_tv",
+                    "className": "TextView",
+                    "text": "可转债申购",
+                    "bounds": "60, 2190, 340, 2365",
+                    "children": []
+                  },
+                  {
+                    "index": 50,
+                    "resourceId": "com.guotai.dazhihui:id/trade_yw_summary_tv",
+                    "className": "TextView",
+                    "text": "支持新债预约",
+                    "bounds": "340, 2190, 1310, 2365",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "index": 51,
+                "resourceId": "",
+                "className": "LinearLayout",
+                "text": "LinearLayout",
+                "bounds": "0, 2366, 1440, 2519",
+                "children": [
+                  {
+                    "index": 52,
+                    "resourceId": "com.guotai.dazhihui:id/trade_yw_tv",
+                    "className": "TextView",
+                    "text": "新三板交易",
+                    "bounds": "60, 2366, 340, 2519",
+                    "children": []
+                  },
+                  {
+                    "index": 53,
+                    "resourceId": "com.guotai.dazhihui:id/trade_yw_summary_tv",
+                    "className": "TextView",
+                    "text": "开权限、新三板大宗交易",
+                    "bounds": "340, 2366, 1310, 2519",
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "index": 54,
+        "resourceId": "com.guotai.dazhihui:id/bottom_menu_button1",
+        "className": "LinearLayout",
+        "text": "bottom_menu_button1",
+        "bounds": "0, 2519, 288, 2712",
+        "children": [
+          {
+            "index": 55,
+            "resourceId": "com.guotai.dazhihui:id/btm_image1",
+            "className": "ImageView",
+            "text": "发现",
+            "bounds": "102, 2544, 186, 2628",
+            "children": []
+          },
+          {
+            "index": 56,
+            "resourceId": "com.guotai.dazhihui:id/btm_text1",
+            "className": "TextView",
+            "text": "发现",
+            "bounds": "0, 2628, 288, 2686",
+            "children": []
+          }
+        ]
+      },
+      {
+        "index": 57,
+        "resourceId": "com.guotai.dazhihui:id/bottom_menu_button2",
+        "className": "LinearLayout",
+        "text": "bottom_menu_button2",
+        "bounds": "288, 2519, 576, 2712",
+        "children": [
+          {
+            "index": 58,
+            "resourceId": "com.guotai.dazhihui:id/btm_image2",
+            "className": "ImageView",
+            "text": "行情",
+            "bounds": "390, 2544, 474, 2628",
+            "children": []
+          },
+          {
+            "index": 59,
+            "resourceId": "com.guotai.dazhihui:id/btm_text2",
+            "className": "TextView",
+            "text": "行情",
+            "bounds": "288, 2628, 576, 2686",
+            "children": []
+          }
+        ]
+      },
+      {
+        "index": 60,
+        "resourceId": "com.guotai.dazhihui:id/bottom_menu_button3",
+        "className": "LinearLayout",
+        "text": "bottom_menu_button3",
+        "bounds": "576, 2519, 864, 2712",
+        "children": [
+          {
+            "index": 61,
+            "resourceId": "com.guotai.dazhihui:id/btm_image3",
+            "className": "ImageView",
+            "text": "交易",
+            "bounds": "678, 2544, 762, 2628",
+            "children": []
+          },
+          {
+            "index": 62,
+            "resourceId": "com.guotai.dazhihui:id/btm_text3",
+            "className": "TextView",
+            "text": "交易",
+            "bounds": "576, 2628, 864, 2686",
+            "children": []
+          }
+        ]
+      },
+      {
+        "index": 63,
+        "resourceId": "com.guotai.dazhihui:id/bottom_menu_button4",
+        "className": "LinearLayout",
+        "text": "bottom_menu_button4",
+        "bounds": "864, 2519, 1152, 2712",
+        "children": [
+          {
+            "index": 64,
+            "resourceId": "com.guotai.dazhihui:id/btm_image4",
+            "className": "ImageView",
+            "text": "理财",
+            "bounds": "966, 2544, 1050, 2628",
+            "children": []
+          },
+          {
+            "index": 65,
+            "resourceId": "com.guotai.dazhihui:id/btm_text4",
+            "className": "TextView",
+            "text": "理财",
+            "bounds": "864, 2628, 1152, 2686",
+            "children": []
+          }
+        ]
+      },
+      {
+        "index": 66,
+        "resourceId": "com.guotai.dazhihui:id/bottom_menu_button5",
+        "className": "LinearLayout",
+        "text": "bottom_menu_button5",
+        "bounds": "1152, 2519, 1440, 2712",
+        "children": [
+          {
+            "index": 67,
+            "resourceId": "com.guotai.dazhihui:id/btm_image5",
+            "className": "ImageView",
+            "text": "我的",
+            "bounds": "1254, 2544, 1338, 2628",
+            "children": []
+          },
+          {
+            "index": 68,
+            "resourceId": "com.guotai.dazhihui:id/btm_text5",
+            "className": "TextView",
+            "text": "我的",
+            "bounds": "1152, 2628, 1440, 2686",
+            "children": []
+          }
+        ]
+      }
+    ]
+  }
+]

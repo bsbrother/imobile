@@ -1,0 +1,110 @@
+[
+  {
+    "index": 1,
+    "resourceId": "",
+    "className": "FrameLayout",
+    "text": "FrameLayout",
+    "bounds": "0, 0, 1440, 2880",
+    "children": [
+      {
+        "index": 2,
+        "resourceId": "com.android.launcher3:id/scrim_view",
+        "className": "View",
+        "text": "scrim_view",
+        "bounds": "0, 0, 1440, 2880",
+        "children": [
+          {
+            "index": 3,
+            "resourceId": "",
+            "className": "View",
+            "text": "Apps list",
+            "bounds": "689, 2244, 752, 2265",
+            "children": []
+          }
+        ]
+      },
+      {
+        "index": 4,
+        "resourceId": "com.android.launcher3:id/workspace",
+        "className": "ScrollView",
+        "text": "workspace",
+        "bounds": "0, 0, 1440, 2880",
+        "children": [
+          {
+            "index": 5,
+            "resourceId": "com.android.launcher3:id/qsb_widget",
+            "className": "AppWidgetHostView",
+            "text": "Search",
+            "bounds": "48, 112, 1392, 525",
+            "children": [
+              {
+                "index": 6,
+                "resourceId": "com.android.quicksearchbox:id/search_icon",
+                "className": "ImageView",
+                "text": "search_icon",
+                "bounds": "81, 234, 249, 402",
+                "children": []
+              },
+              {
+                "index": 7,
+                "resourceId": "com.android.quicksearchbox:id/search_widget_text",
+                "className": "TextView",
+                "text": "search_widget_text",
+                "bounds": "249, 242, 1344, 394",
+                "children": []
+              }
+            ]
+          },
+          {
+            "index": 8,
+            "resourceId": "",
+            "className": "TextView",
+            "text": "Gallery",
+            "bounds": "317, 1764, 586, 2177",
+            "children": []
+          }
+        ]
+      },
+      {
+        "index": 9,
+        "resourceId": "",
+        "className": "TextView",
+        "text": "Phone",
+        "bounds": "48, 2293, 317, 2608",
+        "children": []
+      },
+      {
+        "index": 10,
+        "resourceId": "",
+        "className": "TextView",
+        "text": "Messaging",
+        "bounds": "317, 2293, 586, 2608",
+        "children": []
+      },
+      {
+        "index": 11,
+        "resourceId": "",
+        "className": "TextView",
+        "text": "国泰海通君弘",
+        "bounds": "586, 2293, 855, 2608",
+        "children": []
+      },
+      {
+        "index": 12,
+        "resourceId": "",
+        "className": "TextView",
+        "text": "WebView Browser Tester",
+        "bounds": "855, 2293, 1124, 2608",
+        "children": []
+      },
+      {
+        "index": 13,
+        "resourceId": "",
+        "className": "TextView",
+        "text": "Camera",
+        "bounds": "1124, 2293, 1392, 2608",
+        "children": []
+      }
+    ]
+  }
+]

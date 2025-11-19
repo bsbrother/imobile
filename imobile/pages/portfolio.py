@@ -8,7 +8,7 @@ from imobile.states.portfolio_state import PortfolioState
 
 def portfolio() -> rx.Component:
     """Portfolio page component."""
-    return rx.fragment(
+    return rx.box(
         # Mobile hamburger menu button
         rx.button(
             rx.icon("menu", size=24),
@@ -37,7 +37,7 @@ def portfolio() -> rx.Component:
         
         # Main content area
         rx.box(
-            rx.container(
+            rx.box(
                 # Loading indicator
                 rx.cond(
                     PortfolioState.is_loading,
@@ -58,8 +58,10 @@ def portfolio() -> rx.Component:
                 ),
                 padding="4",
                 max_width="90rem",
+                margin="0 auto",
+                width="100%",
                 style={
-                    "margin": "0 auto",  # Center the container
+                    "box-sizing": "border-box",
                 },
             ),
             # Responsive margin based on sidebar width and screen size
@@ -69,11 +71,18 @@ def portfolio() -> rx.Component:
                 rx.cond(PortfolioState.is_sidebar_expanded, "14rem", "4rem"),  # desktop
             ],
             transition="margin-left 0.3s ease",
-            width="100%",
             height="100vh",
             overflow_y="auto",
             overflow_x="hidden",
+            position="relative",
+            style={
+                "box-sizing": "border-box",
+            },
             class_name="main-content",
         ),
+        overflow="hidden",
+        position="fixed",
+        width="100vw",
+        height="100vh",
         on_mount=PortfolioState.on_load,  # Load data when page mounts
     )

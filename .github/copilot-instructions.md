@@ -1,6 +1,6 @@
 # Project Guidelines for imobile Project
 
-imobile project is a web application built with the [Reflex](https://reflex.dev/) framework for tracking stock portfolios. It outlines the project structure, coding conventions, and best practices to maintain consistency and facilitate collaboration.
+imobile project is a web application built with the Reflex framework (https://reflex.dev/) for tracking stock portfolios. It outlines the project structure, coding conventions, and best practices to maintain consistency and facilitate collaboration.
 
 ## Overview
 
@@ -12,7 +12,7 @@ imobile is a stock portfolio tracking application that allows users to:
 
 
 ## Python Package Manager
-This project use [UV](https://docs.astral.sh/uv/) for init virtual environment.
+This project use UV (https://docs.astral.sh/uv/) for init virtual environment.
 
 ```bash
 uv venv --python 3.12           # Init project virtual environment
@@ -42,9 +42,9 @@ reflex run                      # Run project
 
 
 ## Database
-- Fetch [Reflex Database Doc](https://reflex.dev/docs/database/overview) by context7 MCP.
-  Use Using SQLite(reflex project default) db and SQLAlchemy ORM. 
-- Fetch [Reflex DB Doc](https://reflex.dev/docs/database/overview#migrations) by context7 MCP.
+- Fetch Reflex Database Doc (https://reflex.dev/docs/database/overview/) by context7 MCP.
+  Use Using SQLite (reflex project default) db and SQLAlchemy ORM. 
+- Fetch Reflex DB Doc (https://reflex.dev/docs/database/overview/migrations) by context7 MCP.
   Do better migration when db schemas changes.
 
 ## Styling & Theming and Responsive Design
@@ -55,7 +55,7 @@ reflex run                      # Run project
 
 ## Project Structure
 
-The project follows [the recommended Reflex structure](https://reflex.dev/docs/advanced-onboarding/code-structure/) with some customizations:
+The project follows the recommended Reflex structure (https://reflex.dev/docs/advanced-onboarding/code-structure/) with some customizations:
 
 ```
 imobile/
@@ -272,7 +272,7 @@ pytest --cov=imobile
 
 ## Deployment
 
-The application can be deployed using Reflex's deployment options. Refer to the [Reflex deployment documentation](https://reflex.dev/docs/hosting/deploy-quick-start/) for details.
+The application can be deployed using Reflex's deployment options. Refer to the Reflex deployment documentation (https://reflex.dev/docs/hosting/deploy-quick-start/) for details.
 
 ## Contributing
 

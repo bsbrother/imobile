@@ -1,0 +1,19 @@
+[
+  {
+    "index": 1,
+    "resourceId": "",
+    "className": "FrameLayout",
+    "text": "FrameLayout",
+    "bounds": "615, 1293, 825, 1503",
+    "children": [
+      {
+        "index": 2,
+        "resourceId": "",
+        "className": "ProgressBar",
+        "text": "ProgressBar",
+        "bounds": "650, 1328, 790, 1468",
+        "children": []
+      }
+    ]
+  }
+]

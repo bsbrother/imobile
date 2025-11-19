@@ -1,0 +1,64 @@
+{
+  "version": "1.0",
+  "description": "Open '\u56fd\u6cf0\u6d77\u901a\u541b\u5f18', then tap '\u4ea4\u6613' on the bottom navigation bar, then tap '\u521b\u5efa\u8ba2\u5355', then tap '\u767b\u5f55\u4ea4\u6613\u5e10\u53f7,\u67e5\u770b\u8ba2\u5355\u8be6\u60c5', then input password '817671', then tap '\u767b\u5f55'",
+  "timestamp": "20251022_205936",
+  "total_actions": 6,
+  "actions": [
+    {
+      "type": "TapActionEvent",
+      "action_type": "tap",
+      "description": "Tap element at index 11: '\u56fd\u6cf0\u6d77\u901a\u541b\u5f18' (TextView) at coordinates (720, 2450)",
+      "x": 720,
+      "y": 2450,
+      "element_index": 11,
+      "element_text": "\u56fd\u6cf0\u6d77\u901a\u541b\u5f18",
+      "element_bounds": "586, 2293, 855, 2608"
+    },
+    {
+      "type": "TapActionEvent",
+      "action_type": "tap",
+      "description": "Tap element at index 139: '\u4ea4\u6613' (TextView) at coordinates (720, 2657)",
+      "x": 720,
+      "y": 2657,
+      "element_index": 139,
+      "element_text": "\u4ea4\u6613",
+      "element_bounds": "576, 2628, 864, 2686"
+    },
+    {
+      "type": "TapActionEvent",
+      "action_type": "tap",
+      "description": "Tap element at index 40: '\u521b\u5efa\u8ba2\u5355' (TextView) at coordinates (1223, 1573)",
+      "x": 1223,
+      "y": 1573,
+      "element_index": 40,
+      "element_text": "\u521b\u5efa\u8ba2\u5355",
+      "element_bounds": "1104, 1528, 1342, 1618"
+    },
+    {
+      "type": "TapActionEvent",
+      "action_type": "tap",
+      "description": "Tap element at index 20: '\u767b\u5f55\u4ea4\u6613\u8d26\u53f7\uff0c\u67e5\u770b\u8ba2\u5355\u8be6\u60c5' (View) at coordinates (721, 1477)",
+      "x": 721,
+      "y": 1477,
+      "element_index": 20,
+      "element_text": "\u767b\u5f55\u4ea4\u6613\u8d26\u53f7\uff0c\u67e5\u770b\u8ba2\u5355\u8be6\u60c5",
+      "element_bounds": "308, 1414, 1134, 1540"
+    },
+    {
+      "type": "InputTextActionEvent",
+      "action_type": "input_text",
+      "description": "Input text: '817671'",
+      "text": "817671"
+    },
+    {
+      "type": "TapActionEvent",
+      "action_type": "tap",
+      "description": "Tap element at index 17: '\u767b\u5f55' (Button) at coordinates (720, 961)",
+      "x": 720,
+      "y": 961,
+      "element_index": 17,
+      "element_text": "\u767b\u5f55",
+      "element_bounds": "53, 884, 1387, 1038"
+    }
+  ]
+}

@@ -1,0 +1,179 @@
+{
+  "init_info": {
+    "benchmark_codes": {
+      "SSE": "000001.SH",
+      "SZSE": "399001.SZ",
+      "CSI300": "000300.SH",
+      "CSI500": "000905.SH",
+      "CSI1000": "000852.SH",
+      "CSIA500": "000510.SH",
+      "SSE50": "000016.SH",
+      "SZSE100": "399330.SZ",
+      "ChiNext": "399006.SZ",
+      "STAR50": "000688.SH"
+    },
+    "data_provider": "tushare",
+    "start_date": "year-01-01",
+    "end_date": "today",
+    "initial_cash": 600000,
+    "commission": 0.003,
+    "max_positions": 10,
+    "strategy": "simple"
+  },
+  "data_provider": {
+    "cache_ttl": 31536000,
+    "retry_attempts": 3,
+    "rate_limit_delay": 0.2
+  },
+  "pattern_detector": {
+    "lookback_days": 20,
+    "confidence_threshold": 0.6,
+    "simple_market_thresholds": {
+      "bull": 0.65,
+      "normal": 0.50,
+      "volatile": 0.40,
+      "bear": 0.10
+    }
+  },
+  "stock_picker": {
+    "max_pick": 10,
+    "remove_obvious_bad": {
+      "close": ">= min_price, <= max_price",
+      "circ_mv": ">= min_market_cap, <= max_market_cap",
+      "pe": "> 0, < 150",
+      "turnover_rate": ">= 0.5",
+      "volume_ratio": ">= 0.5"
+    },
+    "simple_gain_volume_turnover": {
+      "bull": {
+        "pct_chg": ">= 1.5, <= 9.5",
+        "volume_ratio": ">= 1.2, <= 15",
+        "turnover_rate": ">= 2.0, <= 30"
+      },
+      "normal": {
+        "pct_chg": ">= 1.0, <= 8.0",
+        "volume_ratio": ">= 1.0, <= 12",
+        "turnover_rate": ">= 1.5, <= 25"
+      },
+      "bear": {
+        "pct_chg": ">= 0.5, <= 6.0",
+        "volume_ratio": ">= 1.0, <= 8",
+        "turnover_rate": ">= 1.0, <= 15"
+      },
+      "volatile": {
+        "pct_chg": ">= 0.3, <= 5.0",
+        "volume_ratio": ">= 0.8, <= 6",
+        "turnover_rate": ">= 1.0, <= 12"
+      }
+    }
+  },
+  "strategies": {
+    "normal_market": {
+      "ranking": {
+        "weights": {
+          "momentum": 0.4,
+          "volume": 0.3,
+          "technical": 0.3
+        }
+      },
+      "price_range": [2, 500],
+      "market_cap_range": [5e8, 5e10],
+      "buy_signals": [
+        "momentum_breakout",
+        "volume_surge"
+      ],
+      "sell_signals": [
+        "profit_target_5pct",
+        "stop_loss_3pct"
+      ],
+      "position_sizing": {
+        "max_position_pct": 0.1,
+        "equal_weight": true
+      }
+    },
+    "bull_market": {
+      "ranking": {
+        "weights": {
+          "momentum": 0.55,
+          "volume": 0.25,
+          "technical": 0.2
+        }
+      },
+      "price_range": [1.5, 2000],
+      "market_cap_range": [2e8, 5e12],
+      "buy_signals": [
+        "momentum_breakout",
+        "trend_following"
+      ],
+      "sell_signals": [
+        "profit_target_8pct",
+        "stop_loss_5pct"
+      ],
+      "position_sizing": {
+        "max_position_pct": 0.15,
+        "equal_weight": false
+      }
+    },
+    "bear_market": {
+      "ranking": {
+        "weights": {
+          "momentum": 0.2,
+          "volume": 0.25,
+          "technical": 0.55
+        }
+      },
+      "price_range": [2.5, 400],
+      "market_cap_range": [6e8, 4e10],
+      "buy_signals": [
+        "oversold_bounce",
+        "support_level"
+      ],
+      "sell_signals": [
+        "profit_target_3pct",
+        "stop_loss_2pct"
+      ],
+      "position_sizing": {
+        "max_position_pct": 0.05,
+        "equal_weight": true
+      }
+    },
+    "volatile_market": {
+      "ranking": {
+        "weights": {
+          "momentum": 0.3,
+          "volume": 0.4,
+          "technical": 0.3
+        }
+      },
+      "price_range": [1.3, 3000],
+      "market_cap_range": [1e8, 9e12],
+      "buy_signals": [
+        "quick_momentum",
+        "volume_spike"
+      ],
+      "sell_signals": [
+        "profit_target_4pct",
+        "stop_loss_2pct"
+      ],
+      "position_sizing": {
+        "max_position_pct": 0.08,
+        "equal_weight": true
+      }
+    }
+  },
+  "reporting": {
+    "output_dir": "./backtest_results",
+    "formats": "html",
+    "benchmarks": [
+      "SSE",
+      "CSI300",
+      "CSI500",
+      "CSI1000"
+    ],
+    "plot_style": "seaborn",
+    "figure_size": [
+      12,
+      8
+    ]
+  }
+}

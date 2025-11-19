@@ -1,0 +1,19 @@
+diff --git a/droidrun/macro/replay.py b/droidrun/macro/replay.py
+index 28a913e..871e240 100644
+--- a/droidrun/macro/replay.py
++++ b/droidrun/macro/replay.py
+@@ -216,10 +216,10 @@ class MacroPlayer:
+                 failed_count += 1
+                 logger.error(f"   ❌ Action failed")
+ 
+-            # Wait between actions (except for the last one)
+-            if i < len(actions):
+-                logger.debug(f"   ⏳ Waiting {self.delay_between_actions}s...")
+-                await asyncio.sleep(self.delay_between_actions)
++            # Wait after each action to allow screen to update/stabilize
++            # This is especially important for the last action to ensure the final screen loads
++            logger.debug(f"   ⏳ Waiting {self.delay_between_actions}s for screen to stabilize...")
++            await asyncio.sleep(self.delay_between_actions)
+ 
+         # Summary
+         total_executed = success_count + failed_count

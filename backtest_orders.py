@@ -41,6 +41,8 @@ from backtest.utils.trading_calendar import calendar, convert_trade_date
 from backtest.utils.logging_config import configure_logger
 from backtest.utils.config import ConfigManager
 from backtest.utils.util import convert_to_datetime
+from backtest.utils.market_regime import detect_market_regime
+from backtest.utils.trailing_stop import calculate_trailing_stop
 # Add the parent directory to Python path so we can import from utils
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from db.db import DBTEST as DB
@@ -58,8 +60,6 @@ MAX_POSITIONS = global_cm.get('init_info.max_positions', 10)
 INITIAL_CASH = global_cm.get('portfolio_config.initial_cash', 600000)
 COMMISSION = global_cm.get('portfolio_config.commission', 0.0000341)  # 10W * 0.000341% = 3.41 # Max 5 yuan
 TAX = global_cm.get('portfolio_config.tax', 0.0005)  # 10W * 0.005% = 50 # Only on sell
-# Max days to keep an order running, then sell at market price.
-ORDER_MAX_KEEP_DAYS = 4 # hot sectors pick, so shotter days.
 
 
 def pick_stocks_to_file(this_date: str) -> str:
@@ -75,6 +75,12 @@ def pick_stocks_to_file(this_date: str) -> str:
     strong_stocks = {}
     logger.info(f"Picking stocks for {this_date} ...")
     pick_output_file = os.path.join(REPORT_PATH, f'pick_stocks_{this_date}.json')
+    
+    # Detect market regime
+    regime_data = detect_market_regime(this_date)
+    regime_name = regime_data['regime']
+    logger.info(f"Market Regime for {this_date}: {regime_name}")
+
     """
     # market_pattern picker
     result = os.system(f'python -m backtest.cli pick --date {this_date} -o /tmp/tmp')
@@ -82,6 +88,8 @@ def pick_stocks_to_file(this_date: str) -> str:
         raise ValueError(f"Failed to pick stocks for {this_date}.")
     """
     # hot sectors picker
+    # Pass regime info to picker if needed, or just let it pick based on sectors
+    # For now, we assume picker logic is independent or we will update it later.
     result = os.system(f'python pick_stocks_from_sector/ts.py {this_date}')
     if result != 0:
         raise ValueError(f"Failed to pick strong stocks from hot sectors for {this_date}.")
@@ -91,7 +99,8 @@ def pick_stocks_to_file(this_date: str) -> str:
         'pick_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         'base_date': calendar.get_trading_days_before(this_date, 1),
         'target_trading_date': this_date,
-        'market_pattern': 'fixed profit/loass(0.15/0.10) ratio as bull market',
+        'market_pattern': regime_name,
+        'regime_data': regime_data,
         'selected_stocks': strong_stocks['selected_stocks'][:MAX_POSITIONS]
     }
     with open(pick_output_file, 'w') as f:
@@ -126,6 +135,11 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1) -> st
     no_buy_cancel_symbols = []
     with open(smart_output_file, 'r') as f:
         data = json.load(f)
+    
+    # Get holding days from regime data if available, else default to 4
+    regime_data = data.get('regime_data', {})
+    holding_days = regime_data.get('max_hold_days', 4)
+
     with DB.cursor() as cursor:
         cursor.execute("""
             SELECT id, code, trigger_condition, valid_until, buy_or_sell_quantity, name
@@ -160,7 +174,7 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1) -> st
                 if added_orders < (MAX_POSITIONS - len(running_orders)):
                     order_number = f"ORD_{this_date}_{order['symbol']}_{user_id}"
                     trigger_condition = f'股价<={order["buy_price"]}元(触发买入)'
-                    valid_until = calendar.get_trading_days_after(this_date, ORDER_MAX_KEEP_DAYS)
+                    valid_until = calendar.get_trading_days_after(this_date, holding_days)
                     cursor.execute("""
                         INSERT INTO smart_orders (user_id, code, name, trigger_condition,
                         buy_or_sell_price_type, buy_or_sell_quantity, order_number,
@@ -197,6 +211,8 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1) -> st
                     SET buy_or_sell_quantity=?, trigger_condition=?, last_updated=?
                     WHERE id=? AND user_id=?
                 """, (order['buy_quantity'], trigger_condition, convert_to_datetime(this_date), id, user_id))
+            elif '股价>=' in trigger_condition:
+                pass
             else:
                 # increase the take-profit and stop-loss values proportionally, keep the same sell quantity.
                 if '触发止盈' not in trigger_condition or '触发止损' not in trigger_condition:
@@ -276,7 +292,8 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1) -> st
 def execute_buy_order(user_id: int, symbol: str, name: str,
                      buy_price: float, quantity: int,
                      take_profit: float, stop_loss: float,
-                     transaction_date: str, order_number: str) -> bool:
+                     transaction_date: str, order_number: str,
+                     holding_days: int = 4) -> bool:
     """
     Execute buy order following T+1 rules and update database.
 
@@ -288,6 +305,7 @@ def execute_buy_order(user_id: int, symbol: str, name: str,
         quantity: Buy quantity
         transaction_date: Trading date (YYYYMMDD)
         order_number: Order number
+        holding_days: Max holding days for this order
 
     Returns:
         bool: True if successful
@@ -371,7 +389,7 @@ def execute_buy_order(user_id: int, symbol: str, name: str,
         # Create next trading day smart order for selling
         next_date = calendar.get_trading_days_after(transaction_date, 1)
         trigger_condition = f'股价>={take_profit:.2f}元(触发止盈),股价<={stop_loss:.2f}元(触发止损)'
-        valid_until = calendar.get_trading_days_after(transaction_date, ORDER_MAX_KEEP_DAYS)
+        valid_until = calendar.get_trading_days_after(transaction_date, holding_days)
         cursor.execute("""
             INSERT INTO smart_orders (
                 user_id, code, name, trigger_condition,
@@ -543,8 +561,10 @@ class OrderAnalyzer:
             self.smart_orders_data = json.load(f)
         self.target_date = self.smart_orders_data['target_trading_date']
         self.market_pattern = self.smart_orders_data['market_pattern']
-        self.strategy_config = self.smart_orders_data['strategy_config']
+        self.strategy_config = self.smart_orders_data.get('strategy_config', {})
         self.orders = self.smart_orders_data['smart_orders']
+        self.regime_data = self.smart_orders_data.get('regime_data', {})
+        self.holding_days = self.regime_data.get('max_hold_days', 4)
 
     def get_market_data(self, symbol: str, date: str) -> Optional[pd.Series]:
         """Get OHLCV data for a symbol on a specific date."""
@@ -671,7 +691,25 @@ class OrderAnalyzer:
                             'reason': 'Sell order execution failed'
                         }
                 else:
-                    # Holding continues
+                    # Holding continues - Update Trailing Stop
+                    new_stop_loss, reason = calculate_trailing_stop(
+                        entry_price=cost_basis,
+                        current_price=high_price,
+                        initial_stop_loss=stop_loss
+                    )
+                    
+                    if new_stop_loss > stop_loss:
+                        # Update smart order with new stop loss
+                        with DB.cursor() as cursor:
+                            trigger_condition = f'股价>={take_profit:.2f}元(触发止盈),股价<={new_stop_loss:.2f}元(触发止损)'
+                            cursor.execute("""
+                                UPDATE smart_orders
+                                SET trigger_condition = ?,
+                                    last_updated = ?
+                                WHERE order_number = ?
+                            """, (trigger_condition, convert_to_datetime(date), order_number))
+                        logger.info(f"Updated trailing stop for {symbol}: {stop_loss} -> {new_stop_loss} ({reason})")
+
                     return {
                         'executed': True,
                         'action': 'hold',
@@ -741,7 +779,8 @@ class OrderAnalyzer:
             self.user_id, symbol, name,
             buy_fill_price, quantity,
             take_profit, stop_loss,
-            date, order_number
+            date, order_number,
+            holding_days=self.holding_days
         )
         if success:
             return {
@@ -1131,14 +1170,92 @@ class OrderAnalyzer:
         # Get final holdings for report
         final_holdings = get_holdings_on_date(end_date)
 
+        # --- Benchmark Comparison & Summary ---
+        # Create Portfolio DataFrame
+        df_portfolio = pd.DataFrame(timeline)
+        df_portfolio['date'] = pd.to_datetime(df_portfolio['date'])
+        df_portfolio.set_index('date', inplace=True)
+        df_portfolio['return'] = df_portfolio['portfolio_value'].pct_change().fillna(0)
+        
+        # Calculate Strategy Return
+        final_day = timeline[-1]
+        total_return_pct = (final_day['cumulative_total_pnl'] / INITIAL_CASH * 100) if INITIAL_CASH > 0 else 0
+        strat_ret = total_return_pct / 100
+
+        # Fetch Benchmark Data
+        benchmarks = {
+            'SSE Composite': '000001.SH',
+            'CSI 300': '000300.SH',
+            'CSI 500': '000905.SH',
+        }
+        
+        benchmark_results = {}
+        
+        for name, code in benchmarks.items():
+            try:
+                df_index = data_provider.get_index_data(code, start_date, end_date)
+                if not df_index.empty:
+                    df_index['trade_date'] = pd.to_datetime(df_index['trade_date'])
+                    df_index.set_index('trade_date', inplace=True)
+                    df_index['return'] = df_index['close'].pct_change().fillna(0)
+                    
+                    # Align dates
+                    common_dates = df_portfolio.index.intersection(df_index.index)
+                    if len(common_dates) > 1:
+                        port_returns = df_portfolio.loc[common_dates, 'return']
+                        bench_returns = df_index.loc[common_dates, 'return']
+                        
+                        # Calculate Metrics
+                        close_end = pd.to_numeric(df_index.loc[common_dates[-1], 'close'])
+                        close_start = pd.to_numeric(df_index.loc[common_dates[0], 'close'])
+                        bench_total_return = (float(close_end) / float(close_start)) - 1
+                        excess_return = strat_ret - bench_total_return
+                        
+                        covariance = float(pd.to_numeric(port_returns.cov(bench_returns)))
+                        variance = float(pd.to_numeric(bench_returns.var()))
+                        beta = covariance / variance if variance != 0 else 0
+                        
+                        # Alpha (simple approximation: R_p - Beta * R_b)
+                        alpha = float(pd.to_numeric(port_returns.mean())) - beta * float(pd.to_numeric(bench_returns.mean()))
+                        
+                        correlation = float(pd.to_numeric(port_returns.corr(bench_returns)))
+                        
+                        benchmark_results[name] = {
+                            'return': bench_total_return,
+                            'excess': excess_return,
+                            'beta': beta,
+                            'alpha': alpha,
+                            'correlation': correlation
+                        }
+            except Exception as e:
+                logger.warning(f"Failed to calculate metrics for {name}: {e}")
+
+        # Print Summary to Console
+        print("\n" + "="* 80)
+        print(f"{'BACKTEST RESULTS SUMMARY':^80}")
+        print("="*80)
+        print(f"{'Metric':<20} {'Strategy':<15} {'SSE Composite':<15} {'CSI 300':<15} {'CSI 500':<15}")
+        print("-" * 80)
+        
+        sse = benchmark_results.get('SSE Composite', {})
+        csi300 = benchmark_results.get('CSI 300', {})
+        csi500 = benchmark_results.get('CSI 500', {})
+        
+        print(f"{'Total Return':<20} {strat_ret:>14.2%} {sse.get('return', 0):>14.2%} {csi300.get('return', 0):>14.2%} {csi500.get('return', 0):>14.2%}")
+        print(f"{'Excess Return':<20} {'-':>15} {sse.get('excess', 0):>14.2%} {csi300.get('excess', 0):>14.2%} {csi500.get('excess', 0):>14.2%}")
+        print(f"{'Beta':<20} {'-':>15} {sse.get('beta', 0):>14.4f} {csi300.get('beta', 0):>14.4f} {csi500.get('beta', 0):>14.4f}")
+        print(f"{'Alpha':<20} {'-':>15} {sse.get('alpha', 0):>14.4f} {csi300.get('alpha', 0):>14.4f} {csi500.get('alpha', 0):>14.4f}")
+        print(f"{'Correlation':<20} {'-':>15} {sse.get('correlation', 0):>14.4f} {csi300.get('correlation', 0):>14.4f} {csi500.get('correlation', 0):>14.4f}")
+        print("="*80 + "\n")
+
         self._write_period_report(
-            start_date, end_date, timeline, final_holdings, output_file
+            start_date, end_date, timeline, final_holdings, output_file, benchmark_results
         )
         logger.info(f"✓ Period report saved to {output_file}")
 
     def _write_period_report(self, start_date: str, end_date: str,
                              timeline: List[Dict], final_holdings: Dict,
-                             output_file: str):
+                             output_file: str, benchmark_results: Dict = {}):
         """Write enhanced period report including realized, unrealized, and total P&L."""
 
         final_day = timeline[-1]
@@ -1154,7 +1271,7 @@ class OrderAnalyzer:
             f.write(f"# Backtest Period Report: {start_date} to {end_date}\n\n")
             f.write(f"**Analysis Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write(f"**Strategy:** {self.market_pattern}\n")
-            f.write(f"**Max Hold Days:** {ORDER_MAX_KEEP_DAYS} days\n")
+            f.write(f"**Max Hold Days:** {self.holding_days} days\n")
             f.write("**T+1 Compliance:** ✓ Enforced\n\n")
 
             f.write("## 📊 Portfolio Performance Summary\n\n")
@@ -1171,6 +1288,21 @@ class OrderAnalyzer:
             f.write(f"| **Market Value (Held)** | ¥{final_day['total_held_market_value']:,.2f} |\n")
             f.write(f"| **Total Transactions** | {total_transactions} |\n")
             f.write(f"| **Sell Transactions** | {total_sells} |\n\n")
+
+            if benchmark_results:
+                f.write("## 🏆 Benchmark Comparison\n\n")
+                f.write("| Metric | Strategy | SSE Composite | CSI 300 |\n")
+                f.write("|--------|----------|---------------|---------|\n")
+                
+                sse = benchmark_results.get('SSE Composite', {})
+                csi = benchmark_results.get('CSI 300', {})
+                strat_ret = total_return_pct / 100
+                
+                f.write(f"| **Total Return** | {strat_ret:.2%} | {sse.get('return', 0):.2%} | {csi.get('return', 0):.2%} |\n")
+                f.write(f"| **Excess Return** | - | {sse.get('excess', 0):.2%} | {csi.get('excess', 0):.2%} |\n")
+                f.write(f"| **Beta** | - | {sse.get('beta', 0):.4f} | {csi.get('beta', 0):.4f} |\n")
+                f.write(f"| **Alpha** | - | {sse.get('alpha', 0):.4f} | {csi.get('alpha', 0):.4f} |\n")
+                f.write(f"| **Correlation** | - | {sse.get('correlation', 0):.4f} | {csi.get('correlation', 0):.4f} |\n\n")
 
             f.write("## 📈 Daily Performance Breakdown\n\n")
             f.write("| Date | Txns | Sells | Realized P&L | Unrealized P&L | Total P&L | Portfolio Value | Positions |\n")
@@ -1203,9 +1335,9 @@ class OrderAnalyzer:
 
                     # Status indicator based on days held
                     status = "✅ Normal"
-                    if days_held >= ORDER_MAX_KEEP_DAYS:
+                    if days_held >= self.holding_days:
                         status = "🔴 Expired"
-                    elif days_held >= ORDER_MAX_KEEP_DAYS - 1:
+                    elif days_held >= self.holding_days - 1:
                         status = "⚠️ Expires Next"
 
                     f.write(f"| {symbol} | {holding['name']} | {holding['quantity']} | ")
@@ -1246,7 +1378,7 @@ class OrderAnalyzer:
             f.write(f"- **Profit Target:** {self.strategy_config.get('profit_target_pct', 'N/A')}%\n")
             f.write(f"- **Stop Loss:** {self.strategy_config.get('stop_loss_pct', 'N/A')}%\n")
             f.write(f"- **Max Position Size:** {self.strategy_config.get('max_position_pct', 0.08)*100}%\n")
-            f.write(f"- **Max Holding Period:** {ORDER_MAX_KEEP_DAYS} days\n")
+            f.write(f"- **Max Holding Period:** {self.holding_days} days\n")
             f.write(f"- **Commission Rate:** {COMMISSION*100:.4f}%\n")
             f.write(f"- **Tax Rate (Sell):** {TAX*100:.2f}%\n\n")
 
@@ -1318,8 +1450,16 @@ if __name__ == '__main__':
     """)
 
     user_id = 1
-    start_date = '2025-10-13'
-    end_date = '2025-10-22'
+    start_date = '2025-11-01'
+    end_date = '2025-11-20'
+    if argv := sys.argv:
+        if len(argv) >= 2:
+            start_date = argv[1]
+        if len(argv) >= 3:
+            end_date = argv[2]
+        if len(argv) >= 4:
+            user_id = int(argv[3])
+
     try:
         pick_orders_trading(start_date=start_date, end_date=end_date, user_id=user_id)
     except Exception as e:

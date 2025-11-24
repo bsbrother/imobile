@@ -92,6 +92,41 @@ class SQLiteDataCache:
         """Check if this is a single day request."""
         return start_date == end_date
 
+    def remove(self, key: str) -> bool:
+        """Remove cached data by key."""
+        try:
+            data_type, symbol, start_date, end_date = self._parse_cache_key(key)
+
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                if self._is_single_day_request(start_date, end_date):
+                    cursor.execute(
+                        """
+                        DELETE FROM daily_data
+                        WHERE data_type = ? AND symbol = ? AND trade_date = ?
+                        """,
+                        (data_type, symbol, start_date)
+                    )
+                else:
+                    cursor.execute(
+                        """
+                        DELETE FROM daily_data
+                        WHERE data_type = ? AND symbol = ? AND trade_date BETWEEN ? AND ?
+                        """,
+                        (data_type, symbol, start_date, end_date)
+                    )
+
+                deleted_count = cursor.rowcount
+                conn.commit()
+
+            logger.debug(f"Removed {deleted_count} cache entries for key: {key}")
+            return deleted_count > 0
+
+        except Exception as e:
+            logger.error(f"Failed to remove cache for key {key}: {str(e)}")
+            return False
+
     def get(self, key: str) -> Optional[pd.DataFrame]:
         """Get cached data by key."""
         from ..utils.trading_calendar import get_trading_days_between
@@ -401,13 +436,19 @@ class SQLiteDataCache:
             logger.warning(f"Failed to vacuum database: {str(e)}")
 
     def clear_cache(self, pattern: Optional[str] = None) -> int:
-        """Alias for invalidate to maintain compatibility."""
+        """Alias for invalidate to maintain compatibility.
+
+        Args:
+            pattern: Pattern to match keys for invalidation. If None, clears all cache. e.g., 'stock_data_000001.SZ_*', 'index_data_*'
+        Returns:
+            Number of cache entries removed.
+        """
         if pattern:
             return self.invalidate(pattern)
         else:
             return self.clear_all()
 
-    def bulk_populate_daily_data(self, data_provider, start_date: str = None, end_date: str = None):
+    def bulk_populate_daily_data(self, data_provider, start_date: Optional[str] = None, end_date: Optional[str] = None):
         """
         Incrementally populate cache with all stocks' daily data for the specified date range.
         Only fetches data for dates that are not already cached.
@@ -452,6 +493,8 @@ class SQLiteDataCache:
         # Get required trading dates
         start_date = convert_trade_date(start_date)
         end_date = convert_trade_date(end_date)
+        if not start_date or not end_date:
+            raise DataProviderError("Invalid start_date or end_date for bulk population")
         required_dates = set(get_trading_days_between(start_date, end_date))
 
         logger.info(f"Processing {len(symbols)} symbols(len({len(indexes)} indexes)) for {len(required_dates)} trade dates")
@@ -516,7 +559,7 @@ class SQLiteDataCache:
                 errors.append((stock_code, "all_dates", str(e)))
                 continue
 
-        logger.info(f"Incremental population completed:")
+        logger.info("Incremental population completed:")
         logger.info(f"  - Symbols processed: {len(symbols)}, {len(indexes)} benchmark indexes")
         logger.info(f"  - Symbols with new data fetched: {total_fetched}")
         logger.info(f"  - Symbols completely cached (skipped): {total_skipped}")

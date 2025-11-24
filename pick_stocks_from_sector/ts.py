@@ -5,8 +5,8 @@ Pick short-term strong stocks from Tushare THS hot concept sectors.
 ## 📊 策略说明与使用要点
 ### 三个核心策略：
 1. **板块动量策略**：识别近期表现强势的板块，并从中选择表现更好的个股
-2. **涨停板策略**：基于涨停股票数据，重点关注首板和二板股票
-3. **资金流向策略**：跟踪主力资金流向，选择资金大幅流入的股票
+2. **资金流向策略**：跟踪主力资金流向，选择资金大幅流入的股票
+3. **涨停板策略**：基于涨停股票数据，重点关注首板和二板股票
 
 ### 策略优化建议：
 - **风险控制**：短期强势股波动大，建议设置止损位
@@ -40,13 +40,16 @@ import pandas as pd
 import numpy as np
 from tenacity import before_sleep_log, retry, retry_if_exception_type, stop_after_attempt, wait_random_exponential
 import warnings
+from typing import Any
 
 import tushare as ts
+import adata
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from backtest import data_provider
 from backtest.utils.trading_calendar import get_trading_days_before, get_trading_days_between
 from backtest.utils.util import convert_trade_date
+from backtest.utils.market_regime import detect_market_regime
 from utils.stock_code_name_valid import convert_akcode_to_tushare
 
 # Create a standard logging logger for tenacity
@@ -99,6 +102,8 @@ def batch_get_concept_daily(start_date: str, end_date: str) -> tuple[(pd.DataFra
     """
     logger.info(f'Start fetch concept daily data from {start_date} to {end_date} ...')
     concept_list = PRO.ths_index(exchange='A', type='N')
+    if 'trade_date' in concept_list:
+        concept_list = concept_list.sort_values(by='trade_date', ascending=True)
     logger.info(f"Got {len(concept_list)} concept sectors index records.")
     concept_codes = set(concept_list['ts_code'].tolist())
 
@@ -108,6 +113,8 @@ def batch_get_concept_daily(start_date: str, end_date: str) -> tuple[(pd.DataFra
     all_concept_daily = pd.DataFrame()
     for date in get_trading_days_between(start_date, end_date):
         all_sectors_daily = PRO.ths_daily(start_date=date, end_date=date)
+        if 'trade_date' in all_sectors_daily:
+            all_sectors_daily = all_sectors_daily.sort_values(by='trade_date', ascending=True)
         # 过滤出概念板块
         concept_daily = all_sectors_daily[all_sectors_daily['ts_code'].isin(concept_codes)]
         logger.info(f"{date} all sectors: {len(all_sectors_daily)}, filter to concept sector: {len(concept_daily)}")
@@ -170,42 +177,48 @@ def sector_momentum_strategy(start_date: str, end_date: str):
         sector_performance = []
         for sector_code in sector_data['ts_code'].unique():
             sector_daily = sector_data[sector_data['ts_code'] == sector_code]
-            if len(sector_daily) >= RECENT_DAYS:
+            if len(sector_daily) >= 4:  # Need at least 4 days for 3-day return
                 sector_name = sector_daily['name'].iloc[0]
-                # 计算5日收益率
-                recent_5d_return = (sector_daily.iloc[0]['close'] / sector_daily.iloc[4]['close'] - 1) * 100
-                if recent_5d_return > 5:  # 5日内涨幅超过5%
+                # 计算3日收益率 (Identify hot sectors faster, T vs T-3)
+                recent_3d_return = (sector_daily.iloc[0]['close'] / sector_daily.iloc[3]['close'] - 1) * 100
+                if recent_3d_return > 3:  # 3日内涨幅超过3%
                     sector_performance.append({
                         'sector_name': sector_name,
                         'sector_code': sector_code,
-                        '5d_return': recent_5d_return,
+                        '3d_return': recent_3d_return,
                         'data_points': len(sector_daily)
                     })
 
         # 按收益率排序
-        sector_performance.sort(key=lambda x: x['5d_return'], reverse=True)
+        sector_performance.sort(key=lambda x: x['3d_return'], reverse=True)
 
         logger.info("强势板块排名top 10:")
         for i, sector in enumerate(sector_performance[:10], 1):
-            logger.info(f"{i}. {sector['sector_name']}: {sector['5d_return']:.2f}%")
+            logger.info(f"{i}. {sector['sector_name']}: {sector['3d_return']:.2f}%")
 
         # 获取强势板块的成分股
         for sector in sector_performance[:10]:
-            members = ths_member(ts_code=sector['sector_code'].split('.')[0])
+            #members = ths_member(ts_code=sector['sector_code'].split('.')[0])
+            members = adata.stock.info.concept_constituent_ths(index_code=sector['sector_code'].split('.')[0])
+            members.rename(columns={'stock_code': 'ts_code', 'short_name': 'name'}, inplace=True)
             members['ts_code'] = members['ts_code'].apply(convert_akcode_to_tushare)
             members = filter_mainboard_stocks(members)
             for _, member in members.iterrows():
                 stock_data = PRO.daily(ts_code=member['ts_code'], start_date=start_date, end_date=end_date)
-                if len(stock_data) >= RECENT_DAYS:
-                    stock_5d_return = (stock_data.iloc[0]['close'] /
-                                        stock_data.iloc[4]['close'] - 1) * 100
-                    if 6 < stock_5d_return < 12:
+                if 'trade_date' in stock_data:
+                    stock_data = stock_data.sort_values(by='trade_date', ascending=True)
+                if len(stock_data) >= 4:
+                    # Calculate 3-day return for stock
+                    stock_3d_return = (stock_data.iloc[0]['close'] /
+                                        stock_data.iloc[3]['close'] - 1) * 100
+                    # Catch stocks that just started (e.g. 1 limit up or strong move, but not too extended)
+                    if 5 < stock_3d_return < 15:
                         strong_stocks.append({
                             'ts_code': member['ts_code'],
                             'name': member['name'],
                             'sector': sector['sector_name'],
-                            'sector_return': sector['5d_return'],
-                            'stock_5d_return': stock_5d_return,
+                            'sector_return': sector['3d_return'],
+                            'stock_3d_return': stock_3d_return,
                             'strategy': '板块动量'
                         })
     except Exception as e:
@@ -217,11 +230,36 @@ def sector_momentum_strategy(start_date: str, end_date: str):
 
 # 策略2: 基于资金流向筛选
 def money_flow_strategy(stock_basic: pd.DataFrame, start_date: str, end_date: str):
-    logger.info("策略3: 资金流向选股")
+    logger.info("策略2: 资金流向选股")
     strong_stocks = []
     try:
-        # 获取资金流向数据
-        money_flow = PRO.moneyflow(trade_date=end_date)
+        # 获取资金流向数据 start_date, end_date
+        # 由于API限制单次6000行，无法一次获取多日所有股票数据，需按日获取并累加
+        accumulated_mf = pd.DataFrame()
+        trading_days = get_trading_days_between(start_date, end_date)
+        logger.info(f"Fetching money flow data for {len(trading_days)} days from {start_date} to {end_date}...")
+        
+        for trade_date in trading_days:
+            try:
+                daily_mf = PRO.moneyflow(trade_date=trade_date)
+                if not daily_mf.empty:
+                    if accumulated_mf.empty:
+                        accumulated_mf = daily_mf[['ts_code', 'net_mf_amount']]
+                    else:
+                        # Merge and sum net_mf_amount
+                        daily_mf_subset = daily_mf[['ts_code', 'net_mf_amount']]
+                        accumulated_mf = pd.merge(accumulated_mf, daily_mf_subset, on='ts_code', how='outer', suffixes=('', '_new'))
+                        accumulated_mf['net_mf_amount'] = accumulated_mf['net_mf_amount'].fillna(0) + accumulated_mf['net_mf_amount_new'].fillna(0)
+                        accumulated_mf = accumulated_mf[['ts_code', 'net_mf_amount']]
+                time.sleep(0.1) # Avoid hitting API rate limits
+            except Exception as e:
+                logger.warning(f"Failed to fetch money flow for {trade_date}: {e}")
+
+        if accumulated_mf.empty:
+            logger.warning("No money flow data fetched.")
+            return []
+
+        money_flow = accumulated_mf
         # 筛选主力净流入大的股票
         money_flow = money_flow.sort_values('net_mf_amount', ascending=False)
         top_money_flow = money_flow.head(50)
@@ -232,9 +270,12 @@ def money_flow_strategy(stock_basic: pd.DataFrame, start_date: str, end_date: st
             if not basic_info.empty:
                 # 结合价格走势分析
                 price_data = PRO.daily(ts_code=stock['ts_code'], start_date=start_date, end_date=end_date)
+                if 'trade_date' in price_data:
+                    price_data = price_data.sort_values(by='trade_date', ascending=True)
                 if len(price_data) > 1:
-                    price_change = (price_data.iloc[0]['close'] /
-                                  price_data.iloc[1]['close'] - 1) * 100
+                    # Calculate return over the period (latest / earliest - 1)
+                    price_change = (price_data.iloc[-1]['close'] /
+                                  price_data.iloc[0]['close'] - 1) * 100
                     # 主力大幅流入且股价上涨
                     if stock['net_mf_amount'] > 1000 and price_change > 0:  # 净流入超过1000万, unit in 万元
                         strong_stocks.append({
@@ -252,11 +293,13 @@ def money_flow_strategy(stock_basic: pd.DataFrame, start_date: str, end_date: st
 
 # 策略3: 基于涨停板数据筛选
 def limit_up_strategy(stock_basic: pd.DataFrame, start_date: str, end_date: str):
-    logger.info("策略2: 涨停板选股")
+    logger.info("策略3: 涨停板选股")
     strong_stocks = []
     try:
         # 获取当日涨停股票
         daily_data = PRO.daily(trade_date=end_date)
+        if 'trade_date' in daily_data:
+            daily_data = daily_data.sort_values(by='trade_date', ascending=True)
         # 筛选涨停股 (假设涨跌幅超过9.5%为涨停)
         limit_up_stocks = daily_data[daily_data['pct_chg'] > 9.5]
         logger.info(f"发现 {len(limit_up_stocks)} 只涨停股票")
@@ -266,6 +309,8 @@ def limit_up_strategy(stock_basic: pd.DataFrame, start_date: str, end_date: str)
             if not basic_info.empty:
                 # 分析连续涨停情况
                 hist_data = PRO.daily(ts_code=stock['ts_code'], start_date=start_date, end_date=end_date)
+                if 'trade_date' in hist_data:
+                    hist_data = hist_data.sort_values(by='trade_date', ascending=True)
                 # 计算连续涨停天数
                 consecutive_limit_up = 0
                 for i in range(min(RECENT_DAYS, len(hist_data))):
@@ -318,14 +363,14 @@ def calculate_stock_scores(df: pd.DataFrame) -> pd.DataFrame:
     momentum_mask = df['strategy'].str.contains('板块动量')
     if momentum_mask.any():
         momentum_stocks = df[momentum_mask]
-        if 'stock_5d_return' in df.columns:
+        if 'stock_3d_return' in df.columns:
             # 归一化处理
-            max_momentum = momentum_stocks['stock_5d_return'].max()
-            min_momentum = momentum_stocks['stock_5d_return'].min()
+            max_momentum = momentum_stocks['stock_3d_return'].max()
+            min_momentum = momentum_stocks['stock_3d_return'].min()
             if max_momentum > min_momentum:
                 df['momentum_score'] = df.get('momentum_score', np.nan).astype(float) # pyright: ignore
                 df.loc[momentum_mask, 'momentum_score'] = (
-                    (momentum_stocks['stock_5d_return'] - min_momentum) /
+                    (momentum_stocks['stock_3d_return'] - min_momentum) /
                     (max_momentum - min_momentum) * 30
                 )
     # 3. 资金流向得分 (权重: 20%)
@@ -381,14 +426,27 @@ def calculate_stock_scores(df: pd.DataFrame) -> pd.DataFrame:
     logger.info(f"综合评分范围: {df['composite_score'].min():.2f} - {df['composite_score'].max():.2f}")
     return df
 
-def is_late_trend(ts_code: str, ref_end_date: str) -> bool:
+def is_late_trend(ts_code: str, ref_end_date: str, regime_data: Any = None) -> bool:
     """判断是否为趋势末期/透支行情的个股.
 
     规则（任一满足即视为晚期趋势）：
-    - 收盘价距离20日均线 > 18%
-    - 最近5日涨幅 > 25% 或 最近10日涨幅 > 40%
-    - 当日成交量 > 20日均量的 2.5 倍
+    - 收盘价距离20日均线 > 15% (可配置)
+    - 最近5日涨幅 > 20% 或 最近10日涨幅 > 30% (可配置)
+    - 当日成交量 > 20日均量的 2.0 倍 (可配置)
     """
+    # Default thresholds
+    ma20_ext_limit = 0.15
+    ret_5d_limit = 0.20
+    ret_10d_limit = 0.30
+    vol_ratio_limit = 2.0
+    
+    if regime_data:
+        thresholds = regime_data.get('filter_thresholds', {})
+        ma20_ext_limit = thresholds.get('ma20_extension', ma20_ext_limit)
+        ret_5d_limit = thresholds.get('return_5d', ret_5d_limit)
+        ret_10d_limit = thresholds.get('return_10d', ret_10d_limit)
+        vol_ratio_limit = thresholds.get('volume_ratio', vol_ratio_limit)
+
     # 获取最近 30 个交易日的K线数据
     lookback_days = 30
     start_k_date = get_trading_days_before(ref_end_date, lookback_days - 1)
@@ -410,34 +468,34 @@ def is_late_trend(ts_code: str, ref_end_date: str) -> bool:
     latest_vol_ma20 = vol_ma20.iloc[-1] if not np.isnan(vol_ma20.iloc[-1]) else 0.0
 
     # 1. 价格明显脱离均线，属于透支上涨
-    if latest_ma20 > 0 and latest_close > latest_ma20 * 1.18:
+    if latest_ma20 > 0 and latest_close > latest_ma20 * (1 + ma20_ext_limit):
         logger.debug(
             f"{ts_code} filtered by MA20 extension: close={latest_close:.2f}, "
-            f"ma20={latest_ma20:.2f}"
+            f"ma20={latest_ma20:.2f}, limit={ma20_ext_limit:.2%}"
         )
         return True
 
     # 2. 最近5/10日涨幅过大
     try:
-        if len(close) >= 5:
-            ret_5d = latest_close / close.iloc[-5] - 1
-            if ret_5d > 0.25:
-                logger.debug(f"{ts_code} filtered by 5d return: {ret_5d:.2%}")
+        if len(close) >= 6:
+            ret_5d = latest_close / close.iloc[-6] - 1
+            if ret_5d > ret_5d_limit:
+                logger.debug(f"{ts_code} filtered by 5d return: {ret_5d:.2%}, limit={ret_5d_limit:.2%}")
                 return True
-        if len(close) >= 10:
-            ret_10d = latest_close / close.iloc[-10] - 1
-            if ret_10d > 0.40:
-                logger.debug(f"{ts_code} filtered by 10d return: {ret_10d:.2%}")
+        if len(close) >= 11:
+            ret_10d = latest_close / close.iloc[-11] - 1
+            if ret_10d > ret_10d_limit:
+                logger.debug(f"{ts_code} filtered by 10d return: {ret_10d:.2%}, limit={ret_10d_limit:.2%}")
                 return True
     except Exception as e:
         logger.warning(f"计算短期涨幅失败, ts_code={ts_code}, error={e}")
         return True
 
     # 3. 成交量放大到均量多倍，可能是尾声放量
-    if latest_vol_ma20 > 0 and latest_vol > latest_vol_ma20 * 2.5:
+    if latest_vol_ma20 > 0 and latest_vol > latest_vol_ma20 * vol_ratio_limit:
         logger.debug(
             f"{ts_code} filtered by volume climax: vol={latest_vol:.0f}, "
-            f"ma20={latest_vol_ma20:.0f}"
+            f"ma20={latest_vol_ma20:.0f}, limit={vol_ratio_limit}"
         )
         return True
     return False
@@ -446,6 +504,11 @@ def pick_strong_stocks(start_date: str, end_date: str) -> pd.DataFrame:
     # 获取股票基本信息
     stock_basic = PRO.stock_basic(exchange='', list_status='L')
     logger.info(f"From {start_date} to {end_date}, fetch short term strong stocks from THS hot concept sectors ...")
+    
+    # Detect market regime
+    regime_data: Any = detect_market_regime(end_date)
+    logger.info(f"Market Regime: {regime_data.get('regime')}")
+
     all_strong_stocks = []
     # 执行三个策略
     all_strong_stocks.extend(sector_momentum_strategy(start_date=start_date, end_date=end_date))
@@ -487,7 +550,7 @@ def pick_strong_stocks(start_date: str, end_date: str) -> pd.DataFrame:
     filtered_rows = []
     for _, row in result_df.iterrows():
         ts_code = row['ts_code']
-        if is_late_trend(ts_code, ref_end_date=end_date):
+        if is_late_trend(ts_code, ref_end_date=end_date, regime_data=regime_data):
             logger.info(f"跳过晚期趋势个股: {row['name']}({ts_code})")
             continue
         filtered_rows.append(row)
@@ -529,16 +592,26 @@ def no_risky_stocks() -> list[str]:
 
 
 if __name__ == "__main__":
-    #sector_code = '885333.TI'
-    #df = ths_member(sector_code.split('.')[0])
-    #print(df)
+    """
+    sector_code = '885333.TI'
+    index_code = sector_code.split('.')[0]
+    df = ths_member(index_code)
+    print(df)
+    # akshare limited APi by IP, use adata to get concept members.
+    import adata
+    df21 = adata.stock.info.all_concept_code_ths()
+    print(df21)
+    df22 = adata.stock.info.concept_constituent_ths(index_code=index_code)
+    print(df22)
+    import pdb;pdb.set_trace()
+    """
 
     argv = sys.argv[1:]
     if len(argv) >= 1:
         date = convert_trade_date(argv[0])
     else:
         logger.info("Usage: python -m pick_stocks_from_sector.ts <date YYYYMMDD>")
-        date = convert_trade_date('20250923')
+        date = convert_trade_date('20251120')
     if not date:
         date = datetime.now().strftime('%Y%m%d')
     date = get_trading_days_before(date, 1)

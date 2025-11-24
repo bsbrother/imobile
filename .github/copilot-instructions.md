@@ -8,7 +8,7 @@ imobile is a stock portfolio tracking application that allows users to:
 - Create accounts and authenticate
 - View and manage their stock portfolios
 - Track performance metrics
-- Access multilingual support (English and Chinese)
+- Access multi-lingual support (English and Chinese)
 
 
 ## Python Package Manager
@@ -43,7 +43,7 @@ reflex run                      # Run project
 
 ## Database
 - Fetch Reflex Database Doc (https://reflex.dev/docs/database/overview/) by context7 MCP.
-  Use Using SQLite (reflex project default) db and SQLAlchemy ORM. 
+  Use Using SQLite (reflex project default) db and SQLAlchemy ORM.
 - Fetch Reflex DB Doc (https://reflex.dev/docs/database/overview/migrations) by context7 MCP.
   Do better migration when db schemas changes.
 

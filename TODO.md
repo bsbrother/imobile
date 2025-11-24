@@ -1,4 +1,10 @@
 # TODO
+- 2025.11.20
+  Create single html file: 
+    - pick stock for next trading date: current hot sectors top 10, and pick stocks from these sectors by score.
+    - sector history: show the sector daily line。
+
+- 2025.11.19 [buy/sell by 5 & 21 lines](https://www.laoyulaoyu.com/index.php/2025/11/11/%e7%94%a8%e4%b8%a4%e6%a0%b9%e7%ba%bf%ef%bc%8c%e4%bb%8e10%e4%b8%87%e5%81%9a%e5%88%b0100%e4%b8%87%ef%bc%9a%e4%b8%80%e4%b8%aa%e7%ae%80%e5%8d%95%e7%b2%97%e6%9a%b4%e7%9a%84%e8%b5%9a%e9%92%b1%e7%a7%98/)
 
 - 2025.11.18 return all zero, no trading.
   In the Chinese A-Shares market, Using Python and the Tushare API, develop a strategy based on 'Trend Reversal Signals(Cover Buy Sell)' and 'Wave Momentum Indicators(EWO)' that can outperform the market index(SSE, CSI300 etc.)

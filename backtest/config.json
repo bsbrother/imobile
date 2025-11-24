@@ -162,6 +162,71 @@
       }
     }
   },
+  "trading_rules": {
+    "risk_reward_ratios": {
+      "bull_market": {
+        "take_profit_pct": 0.20,
+        "stop_loss_pct": 0.08,
+        "trailing_stop_enabled": true,
+        "max_hold_days": 10,
+        "min_hold_days": 2
+      },
+      "normal_market": {
+        "take_profit_pct": 0.10,
+        "stop_loss_pct": 0.04,
+        "trailing_stop_enabled": true,
+        "max_hold_days": 5,
+        "min_hold_days": 2
+      },
+      "volatile_market": {
+        "take_profit_pct": 0.12,
+        "stop_loss_pct": 0.05,
+        "trailing_stop_enabled": true,
+        "max_hold_days": 5,
+        "min_hold_days": 1
+      },
+      "bear_market": {
+        "take_profit_pct": 0.08,
+        "stop_loss_pct": 0.04,
+        "trailing_stop_enabled": true,
+        "max_hold_days": 4,
+        "min_hold_days": 1
+      }
+    },
+    "position_sizing": {
+      "max_positions": 8,
+      "rank_weighted": true,
+      "top_3_weight": 0.15,
+      "mid_4_weight": 0.10,
+      "bottom_weight": 0.0875
+    },
+    "late_trend_filter": {
+      "bull_market": {
+        "ma_threshold": 1.25,
+        "short_gain_threshold": 0.35,
+        "mid_gain_threshold": 0.50,
+        "volume_multiplier": 3.5
+      },
+      "normal_market": {
+        "ma_threshold": 1.18,
+        "short_gain_threshold": 0.25,
+        "mid_gain_threshold": 0.40,
+        "volume_multiplier": 2.5
+      },
+      "volatile_market": {
+        "ma_threshold": 1.12,
+        "short_gain_threshold": 0.18,
+        "mid_gain_threshold": 0.30,
+        "volume_multiplier": 2.0
+      },
+      "bear_market": {
+        "ma_threshold": 1.10,
+        "short_gain_threshold": 0.15,
+        "mid_gain_threshold": 0.25,
+        "volume_multiplier": 1.8
+      }
+    }
+  },
   "reporting": {
     "output_dir": "./backtest/backtest_results",
     "formats": "html",

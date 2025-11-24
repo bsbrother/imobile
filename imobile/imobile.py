@@ -1,7 +1,9 @@
 """iMobile - Stock Portfolio Tracking Application."""
 
 import reflex as rx
+from imobile import db  # Import db to register models
 from imobile.pages.portfolio import portfolio
+from imobile.pages.sector_history import sector_history
 
 
 class State(rx.State):
@@ -22,6 +24,10 @@ def index() -> rx.Component:
             rx.link(
                 rx.button("进入投资组合", size="3"),
                 href="/portfolio",
+            ),
+            rx.link(
+                rx.button("板块历史分析", size="3", variant="surface"),
+                href="/sector-history",
             ),
             rx.link(
                 rx.button("查看文档", variant="soft", size="3"),
@@ -49,3 +55,4 @@ app = rx.App(
 # Add pages
 app.add_page(index, route="/", title="iMobile - 首页")
 app.add_page(portfolio, route="/portfolio", title="iMobile - 投资组合")
+app.add_page(sector_history, route="/sector-history", title="iMobile - Sector History")

@@ -70,6 +70,10 @@ class TushareDataProvider(DataProvider):
         if df.empty:
             time.sleep(self.rate_limit_delay)
             df = func(**kwargs)
+
+        # default trade_date sort is ascending false, not as cache save(start_date to end_date).
+        if 'trade_date' in df.columns:
+            df = df.sort_values(['trade_date'], ascending=[True])
         return df
 
 
@@ -82,7 +86,7 @@ class TushareDataProvider(DataProvider):
         if not start_date or not end_date:
             raise DataProviderError("Start date and end date are required")
         # TODO: [stk_mins realy k-lines by minutes](https://tushare.pro/document/2?doc_id=370)
-        df = self._ts_call(self.pro_bar, ts_code=symbol, start_date=start_date, end_date=end_date, adj=adj, freq=freq)
+        df = self._ts_call(self.pro.bar, ts_code=symbol, start_date=start_date, end_date=end_date, adj=adj, freq=freq)
         # TODO: cache
         return df
 
@@ -358,7 +362,6 @@ class TushareDataProvider(DataProvider):
             return cached_data
 
         df = self._ts_call(self.pro.index_daily, ts_code=index_code, start_date=start_date, end_date=end_date)
-
         if df.empty:
             raise DataProviderError(f"No index data found for {index_code} in date range {start_date}-{end_date}")
 
@@ -678,6 +681,10 @@ class AkshareDataProvider(DataProvider):
 
 
     # ------------------------- interface impl -------------------------
+    def get_kline(self, symbol: str | None = None, start_date: str | None = None, end_date: str | None = None, adj: str = "qfq", freq: str = "D") -> pd.DataFrame:
+        """ Retrieve k-line(as OHLCV) for specified stock with adj,freq in the specified range."""
+        return pd.DataFrame()  # Not implemented yet
+
     def get_ohlcv_data(self, symbol: str | None = None, start_date: str | None = None, end_date: str | None = None) -> pd.DataFrame:
         """Daily OHLCV using ak.stock_zh_a_hist; normalized to Tushare-like schema."""
         ts_code = self._ensure_ts_code(symbol)
@@ -909,8 +916,8 @@ class AkshareDataProvider(DataProvider):
         cache_key = f"index_data_{index_code}_{start}_{end}"
         cached = self.cache.get(cache_key)
         if cached is not None:
+            logger.debug(f"Retrieved index data from cache for {index_code}")
             return cached
-
         symbol = self._index_ts_to_ak_symbol(index_code)
         # Prefer Eastmoney endpoint
         df = self._ak_call(ak.stock_zh_index_daily_em, symbol=symbol)
@@ -1171,6 +1178,10 @@ class TdxDataProvider(DataProvider):
         else:
             # Already formatted or numeric
             return dates.astype(str)
+
+    def get_kline(self, symbol: str | None = None, start_date: str | None = None, end_date: str | None = None, adj: str = "qfq", freq: str = "D") -> pd.DataFrame:
+        """ Retrieve k-line(as OHLCV) for specified stock with adj,freq in the specified range."""
+        return pd.DataFrame()  # Not implemented yet
 
     def get_ohlcv_data(self, symbol: str | None = None, start_date: str | None = None, end_date: str | None = None) -> pd.DataFrame:
         """Retrieve daily OHLCV data using TDX API."""

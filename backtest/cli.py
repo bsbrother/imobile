@@ -33,6 +33,7 @@ from .utils.config import ConfigManager
 from .utils.util import convert_trade_date
 from .utils.trading_calendar import get_trading_days_after, get_trading_days_before
 from .analysis.indicators import TechnicalIndicators
+from .utils.market_regime import detect_market_regime
 
 def create_parser() -> argparse.ArgumentParser:
     """Create and configure the argument parser."""
@@ -645,6 +646,13 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
             logger.warning("No symbols to analyze")
         logger.info(f"Analyzing {len(symbols)} stocks for smart order generation, market pattern: {market_pattern}")
 
+        # Detect market regime to get dynamic TP/SL ratios
+        regime_data: Any = detect_market_regime(base_date)
+        stop_loss_ratio = regime_data.get('stop_loss_pct', 0.10)
+        take_profit_ratio = regime_data.get('take_profit_pct', 0.10)
+        logger.info(f"Market Regime: {regime_data.get('regime', 'Unknown')}, "
+                    f"SL Ratio: {stop_loss_ratio:.2%}, TP Ratio: {take_profit_ratio:.2%}")
+
         # Get strategy configuration for current market pattern
         strategy_config = config_manager.get(f'strategies.{market_pattern}',
                                              config_manager.get('strategies.normal_market'))
@@ -726,28 +734,14 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                 # This aligns smart orders with framework backtest (next-day open entry).
                 buy_price = float(target_data['open'].iloc[-1])
 
+                # Use pre-calculated regime ratios
+                # stop_loss_ratio and take_profit_ratio are already set outside the loop
+                
                 # Calculate sell take-profit price
-                # Use upper Bollinger Band or profit target
-                profit_target_price = close_price * (1 + profit_target_pct / 100)
-                sell_take_profit = max(profit_target_price, latest_upper * 0.99)
-                sell_take_profit = min(sell_take_profit, recent_high * 1.02)  # Cap at reasonable resistance
-                sell_take_profit = round(sell_take_profit, 2)
-
+                sell_take_profit = round(buy_price * (1 + take_profit_ratio), 2)
+                
                 # Calculate sell stop-loss price
-                # Use ATR-based stop or percentage-based stop, whichever is tighter
-                atr_stop = close_price - (latest_atr * 2)
-                pct_stop = close_price * (1 - stop_loss_pct / 100)
-                sell_stop_loss = max(atr_stop, pct_stop, latest_lower * 0.99)
-                sell_stop_loss = min(sell_stop_loss, recent_low * 0.98)  # Must be below recent support
-                sell_stop_loss = round(sell_stop_loss, 2)
-
-                # TODO:
-                # Each trading day has profit_target_pcty by market pattern
-                # See backtest/cli.py 659 line, market pattern in backtest/config.json
-                # profit_target_pct = float(signal.split('_')[-1].replace('pct', ''))
-                # 2025.10.27 no-rule sell_take_profit and stop loss with fix ratio, as bull market.
-                sell_take_profit = round(buy_price * (1 + 0.10), 2)
-                sell_stop_loss = round(buy_price * (1 - 0.10), 2)
+                sell_stop_loss = round(buy_price * (1 - stop_loss_ratio), 2)
 
                 # Calculate position size (buy quantity)
                 # Use equal-weight allocation with risk management
@@ -847,9 +841,10 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
             'analysis_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'target_trading_date': target_trading_date,
             'market_pattern': market_pattern,
+            'regime_data': regime_data,
             'strategy_config': {
-                'profit_target_pct': profit_target_pct,
-                'stop_loss_pct': stop_loss_pct,
+                'profit_target_pct': take_profit_ratio * 100,
+                'stop_loss_pct': stop_loss_ratio * 100,
                 'max_position_pct': strategy_config.get('position_sizing', {}).get('max_position_pct', 0.15)
             },
             'portfolio_config': {

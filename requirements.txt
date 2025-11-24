@@ -64,3 +64,4 @@ jupyter
 ipywidgets
 
 reflex==0.8.15
+adata

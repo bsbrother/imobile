@@ -60,6 +60,9 @@ INITIAL_CASH = global_cm.get('portfolio_config.initial_cash', 600000)
 COMMISSION = global_cm.get('portfolio_config.commission', 0.0000341)  # 10W * 0.000341% = 3.41 # Max 5 yuan
 TAX = global_cm.get('portfolio_config.tax', 0.0005)  # 10W * 0.005% = 50 # Only on sell
 
+# Check report path exist, if not,then create it
+if not os.path.exists(REPORT_PATH):
+    os.makedirs(REPORT_PATH)
 
 def pick_stocks_to_file(this_date: str, src: str = 'ts_ths') -> str:
     """

@@ -37,7 +37,7 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 LOG_PATH = os.getenv("LOG_PATH", "./logs")
 configure_logger(log_level=LOG_LEVEL, log_path=LOG_PATH)
 
-MAX_POSITIONS = global_cm.get("init_info.max_positions", 10)
+MAX_POSITIONS = global_cm.get("trading_rules.position.sizeing.max_positions", 10)
 INITIAL_CASH = global_cm.get("portfolio_config.initial_cash", 600000.0)
 BENCHMARK_CODE = global_cm.get("init_info.benchmark_codes", {})
 

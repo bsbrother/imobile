@@ -1,6 +1,6 @@
 # TODO
 - 2025.11.20
-  Create single html file: 
+  Create single html file:
     - pick stock for next trading date: current hot sectors top 10, and pick stocks from these sectors by score.
     - sector history: show the sector daily line。
 
@@ -16,7 +16,7 @@
 
 
 - 2025.11.15
-  - 不要用前复权，也不要用后复权，就用不复权数据，遇到除权除息，则动态调整股票数量计算了红利，然后再使用新的不复权数据计算总资产。我们真实的购买股票的收益就是这样算的。谁自己买卖的股票还用什么前复权和后复权数据来算收益的吗？都是使用的实际成本算的
+  - 不要用前复权qfq，也不要用后复权hfq，就用不复权数据，遇到除权除息，则动态调整股票数量计算了红利，然后再使用新的不复权数据计算总资产。我们真实的购买股票的收益就是这样算的。谁自己买卖的股票还用什么前复权和后复权数据来算收益的吗？都是使用的实际成本算的
     * use get_ohlcv_data, not use get_kline.
 
 - Avoid major news periods (technical indicators may fail)

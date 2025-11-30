@@ -249,7 +249,7 @@ def combined_args_and_config(args: argparse.Namespace) -> argparse.Namespace:
     args.end_date = args.end_date or end_date
     args.initial_cash = args.initial_cash or global_cm.get('init_info.initial_cash')
     args.commission = args.commission or global_cm.get('init_info.commission')
-    args.max_positions = args.max_positions or global_cm.get('init_info.max_positions')
+    args.max_positions = args.max_positions or global_cm.get('trading_rules.position_sizing.max_positions')
     args.strategy = args.strategy or global_cm.get('init_info.strategy')
     args.output_dir = args.output_dir or global_cm.get('reporting.output_dir')
     args.formats = args.formats or global_cm.get('reporting.formats')
@@ -617,7 +617,7 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
 
         # Get analysis parameters from config
         initial_cash = config_manager.get('init_info.initial_cash', 600000)
-        max_positions = config_manager.get('init_info.max_positions', 10)
+        max_positions = config_manager.get('trading_rules.position_sizing.max_positions', 10)
         lookback_days = config_manager.get('pattern_detector.lookback_days', 20)
 
         # Get stock symbols to analyze
@@ -730,9 +730,23 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                 buy_price = max(buy_price, recent_low * 0.99)  # Don't go below recent support
                 buy_price = round(buy_price, 2)
 
-                # 2025.10.27 no-RSI rule: use target_trading_date open price
-                # This aligns smart orders with framework backtest (next-day open entry).
-                buy_price = float(target_data['open'].iloc[-1])
+                # [MODIFIED] Regime-dependent entry strategy
+                # Bull Market: Aggressive entry (Buy at Open) to avoid missing out.
+                # Other Markets: Conservative entry (Buy at Limit/Support) to reduce risk.
+                regime = regime_data.get('regime', 'normal')
+                
+                if regime == 'bull':
+                    if not target_data.empty:
+                        buy_price = float(target_data['open'].iloc[-1])
+                    else:
+                        # If no target data (e.g. live trading), use close * 1.01 as proxy for open
+                        buy_price = close_price * 1.01
+                else:
+                    # Use the calculated buy_price (RSI/BB/Support based)
+                    # Ensure it's not higher than yesterday's close in Bear market
+                    if regime == 'bear':
+                        buy_price = min(buy_price, close_price * 0.99)
+                    pass # Keep calculated buy_price from lines 723-731
 
                 # Use pre-calculated regime ratios
                 # stop_loss_ratio and take_profit_ratio are already set outside the loop
@@ -947,6 +961,7 @@ def main():
 
     except IBacktestError as e:
         logger.error(f"Error: {e}")
+        raise e
         sys.exit(1)
     except KeyboardInterrupt:
         logger.error("Backtest interrupted by user")

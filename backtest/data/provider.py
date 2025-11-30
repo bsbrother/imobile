@@ -685,6 +685,76 @@ class AkshareDataProvider(DataProvider):
         """ Retrieve k-line(as OHLCV) for specified stock with adj,freq in the specified range."""
         return pd.DataFrame()  # Not implemented yet
 
+    def get_index_data(self, index_code: str, start_date: str | None = None, end_date: str | None = None) -> pd.DataFrame:
+        """
+        Retrieve index data for benchmarking using Akshare.
+        Supports common indexes like 000001.SH (SSE), 399001.SZ (SZSE), 000300.SH (CSI300).
+        """
+        if not index_code:
+            raise DataProviderError("No index code provided")
+        
+        ak_symbol = self._index_ts_to_ak_symbol(index_code)
+        start = convert_trade_date(start_date)
+        end = convert_trade_date(end_date)
+        
+        cache_key = f"index_data_{index_code}_{start}_{end}"
+        cached = self.cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        try:
+            # Use ak.stock_zh_index_daily for index data
+            # symbol format: sh000001
+            df = self._ak_call(
+                ak.stock_zh_index_daily,
+                symbol=ak_symbol
+            )
+            
+            if df.empty:
+                raise DataProviderError(f"No index data found for {index_code}")
+
+            # Filter by date range
+            if 'date' in df.columns:
+                df['trade_date'] = self._fmt_trade_date_col(df, 'date')
+                
+            if start:
+                df = df[df['trade_date'] >= start]
+            if end:
+                df = df[df['trade_date'] <= end]
+                
+            if df.empty:
+                raise DataProviderError(f"No index data found for {index_code} in range {start}-{end}")
+
+            # Rename columns to match Tushare format
+            # Akshare columns: date, open, high, low, close, volume
+            rename_map = {
+                'open': 'open',
+                'high': 'high',
+                'low': 'low',
+                'close': 'close',
+                'volume': 'vol'
+            }
+            for k, v in rename_map.items():
+                if k in df.columns:
+                    df.rename(columns={k: v}, inplace=True)
+            
+            df['ts_code'] = index_code
+            # Ensure required columns exist
+            req_cols = ['ts_code', 'trade_date', 'open', 'high', 'low', 'close', 'vol']
+            for col in req_cols:
+                if col not in df.columns:
+                    df[col] = 0.0
+            
+            df = df[req_cols].sort_values('trade_date').reset_index(drop=True)
+            
+            self.cache.set(cache_key, df)
+            logger.debug(f"Retrieved {len(df)} index records for {index_code} via Akshare")
+            return df
+            
+        except Exception as e:
+            raise DataProviderError(f"Failed to retrieve index data for {index_code}: {str(e)}")
+
+
     def get_ohlcv_data(self, symbol: str | None = None, start_date: str | None = None, end_date: str | None = None) -> pd.DataFrame:
         """Daily OHLCV using ak.stock_zh_a_hist; normalized to Tushare-like schema."""
         ts_code = self._ensure_ts_code(symbol)

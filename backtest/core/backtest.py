@@ -355,7 +355,7 @@ class ASharesBacktestWrapper:
             
         Returns:
             Dictionary containing backtest results with A-shares compliance
-        """
+        """ 
         try:
             import time
             

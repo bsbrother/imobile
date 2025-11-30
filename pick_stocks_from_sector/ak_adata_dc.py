@@ -32,8 +32,103 @@
 ## 步骤 1：获取强势板块
 ### 思路是获取板块历史数据，通过计算其相对强度（例如涨幅、RPS等）来筛选出近期强势板块。
 
-import akshare as ak
 import pandas as pd
+
+import akshare as ak
+import adata
+
+from tenacity import before_sleep_log, retry, retry_if_exception_type, stop_after_attempt, wait_random_exponential
+
+from utils.stock_code_name_valid import convert_akcode_to_tushare
+
+# Create a standard logging logger for tenacity
+tenacity_logger = logging.getLogger(__name__)
+warnings.filterwarnings("ignore", category=UserWarning, module='py_mini_racer')
+
+def get_concept_sectors(start_date: str, end_date: str, src: str='ts_ths') -> pd.DataFrame:
+    """
+    获取所有概念板块
+    """
+    if src == 'ak_ths':
+        concept_list = PRO.ths_index(exchange='A', type='N')
+    elif src == 'adata_dc':
+        concept_list = adata.stock.info.all_concept_code_east()
+        concept_list = pd.DataFrame(concept_list)
+        concept_list['ts_code'] = concept_list['index_code']
+        concept_list['name'] = concept_list['name']
+        concept_list['trade_date'] = concept_list['date']
+    if 'trade_date' in concept_list:
+        concept_list = concept_list.sort_values(by='trade_date', ascending=True)
+    logger.info(f"Got {len(concept_list)} concept sectors index records.")
+    return concept_list
+
+
+@retry(
+    stop=stop_after_attempt(10),
+    wait=wait_random_exponential(multiplier=0.4, min=2, max=6),
+    retry=retry_if_exception_type(Exception),
+    before_sleep=before_sleep_log(tenacity_logger, logging.INFO)
+)
+def ths_member(ts_code:str) ->pd.DataFrame:
+    """
+    Custom function to avoid TuShare API 6000 points limit.
+    members = PRO.ths_member(ts_code=sector['sector_code']) # 6000+ points can call.
+    """
+    url = f"https://d.10jqka.com.cn/v2/blockrank/{ts_code}/199112/d1000.js"
+    headers = {
+        'Referer': 'http://q.10jqka.com.cn/',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                      '(KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
+    }
+
+    stocks_df = pd.DataFrame()
+    response = requests.get(url, headers=headers, timeout=10)
+    if response.status_code == 200:
+        json_str = response.text.split('(', 1)[1].rsplit(')', 1)[0]
+        data = json.loads(json_str)
+
+        stock_list = data.get('items', [])
+        if stock_list:
+            stocks_df = pd.DataFrame(
+                [(s.get('5', '').zfill(6),
+                  s.get('55', '')) #,
+                  #f"{float(s.get('8', 0)):.2f}",
+                  #f"{float(s.get('199112', 0)):.2f}%")
+                 for s in stock_list],
+                #columns=['股票代码', '股票名称', '最新价', '涨跌幅']
+                columns=['ts_code', 'name']
+            )
+        else:
+            logger.warning("未找到相关个股数据")
+    else:
+        logger.error(f"Request status：{response.status_code}")
+    return stocks_df
+
+
+def dc_member():
+    #members = ths_member(ts_code=sector['sector_code'].split('.')[0])
+    members = adata.stock.info.concept_constituent_ths(index_code=sector['sector_code'].split('.')[0])
+    # Create an explicit copy to avoid the warning
+    members = members.copy()
+    members.rename(columns={'stock_code': 'ts_code', 'short_name': 'name'}, inplace=True)
+    members['ts_code'] = members['ts_code'].apply(convert_akcode_to_tushare)
+
+
+def dc_daily(concept_list: pd.DataFrame, start_date: str, end_date: str) -> pd.DataFrame:
+    """
+    use AKShare to get eastmoney concept daily data as TuShare dc_daily() function.
+    # Tushare dc_daily need >6000 point
+    # concept_daily = PRO.dc_daily(start_date=date, end_date=date)
+    """
+    all_dc_daily = pd.DataFrame()
+    for concept_name in concept_list['name']:
+        concept_daily = ak.stock_board_concept_hist_em(symbol=concept_name, period='daily', start_date=date, end_date=date)
+        import pdb;pdb.set_trace()
+        all_dc_daily = pd.concat([all_dc_daily, concept_daily], ignore_index=True)
+
+    return all_dc_daily
+
+
 
 # 1. 获取所有概念板块列表
 board_list_df = ak.stock_board_concept_name_em()
@@ -139,3 +234,17 @@ try:
     # 可以尝试将热搜股票与我们的强势股列表进行匹配，观察是否有重叠
 except Exception as e:
     print(f"获取百度热搜数据失败: {e}")
+
+
+if __name__ == "__main__":
+    sector_code = '885333.TI'
+    index_code = sector_code.split('.')[0]
+    df = ths_member(index_code)
+    print(df)
+    # akshare limited API by IP, use adata to get concept members.
+    import adata
+    df21 = adata.stock.info.all_concept_code_ths()
+    print(df21)
+    df22 = adata.stock.info.concept_constituent_ths(index_code=index_code)
+    print(df22)
+    import pdb;pdb.set_trace()

@@ -22,8 +22,7 @@ Usage:
 python this_script [start_date end_date], date format: YYYYMMDD, default is today.
 
 TODO
-- 2025.10.27 no-rule sell_take_profit and stop loss with fix ratio, as bull market.
-  backtest/cli.py line 741, take_profit 0.15, stop_loss 0.10
+- Monitor execution performance
 """
 
 import os
@@ -56,13 +55,13 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", default="INFO")
 LOG_PATH = os.getenv("LOG_PATH", default="./logs")
 configure_logger(log_level=LOG_LEVEL, log_path=LOG_PATH)
 global_cm = ConfigManager(config_file=CONFIG_FILE)
-MAX_POSITIONS = global_cm.get('init_info.max_positions', 10)
+MAX_POSITIONS = global_cm.get('trading_rules.position_sizing.max_positions', 10)
 INITIAL_CASH = global_cm.get('portfolio_config.initial_cash', 600000)
 COMMISSION = global_cm.get('portfolio_config.commission', 0.0000341)  # 10W * 0.000341% = 3.41 # Max 5 yuan
 TAX = global_cm.get('portfolio_config.tax', 0.0005)  # 10W * 0.005% = 50 # Only on sell
 
 
-def pick_stocks_to_file(this_date: str) -> str:
+def pick_stocks_to_file(this_date: str, src: str = 'ts_ths') -> str:
     """
     Pick stocks and save to a file for a specific date.
 
@@ -90,7 +89,7 @@ def pick_stocks_to_file(this_date: str) -> str:
     # hot sectors picker
     # Pass regime info to picker if needed, or just let it pick based on sectors
     # For now, we assume picker logic is independent or we will update it later.
-    result = os.system(f'python pick_stocks_from_sector/ts.py {this_date}')
+    result = os.system(f'python pick_stocks_from_sector/ts_ths_dc.py {this_date} {src}')
     if result != 0:
         raise ValueError(f"Failed to pick strong stocks from hot sectors for {this_date}.")
     with open('/tmp/tmp', 'r') as f:
@@ -211,33 +210,60 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1) -> st
                     SET buy_or_sell_quantity=?, trigger_condition=?, last_updated=?
                     WHERE id=? AND user_id=?
                 """, (order['buy_quantity'], trigger_condition, convert_to_datetime(this_date), id, user_id))
-            elif '股价>=' in trigger_condition:
-                pass
             else:
                 # increase the take-profit and stop-loss values proportionally, keep the same sell quantity.
                 if '触发止盈' not in trigger_condition or '触发止损' not in trigger_condition:
-                    raise ValueError(f"Invalid trigger_condition format for order id {id}: {trigger_condition}")
-                profit_price = trigger_condition.split(',')[0].split('>=')[1].replace('元(触发止盈)', '')
-                lose_price = trigger_condition.split(',')[1].split('<=')[1].replace('元(触发止损)', '')
-                profit_price = round(float(profit_price) * 1.05, 2)
-                # the order is about to expire today, force sell at market price next day.
-                reason_of_ending = ''
-                if this_date >= valid_until:
-                    # - 智能订单:限价委托/市价委托, buy/sell default 限价委托:'即时买一价'
-                    # TODO: maybe need to change buy_or_sell_price_type to '市价委托' here.
-                    reason_of_ending = 'order_expired_before_sell'
-                    lose_price = order['current_price'] * 0.90
-                    trigger_condition = f'股价>={lose_price:.2f}元' # force sell now.
-                else:
+                    # This might happen if we have a different order type, but for now we assume standard TP/SL
+                    # If it's a simple "sell at market" or similar, we might want to just update valid_until
+                    if '股价>=' in trigger_condition and '触发止盈' not in trigger_condition:
+                         # Handle cases where it might be a simple limit sell or force sell from previous day
+                         pass 
+                    else:
+                         # raise ValueError(f"Invalid trigger_condition format for order id {id}: {trigger_condition}")
+                         pass
+
+                # Extend holding period if picked again
+                new_valid_until = calendar.get_trading_days_after(this_date, holding_days)
+                if new_valid_until > valid_until:
+                    cursor.execute("""
+                        UPDATE smart_orders
+                        SET valid_until=?, last_updated=?
+                        WHERE id=? AND user_id=?
+                    """, (new_valid_until, convert_to_datetime(this_date), id, user_id))
+                    order['valid_until'] = new_valid_until
+
+                # Update TP/SL if applicable
+                if '触发止盈' in trigger_condition and '触发止损' in trigger_condition:
+                    profit_price = trigger_condition.split(',')[0].split('>=')[1].replace('元(触发止盈)', '')
+                    lose_price = trigger_condition.split(',')[1].split('<=')[1].replace('元(触发止损)', '')
+                    
+                    # Increase TP by 5% (let winners run)
+                    profit_price = round(float(profit_price) * 1.05, 2)
+                    # Raise SL by 5% (lock in profits / reduce risk)
                     lose_price = round(float(lose_price) * 1.05, 2)
-                    trigger_condition = f'股价>={profit_price:.2f}元(触发止盈),股价<={lose_price:.2f}元(触发止损)'
-                cursor.execute("""
-                    UPDATE smart_orders
-                    SET trigger_condition=?, reason_of_ending=?, last_updated=?
-                    WHERE id=? AND user_id=?
-                """, (trigger_condition, reason_of_ending, convert_to_datetime(this_date), id, user_id))
-                order['sell_take_profit_price'] = round(profit_price, 2)
-                order['sell_stop_loss_price'] = round(lose_price, 2)
+
+                    # the order is about to expire today, force sell at market price next day.
+                    reason_of_ending = ''
+                    # Check against NEW valid_until
+                    current_valid_until = new_valid_until if new_valid_until > valid_until else valid_until
+                    
+                    if this_date >= current_valid_until:
+                        # - 智能订单:限价委托/市价委托, buy/sell default 限价委托:'即时买一价'
+                        # TODO: maybe need to change buy_or_sell_price_type to '市价委托' here.
+                        reason_of_ending = 'order_expired_before_sell'
+                        lose_price = order['current_price'] * 0.90
+                        trigger_condition = f'股价>={lose_price:.2f}元' # force sell now.
+                    else:
+                        trigger_condition = f'股价>={profit_price:.2f}元(触发止盈),股价<={lose_price:.2f}元(触发止损)'
+                    
+                    cursor.execute("""
+                        UPDATE smart_orders
+                        SET trigger_condition=?, reason_of_ending=?, last_updated=?
+                        WHERE id=? AND user_id=?
+                    """, (trigger_condition, reason_of_ending, convert_to_datetime(this_date), id, user_id))
+                    order['sell_take_profit_price'] = round(profit_price, 2)
+                    order['sell_stop_loss_price'] = round(lose_price, 2)
+                
                 order['buy_quantity'] = buy_quantity # keep original buy quantity for it not sell filled yet.
 
             # find the order in data['smart_orders'] and update it.
@@ -755,13 +781,11 @@ class OrderAnalyzer:
             pass
 
         # No holding - check buy trigger: buy_price is today open_price, current_price is prev_close_price.
-        #buy_executed = buy_price >= low_price
-        buy_executed = open_price >= prev_close and low_price <= buy_price
+        buy_executed = open_price >= prev_close
         if not buy_executed:
             return {
                 'executed': False,
-                #'reason': f'Buy price ¥{buy_price} no reached (Low: ¥{low_price})',
-                'reason': f'Buy price ¥{buy_price} < (Low: ¥{low_price}) or Open price ¥{open_price} < Prev close price ¥{prev_close}',
+                'reason': f'Open price ¥{open_price} < Prev close price ¥{prev_close}',
                 'market_summary': {
                     'prev_close': prev_close,
                     'open': open_price,
@@ -1394,7 +1418,7 @@ class OrderAnalyzer:
             f.write("  - 🔴 Expired: Has exceeded max holding period\n")
 
 
-def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=None, user_id: int = 1):
+def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=None, user_id: int = 1, src: str = 'ts_ths'):
     """
     Pick stocks, create smart orders and trading for the specified date range.
 
@@ -1402,6 +1426,7 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
     start_date -- The start date (format: YYYY-MM-DD), default is today.
     end_date -- The end date (format: YYYY-MM-DD), default is today.
     user_id -- The user ID for the trading account.
+    src -- The source of stocks, default is 'ts_ths'. or 'ts_dc'
     """
     today = convert_trade_date(datetime.now().strftime('%Y-%m-%d'))
     if not start_date:
@@ -1418,7 +1443,7 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
     dates = calendar.get_trading_days_between(start_date, end_date)
     for this_date in dates:
         # Step 1: Pick stocks
-        pick_output_file = pick_stocks_to_file(this_date)
+        pick_output_file = pick_stocks_to_file(this_date, src=src)
 
         # Step 2: Create smart orders from picks and save to database
         smart_output_file = create_smart_orders_from_picks(pick_output_file, user_id=user_id)
@@ -1452,16 +1477,21 @@ if __name__ == '__main__':
     user_id = 1
     start_date = '2025-11-01'
     end_date = '2025-11-20'
+    src = 'ts_ths'
     if argv := sys.argv:
         if len(argv) >= 2:
             start_date = argv[1]
         if len(argv) >= 3:
             end_date = argv[2]
         if len(argv) >= 4:
-            user_id = int(argv[3])
+            src = argv[3]
+        if len(argv) >= 5:
+            user_id = int(argv[4])
+    if src not in ['ts_ths', 'ts_dc']:
+        raise ValueError(f"Invalid source: {src}. Valid sources are 'ts_ths' and 'ts_dc'.")
 
     try:
-        pick_orders_trading(start_date=start_date, end_date=end_date, user_id=user_id)
+        pick_orders_trading(start_date=start_date, end_date=end_date, user_id=user_id, src=src)
     except Exception as e:
         logger.error(f"Error during automatic order picking: {e}")
         raise e

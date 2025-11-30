@@ -1,6 +1,6 @@
 """
-Pick short-term strong stocks from Tushare THS hot concept sectors.
-[Tushare API 打板专题数据](https://tushare.pro/document/2?doc_id=346)，并基于热门搜索和强势板块制定短期强势股选股策略。** 搜索接口链接已失效 **
+Pick short-term strong stocks from hot concept sectors by Tushare THS/DC API.
+[Tushare API 打板专题数据](https://tushare.pro/document/2?doc_id=346)
 
 ## 📊 策略说明与使用要点
 ### 三个核心策略：
@@ -38,22 +38,17 @@ import logging
 from loguru import logger
 import pandas as pd
 import numpy as np
-from tenacity import before_sleep_log, retry, retry_if_exception_type, stop_after_attempt, wait_random_exponential
 import warnings
 from typing import Any
 
 import tushare as ts
-import adata
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from backtest import data_provider
 from backtest.utils.trading_calendar import get_trading_days_before, get_trading_days_between
 from backtest.utils.util import convert_trade_date
 from backtest.utils.market_regime import detect_market_regime
-from utils.stock_code_name_valid import convert_akcode_to_tushare
 
-# Create a standard logging logger for tenacity
-tenacity_logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore", category=UserWarning, module='py_mini_racer')
 
 load_dotenv()
@@ -64,115 +59,79 @@ PRO = ts.pro_api(TUSHARE_TOKEN)     # pyright: ignore
 RECENT_DAYS = 5                     # recent days to calculate returns
 LOOKBACK_DAYS = RECENT_DAYS * 4     # trading days lookback, almost 4 weeks, 1 month.
 
-def filter_mainboard_stocks(stock_list: pd.DataFrame | list) -> pd.DataFrame:
+def get_concept_sectors(start_date: str, end_date: str, src: str='ts_ths') -> pd.DataFrame:
     """
-    过滤A股主板股票
-
-    Args:
-        stock_list: 包含股票信息的列表或DataFrame，必须有'ts_code'字段
-
-    Returns:
-        DataFrame: 只包含A股主板股票的DataFrame
-    """
-    if isinstance(stock_list, list) and len(stock_list) == 0 or (isinstance(stock_list, pd.DataFrame) and stock_list.empty):
-        return pd.DataFrame()
-
-    # 转换为DataFrame便于处理
-    if isinstance(stock_list, list):
-        df = pd.DataFrame(stock_list)
-    else:
-        df = stock_list.copy()
-
-    main_board_mask = df['ts_code'].str.startswith(('60', '00'))
-    main_board_stocks = df[main_board_mask].reset_index(drop=True)
-    logger.info(f'{len(df)} stocks before filtering, {len(main_board_stocks)} mainboard stocks after filtering.')
-    return main_board_stocks
-
-
-def batch_get_concept_daily(start_date: str, end_date: str) -> tuple[(pd.DataFrame, pd.DataFrame)]:
-    """
-    批量获取概念板块日线数据，直到获取所有概念板块的完整数据
+    获取所有概念板块
 
     Args:
         start_date: YYYYMMDD
         end_date: YYYYMMDD
+        src: 数据源，'ts_ths' or 'ts_dc', default is ts_ths.
 
     Returns:
-        DataFrame: 所有概念板块在指定日期范围内的日线数据
+        DataFrame: 概念板块列表. https://tushare.pro/document/2?doc_id=362, ts_ths code: 886105.TI, ts_dc code: BK0052.DC
+        ts_ths: ts_code, name, count, exchange, list_date, type
+        ts_dc: ts_code, ts_date, name, leading, leading_code, pct_change, leading_pct, total_mv, turnover_rate, up_num, down_num
+    """
+    if src == 'ts_ths':
+        concept_list = PRO.ths_index(exchange='A', type='N')
+    else:
+        concept_list = PRO.dc_index(start_date=start_date, end_date=end_date)
+    if 'trade_date' in concept_list:
+        concept_list = concept_list.sort_values(by='trade_date', ascending=False)
+    logger.info(f"Got {len(concept_list)} concept sectors index records.")
+    return concept_list
+
+
+def batch_get_concept_daily(concept_list: pd.DataFrame, start_date: str, end_date: str, src: str='ts_ths') -> pd.DataFrame:
+    """
+    批量获取概念板块日线数据，直到获取所有概念板块的完整数据
+
+    Args:
+        concept_list: 概念板块列表
+        start_date: YYYYMMDD
+        end_date: YYYYMMDD
+        src: 数据源，'ts_ths' or 'ts_dc', default is ts_ths.
+
+    Returns:
+        DataFrame: 所有概念板块在指定日期范围内的日线数据. https://tushare.pro/document/2?doc_id=260
+        ts_ths: ts_code, trade_date, open, high, low, close, pre_close, avg_price, change, pct_change, vol, turnover_rate
+        ts_dc: ts_code, trade_date, close, open, high, low, change, pct_change, vol, amount, swing, turnover_rate, category
     """
     logger.info(f'Start fetch concept daily data from {start_date} to {end_date} ...')
-    concept_list = PRO.ths_index(exchange='A', type='N')
-    if 'trade_date' in concept_list:
-        concept_list = concept_list.sort_values(by='trade_date', ascending=True)
-    logger.info(f"Got {len(concept_list)} concept sectors index records.")
     concept_codes = set(concept_list['ts_code'].tolist())
+    logger.info(f"Got {len(concept_codes)} concept codes.")
 
     # Got all concepts/sectors from [ths_index](https://tushare.pro/document/2?doc_id=260)
     # Obtain daily data for all sectors(3000 records/once) in order to avoid frequent API call limits(5 times/minute).
     # Each day records < 3000, max 3000/1 time. end_date - start_date = RECENT_DAYS days to get all concepts.
     all_concept_daily = pd.DataFrame()
     for date in get_trading_days_between(start_date, end_date):
-        all_sectors_daily = PRO.ths_daily(start_date=date, end_date=date)
-        if 'trade_date' in all_sectors_daily:
-            all_sectors_daily = all_sectors_daily.sort_values(by='trade_date', ascending=True)
+        if src == 'ts_ths':
+            concept_daily = PRO.ths_daily(start_date=date, end_date=date)
+        else:
+            concept_daily = PRO.dc_daily(start_date=date, end_date=date)
+        if 'trade_date' in concept_daily:
+            concept_daily = concept_daily.sort_values(by='trade_date', ascending=False)
         # 过滤出概念板块
-        concept_daily = all_sectors_daily[all_sectors_daily['ts_code'].isin(concept_codes)]
-        logger.info(f"{date} all sectors: {len(all_sectors_daily)}, filter to concept sector: {len(concept_daily)}")
+        concept_daily = concept_daily[concept_daily['ts_code'].isin(concept_codes)]
+        logger.info(f"{date} concept daily records: {len(concept_daily)}")
         all_concept_daily = pd.concat([all_concept_daily, concept_daily], ignore_index=True)
         time.sleep(1)
     logger.info(f"Got {len(all_concept_daily)} concept sectors daily records from {start_date} to {end_date}.")
-    return concept_list, all_concept_daily
-
-
-@retry(
-    stop=stop_after_attempt(10),
-    wait=wait_random_exponential(multiplier=0.4, min=2, max=6),
-    retry=retry_if_exception_type(Exception),
-    before_sleep=before_sleep_log(tenacity_logger, logging.INFO)
-)
-def ths_member(ts_code:str) ->pd.DataFrame:
-    """
-    Custom function to avoid TuShare API 6000 points limit.
-    members = PRO.ths_member(ts_code=sector['sector_code']) # 6000+ points can call.
-    """
-    url = f"https://d.10jqka.com.cn/v2/blockrank/{ts_code}/199112/d1000.js"
-    headers = {
-        'Referer': 'http://q.10jqka.com.cn/',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-                      '(KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
-    }
-
-    stocks_df = pd.DataFrame()
-    response = requests.get(url, headers=headers, timeout=10)
-    if response.status_code == 200:
-        json_str = response.text.split('(', 1)[1].rsplit(')', 1)[0]
-        data = json.loads(json_str)
-
-        stock_list = data.get('items', [])
-        if stock_list:
-            stocks_df = pd.DataFrame(
-                [(s.get('5', '').zfill(6),
-                  s.get('55', '')) #,
-                  #f"{float(s.get('8', 0)):.2f}",
-                  #f"{float(s.get('199112', 0)):.2f}%")
-                 for s in stock_list],
-                #columns=['股票代码', '股票名称', '最新价', '涨跌幅']
-                columns=['ts_code', 'name']
-            )
-        else:
-            logger.warning("未找到相关个股数据")
-    else:
-        logger.error(f"Request status：{response.status_code}")
-    return stocks_df
+    return all_concept_daily
 
 
 # 策略1: 基于板块动量筛选强势股
-def sector_momentum_strategy(start_date: str, end_date: str):
+def sector_momentum_strategy(stock_basic: pd.DataFrame, concept_list: pd.DataFrame, start_date: str, end_date: str, src: str='ts_ths') -> pd.DataFrame:
     logger.info("策略1: 板块动量选股")
     strong_stocks = []
     try:
-        concept_list, all_concept_daily = batch_get_concept_daily(start_date, end_date)
-        sector_data = pd.merge(all_concept_daily, concept_list[['ts_code', 'name']], on='ts_code', how='left')
+        all_concept_daily = batch_get_concept_daily(concept_list=concept_list, start_date=start_date, end_date=end_date, src=src)
+        if src == 'ts_ths':
+            sector_data = pd.merge(all_concept_daily, concept_list[['ts_code', 'name']], on=['ts_code'], how='left')
+        else:
+            sector_data = pd.merge(all_concept_daily, concept_list[['ts_code', 'trade_date', 'name']], on=['ts_code', 'trade_date'], how='left')
         sector_data = sector_data.sort_values(['ts_code', 'trade_date'], ascending=[True, False])
         sector_performance = []
         for sector_code in sector_data['ts_code'].unique():
@@ -198,29 +157,48 @@ def sector_momentum_strategy(start_date: str, end_date: str):
 
         # 获取强势板块的成分股
         for sector in sector_performance[:10]:
-            #members = ths_member(ts_code=sector['sector_code'].split('.')[0])
-            members = adata.stock.info.concept_constituent_ths(index_code=sector['sector_code'].split('.')[0])
-            members.rename(columns={'stock_code': 'ts_code', 'short_name': 'name'}, inplace=True)
-            members['ts_code'] = members['ts_code'].apply(convert_akcode_to_tushare)
-            members = filter_mainboard_stocks(members)
+            if src == 'ts_ths':
+                # ts_code, con_code, con_name
+                members = PRO.ths_member(ts_code=sector['sector_code'])
+            else:
+                # trade_date, ts_code, con_code, name 
+                members = PRO.dc_member(ts_code=sector['sector_code'])
+            # filter members from start_date to end_date and no-risk mainboard stocks
+            members = members[members['con_code'].isin(stock_basic['ts_code'])].reset_index(drop=True)
+            if src == 'ts_dc':
+                members = members[(members['trade_date'] >= start_date) & (members['trade_date'] <= end_date)]
+
+            sector_stocks = []
+            logger.info(f'Get sector ({sector["sector_code"]}){sector["sector_name"]} {len(members)} members daily data from {start_date} to {end_date} ...')
             for _, member in members.iterrows():
-                stock_data = PRO.daily(ts_code=member['ts_code'], start_date=start_date, end_date=end_date)
+                stock_data = data_provider.get_ohlcv_data(symbol=member['con_code'], start_date=start_date, end_date=end_date)
                 if 'trade_date' in stock_data:
-                    stock_data = stock_data.sort_values(by='trade_date', ascending=True)
+                    stock_data = stock_data.sort_values(by='trade_date', ascending=False)
                 if len(stock_data) >= 4:
                     # Calculate 3-day return for stock
                     stock_3d_return = (stock_data.iloc[0]['close'] /
                                         stock_data.iloc[3]['close'] - 1) * 100
-                    # Catch stocks that just started (e.g. 1 limit up or strong move, but not too extended)
-                    if 5 < stock_3d_return < 15:
-                        strong_stocks.append({
-                            'ts_code': member['ts_code'],
-                            'name': member['name'],
+                    
+                    # [MODIFIED] Remove < 15% cap to allow Dragon stocks
+                    # Only filter out weak stocks (< 5%)
+                    if stock_3d_return > 5:
+                        sector_stocks.append({
+                            'ts_code': member['con_code'],
+                            'name': member['con_name'] if 'con_name' in member else member['name'],
                             'sector': sector['sector_name'],
                             'sector_return': sector['3d_return'],
                             'stock_3d_return': stock_3d_return,
                             'strategy': '板块动量'
                         })
+            
+            # Identify Sector Leader (Dragon)
+            if sector_stocks:
+                sector_stocks.sort(key=lambda x: x['stock_3d_return'], reverse=True)
+                # Mark the top stock as Leader
+                sector_stocks[0]['is_leader'] = True
+                # Add top 3 to strong_stocks
+                strong_stocks.extend(sector_stocks[:3])
+
     except Exception as e:
         logger.error(f"板块动量策略执行出错: {e}")
         raise
@@ -234,7 +212,6 @@ def money_flow_strategy(stock_basic: pd.DataFrame, start_date: str, end_date: st
     strong_stocks = []
     try:
         # 获取资金流向数据 start_date, end_date
-        # 由于API限制单次6000行，无法一次获取多日所有股票数据，需按日获取并累加
         accumulated_mf = pd.DataFrame()
         trading_days = get_trading_days_between(start_date, end_date)
         logger.info(f"Fetching money flow data for {len(trading_days)} days from {start_date} to {end_date}...")
@@ -262,26 +239,45 @@ def money_flow_strategy(stock_basic: pd.DataFrame, start_date: str, end_date: st
         money_flow = accumulated_mf
         # 筛选主力净流入大的股票
         money_flow = money_flow.sort_values('net_mf_amount', ascending=False)
-        top_money_flow = money_flow.head(50)
-        logger.info("分析主力资金净流入前50的股票")
-        top_money_flow = filter_mainboard_stocks(top_money_flow)
+        top_money_flow = money_flow.head(100) # Increase candidate pool
+        top_money_flow = top_money_flow[top_money_flow['ts_code'].isin(stock_basic['ts_code'])].reset_index(drop=True)
+        logger.info("分析主力资金净流入前100的股票")
+        # [MODIFIED] Switch to Relative Money Flow (Net Inflow / Circulating Market Cap)
+        # Need to fetch daily_basic for circ_mv
         for _, stock in top_money_flow.iterrows():
             basic_info = stock_basic[stock_basic['ts_code'] == stock['ts_code']]
             if not basic_info.empty:
+                # Fetch fundamental data for circ_mv
+                daily_basic = PRO.daily_basic(ts_code=stock['ts_code'], trade_date=end_date, fields='circ_mv')
+                if daily_basic.empty:
+                    continue
+                    
+                circ_mv = daily_basic.iloc[0]['circ_mv'] # 万元
+                if circ_mv <= 0:
+                    continue
+                    
+                net_mf = stock['net_mf_amount'] # 万元
+                
+                # Relative Money Flow Ratio
+                mf_ratio = net_mf / circ_mv
+                
                 # 结合价格走势分析
-                price_data = PRO.daily(ts_code=stock['ts_code'], start_date=start_date, end_date=end_date)
+                price_data = data_provider.get_ohlcv_data(ts_code=stock['ts_code'], start_date=start_date, end_date=end_date)
                 if 'trade_date' in price_data:
-                    price_data = price_data.sort_values(by='trade_date', ascending=True)
+                    price_data = price_data.sort_values(by='trade_date', ascending=False)
                 if len(price_data) > 1:
-                    # Calculate return over the period (latest / earliest - 1)
-                    price_change = (price_data.iloc[-1]['close'] /
-                                  price_data.iloc[0]['close'] - 1) * 100
-                    # 主力大幅流入且股价上涨
-                    if stock['net_mf_amount'] > 1000 and price_change > 0:  # 净流入超过1000万, unit in 万元
+                    price_change = (price_data.iloc[0]['close'] /
+                                  price_data.iloc[3]['close'] - 1) * 100
+                    
+                    # [MODIFIED] Thresholds: 
+                    # 1. Relative Inflow > 0.5% of Circ Cap (Significant buying)
+                    # 2. Price Trend > 0 (Upward)
+                    if mf_ratio > 0.005 and price_change > 0:
                         strong_stocks.append({
                             'ts_code': stock['ts_code'],
                             'name': basic_info.iloc[0]['name'],
-                            'net_mf_amount': stock['net_mf_amount'],
+                            'net_mf_amount': net_mf,
+                            'mf_ratio': mf_ratio,
                             'price_change': price_change,
                             'strategy': '资金流向'
                         })
@@ -297,20 +293,20 @@ def limit_up_strategy(stock_basic: pd.DataFrame, start_date: str, end_date: str)
     strong_stocks = []
     try:
         # 获取当日涨停股票
-        daily_data = PRO.daily(trade_date=end_date)
+        daily_data = data_provider.get_ohlcv_data(start_date=start_date, end_date=end_date)
         if 'trade_date' in daily_data:
-            daily_data = daily_data.sort_values(by='trade_date', ascending=True)
+            daily_data = daily_data.sort_values(by='trade_date', ascending=False)
         # 筛选涨停股 (假设涨跌幅超过9.5%为涨停)
         limit_up_stocks = daily_data[daily_data['pct_chg'] > 9.5]
+        limit_up_stocks = limit_up_stocks[limit_up_stocks['ts_code'].isin(stock_basic['ts_code'])].reset_index(drop=True)
         logger.info(f"发现 {len(limit_up_stocks)} 只涨停股票")
-        limit_up_stocks = filter_mainboard_stocks(limit_up_stocks)
         for _, stock in limit_up_stocks.iterrows():
             basic_info = stock_basic[stock_basic['ts_code'] == stock['ts_code']]
             if not basic_info.empty:
                 # 分析连续涨停情况
-                hist_data = PRO.daily(ts_code=stock['ts_code'], start_date=start_date, end_date=end_date)
+                hist_data = data_provider.get_ohlcv_data(ts_code=stock['ts_code'], start_date=start_date, end_date=end_date)
                 if 'trade_date' in hist_data:
-                    hist_data = hist_data.sort_values(by='trade_date', ascending=True)
+                    hist_data = hist_data.sort_values(by='trade_date', ascending=False)
                 # 计算连续涨停天数
                 consecutive_limit_up = 0
                 for i in range(min(RECENT_DAYS, len(hist_data))):
@@ -337,12 +333,6 @@ def limit_up_strategy(stock_basic: pd.DataFrame, start_date: str, end_date: str)
 def calculate_stock_scores(df: pd.DataFrame) -> pd.DataFrame:
     """
     计算股票综合评分
-
-    Args:
-        df: 包含股票数据的DataFrame
-
-    Returns:
-        添加了综合评分的DataFrame
     """
     df = df.copy()
 
@@ -351,14 +341,15 @@ def calculate_stock_scores(df: pd.DataFrame) -> pd.DataFrame:
     df['momentum_score'] = 0
     df['money_flow_score'] = 0
     df['limit_up_score'] = 0
+    df['leader_score'] = 0 # [NEW]
 
-    # 1. 策略数量得分 (权重: 40%)
+    # 1. 策略数量得分 (权重: 30%)
     if 'strategy_count' in df.columns:
         max_strategy_count = df['strategy_count'].max()
         if max_strategy_count > 0:
-            df['strategy_score'] = (df['strategy_count'] / max_strategy_count) * 40
+            df['strategy_score'] = (df['strategy_count'] / max_strategy_count) * 30
 
-    # 2. 动量得分 (权重: 30%)
+    # 2. 动量得分 (权重: 25%)
     # 板块动量策略
     momentum_mask = df['strategy'].str.contains('板块动量')
     if momentum_mask.any():
@@ -371,21 +362,21 @@ def calculate_stock_scores(df: pd.DataFrame) -> pd.DataFrame:
                 df['momentum_score'] = df.get('momentum_score', np.nan).astype(float) # pyright: ignore
                 df.loc[momentum_mask, 'momentum_score'] = (
                     (momentum_stocks['stock_3d_return'] - min_momentum) /
-                    (max_momentum - min_momentum) * 30
+                    (max_momentum - min_momentum) * 25
                 )
-    # 3. 资金流向得分 (权重: 20%)
+    # 3. 资金流向得分 (权重: 15%)
     money_flow_mask = df['strategy'].str.contains('资金流向')
     if money_flow_mask.any():
         money_flow_stocks = df[money_flow_mask]
-        if 'net_mf_amount' in df.columns:
+        if 'mf_ratio' in df.columns: # Use mf_ratio
             # 归一化处理
-            max_mf = money_flow_stocks['net_mf_amount'].max()
-            min_mf = money_flow_stocks['net_mf_amount'].min()
+            max_mf = money_flow_stocks['mf_ratio'].max()
+            min_mf = money_flow_stocks['mf_ratio'].min()
             if max_mf > min_mf:
                 df['money_flow_score'] = df.get('money_flow_score', np.nan).astype(float) # pyright: ignore
                 df.loc[money_flow_mask, 'money_flow_score'] = (
-                    (money_flow_stocks['net_mf_amount'] - min_mf) /
-                    (max_mf - min_mf) * 20
+                    (money_flow_stocks['mf_ratio'] - min_mf) /
+                    (max_mf - min_mf) * 15
                 )
 
     # 4. 涨停板得分 (权重: 10%)
@@ -400,13 +391,18 @@ def calculate_stock_scores(df: pd.DataFrame) -> pd.DataFrame:
                 df.loc[limit_up_mask, 'limit_up_score'] = (
                     limit_up_stocks['consecutive_days'] / max_days * 10
                 )
+                
+    # 5. 龙头得分 (权重: 20%) [NEW]
+    if 'is_leader' in df.columns:
+        df.loc[df['is_leader'] == True, 'leader_score'] = 20
 
     # 计算综合评分
     df['composite_score'] = (
         df['strategy_score'] +
         df['momentum_score'] +
         df['money_flow_score'] +
-        df['limit_up_score']
+        df['limit_up_score'] +
+        df['leader_score']
     )
 
     # Debug: Check for NaN values
@@ -423,30 +419,51 @@ def calculate_stock_scores(df: pd.DataFrame) -> pd.DataFrame:
     logger.info(f"动量得分范围: {df['momentum_score'].min():.2f} - {df['momentum_score'].max():.2f}")
     logger.info(f"资金流向得分范围: {df['money_flow_score'].min():.2f} - {df['money_flow_score'].max():.2f}")
     logger.info(f"涨停板得分范围: {df['limit_up_score'].min():.2f} - {df['limit_up_score'].max():.2f}")
+    logger.info(f"龙头得分范围: {df['leader_score'].min():.2f} - {df['leader_score'].max():.2f}")
     logger.info(f"综合评分范围: {df['composite_score'].min():.2f} - {df['composite_score'].max():.2f}")
     return df
 
 def is_late_trend(ts_code: str, ref_end_date: str, regime_data: Any = None) -> bool:
     """判断是否为趋势末期/透支行情的个股.
-
-    规则（任一满足即视为晚期趋势）：
-    - 收盘价距离20日均线 > 15% (可配置)
-    - 最近5日涨幅 > 20% 或 最近10日涨幅 > 30% (可配置)
-    - 当日成交量 > 20日均量的 2.0 倍 (可配置)
+    
+    [MODIFIED] Uses dynamic thresholds based on market regime.
     """
-    # Default thresholds
-    ma20_ext_limit = 0.15
-    ret_5d_limit = 0.20
-    ret_10d_limit = 0.30
-    vol_ratio_limit = 2.0
+    # Default thresholds (Normal Market)
+    ma20_ext_limit = 0.25
+    ret_5d_limit = 0.30
+    ret_10d_limit = 0.50
+    vol_ratio_limit = 2.5
     
     if regime_data:
-        thresholds = regime_data.get('filter_thresholds', {})
-        ma20_ext_limit = thresholds.get('ma20_extension', ma20_ext_limit)
-        ret_5d_limit = thresholds.get('return_5d', ret_5d_limit)
-        ret_10d_limit = thresholds.get('return_10d', ret_10d_limit)
-        vol_ratio_limit = thresholds.get('volume_ratio', vol_ratio_limit)
-
+        # Get late_trend_filter config from regime data
+        # regime_data structure: {'regime': 'bull', ...config...}
+        # But config.json structure is nested. 
+        # We should rely on what's passed. 
+        # If regime_data is the full config dict for that regime, we look for 'late_trend_filter'
+        # However, detect_market_regime returns the specific regime config.
+        # Let's assume we need to look up the thresholds manually or they are passed.
+        
+        # Actually, let's use the thresholds we defined in config.json
+        # Since we can't easily access config.json here without importing global_cm,
+        # we will use a simple mapping based on regime name if available.
+        regime = regime_data.get('regime', 'normal')
+        
+        if regime == 'bull':
+            ma20_ext_limit = 0.40
+            ret_5d_limit = 0.50
+            ret_10d_limit = 0.80
+            vol_ratio_limit = 4.0
+        elif regime == 'volatile':
+            ma20_ext_limit = 0.20
+            ret_5d_limit = 0.20
+            ret_10d_limit = 0.35
+            vol_ratio_limit = 2.5
+        elif regime == 'bear':
+            ma20_ext_limit = 0.15
+            ret_5d_limit = 0.15
+            ret_10d_limit = 0.25
+            vol_ratio_limit = 2.0
+            
     # 获取最近 30 个交易日的K线数据
     lookback_days = 30
     start_k_date = get_trading_days_before(ref_end_date, lookback_days - 1)
@@ -500,18 +517,35 @@ def is_late_trend(ts_code: str, ref_end_date: str, regime_data: Any = None) -> b
         return True
     return False
 
-def pick_strong_stocks(start_date: str, end_date: str) -> pd.DataFrame:
+def pick_strong_stocks(start_date: str, end_date: str, src: str='ts_ths') -> pd.DataFrame:
+    """
+    Pick strong stocks based on different sources.
+
+    Args:
+        start_date (str): Start date.
+        end_date (str): End date.
+        src (str): Source of data, ts_ths|ts_dc default is ts_ths.
+    """
     # 获取股票基本信息
-    stock_basic = PRO.stock_basic(exchange='', list_status='L')
-    logger.info(f"From {start_date} to {end_date}, fetch short term strong stocks from THS hot concept sectors ...")
-    
+    stock_basic = data_provider.get_basic_information_api()
+    if stock_basic.empty:
+        raise ValueError("No basic information found")
+    total_stocks = len(stock_basic)
+    # Filter out stocks that are not mainboard
+    risky_free_list = no_risky_stocks(stock_basic=stock_basic)
+    stock_basic = stock_basic[stock_basic['ts_code'].isin(risky_free_list)].reset_index(drop=True)
+    logger.info(f"Total stocks: {total_stocks}, after filtering risky, no-mainboard stocks, {len(stock_basic)} stocks")
+
     # Detect market regime
     regime_data: Any = detect_market_regime(end_date)
     logger.info(f"Market Regime: {regime_data.get('regime')}")
 
+    logger.info(f"From {start_date} to {end_date}, fetch short term strong stocks from THS hot concept sectors ...")
+    concept_list = get_concept_sectors(start_date=start_date, end_date=end_date, src=src)
+
     all_strong_stocks = []
     # 执行三个策略
-    all_strong_stocks.extend(sector_momentum_strategy(start_date=start_date, end_date=end_date))
+    all_strong_stocks.extend(sector_momentum_strategy(stock_basic=stock_basic, concept_list=concept_list, start_date=start_date, end_date=end_date, src=src))
     all_strong_stocks.extend(money_flow_strategy(stock_basic=stock_basic, start_date=start_date, end_date=end_date))
     all_strong_stocks.extend(limit_up_strategy(stock_basic=stock_basic, start_date=start_date, end_date=end_date))
     all_strong_stocks = [dct for dct in all_strong_stocks if isinstance(dct, dict) and 'ts_code' in dct and 'strategy' in dct]
@@ -561,66 +595,63 @@ def pick_strong_stocks(start_date: str, end_date: str) -> pd.DataFrame:
     else:
         filtered_df = pd.DataFrame(filtered_rows).reset_index(drop=True)
 
-    # Only return on risky-free stocks
-    risky_free_list = no_risky_stocks()
-    filtered_df = filtered_df[filtered_df['ts_code'].isin(risky_free_list)].reset_index(drop=True)
-    logger.info(f"After filtering late-trend and risky stocks, {len(filtered_df)} stocks")
     return filtered_df
 
 
-def no_risky_stocks() -> list[str]:
+def no_risky_stocks(stock_basic: pd.DataFrame, mainboard: bool = True) -> list[str]:
     """
-    返回不适合短线操作的股票列表
-    """
-    # Get all stocks (not cached, direct API call)
-    basic_info = data_provider.get_basic_information()
-    if basic_info.empty:
-        raise ValueError("No basic information found")
+    返回适合短线操作的股票列表, default is only no risk, lower pct_chg mainboard stocks.
+    Usage:
+    risky_free_list = no_risky_stocks(stock_basic=stock_basic)
+    filtered_df = filtered_df[filtered_df['ts_code'].isin(risky_free_list)].reset_index(drop=True)
 
-    # Filter out risky stocks (ST, *ST, etc.)
+    Args:
+        stock_basic (pd.DataFrame): Stock basic information.
+        mainboard (bool, optional): Whether to include mainboard stocks. Defaults to True.
+    
+    Returns:
+        list[str]: List of stocks that are suitable for short-term trading.
+    """
+    # Filter out risky stocks (ST, *ST, New, etc.)
     name_pattern = r'^(?:C|N|\*?ST|S)|退'
-    ts_code_pattern = r'^(?:C|N|\*|4|9|8|30|688)|ST'
+    # 沪市主板股票代码以600/601/603/605开头，科创板股票代码以688开头。
+    # 深市主板股票代码以000/001/002/003/004开头，创业板股票代码以300/301开头。
+    # 北交所股票代码以8|92开头。 新三板: 400/430/830开头。
+    # Default only mainboard stocks
+    ts_code_pattern = r'^(?:C|N|\*|4|9|8|30|688)|ST' if mainboard else r'^(?:C|N|\*|9|8|)|ST'
     exclude_conditions = (
-        basic_info['name'].str.contains(name_pattern, regex=True, na=False) |
-        basic_info['ts_code'].str.contains(ts_code_pattern, regex=True, na=False)
+        stock_basic['name'].str.contains(name_pattern, regex=True, na=False) |
+        stock_basic['ts_code'].str.contains(ts_code_pattern, regex=True, na=False)
     )
-    risky_stocks = basic_info[exclude_conditions]['ts_code'].tolist()
+    risky_stocks = stock_basic[exclude_conditions]['ts_code'].tolist()
     logger.info(f"Filtered out {len(risky_stocks)} risky stocks.")
-    all_stocks = basic_info['ts_code'].tolist()
+    all_stocks = stock_basic['ts_code'].tolist()
     risky_free_stocks = list(set(all_stocks) - set(risky_stocks))
     return risky_free_stocks
 
 
 if __name__ == "__main__":
-    """
-    sector_code = '885333.TI'
-    index_code = sector_code.split('.')[0]
-    df = ths_member(index_code)
-    print(df)
-    # akshare limited APi by IP, use adata to get concept members.
-    import adata
-    df21 = adata.stock.info.all_concept_code_ths()
-    print(df21)
-    df22 = adata.stock.info.concept_constituent_ths(index_code=index_code)
-    print(df22)
-    import pdb;pdb.set_trace()
-    """
-
     argv = sys.argv[1:]
-    if len(argv) >= 1:
+    if len(argv) >=2:
+        src = argv[1]
+        date = convert_trade_date(argv[0])
+    elif len(argv) >= 1:
+        src = 'ts_ths'
         date = convert_trade_date(argv[0])
     else:
-        logger.info("Usage: python -m pick_stocks_from_sector.ts <date YYYYMMDD>")
-        date = convert_trade_date('20251120')
-    if not date:
+        src = 'ts_ths'
         date = datetime.now().strftime('%Y%m%d')
+    if src not in ['ts_ths', 'ts_dc']:
+        logger.error("Usage: python -m pick_stocks_from_sector.ts_ths_dc <date YYYYMMDD> <ts_ths | ts_dc>")
+        exit(1)
+
+    # Save to /tmp/tmp: {"selected_stocks": [{"rank": 1, "symbol": "603085.SH", "score": 0.94},...]}
+    output_file = '/tmp/tmp'
     date = get_trading_days_before(date, 1)
     start_date = get_trading_days_before(date, RECENT_DAYS-1)
     end_date = date
     days = get_trading_days_between(start_date, end_date)
-    df = pick_strong_stocks(start_date=start_date, end_date=end_date)
-    # Save to /tmp/tmp: {"selected_stocks": [{"rank": 1, "symbol": "603085.SH", "score": 0.94},...]}
-    output_file = '/tmp/tmp'
+    df = pick_strong_stocks(start_date=start_date, end_date=end_date, src=src)
     if len(argv) >=1:
         selected_stocks = []
         for _, stock in df.iterrows():

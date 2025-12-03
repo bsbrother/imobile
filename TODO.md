@@ -1,4 +1,22 @@
 # TODO
+- 2025.12.03
+Strategy: Instead of switching monthly, consider diversifying. Allocate 50% capital to THS strategy and 50% to DC.
+In Oct, you would have averaged ~ -1.0% (better than -2.6%).
+In Nov, you would have averaged ~ +6.8% (capturing the gains).
+create a "Combined Strategy" script that runs both and merges the picks.
+
+- 2025.12.02
+Analysis backtest result at backtest/backtest_results/, it has 4 folders, according to provider tushare api ts_dc or ts_ths, period from 20251001 to 20251031 or from 20251101 to 20251130. Each trading date pick stocks as pick_stocks_yyyymmdd.json, create smart orders as smart_orders_yyyymmdd, excute orders(buy/sell) as report_orders_yyyymmdd.md.
+- 20251001_20251031_ts_dc/report_period_20251001_20251031.md: Total Return -2.63%
+- 20251101_20251130_ts_dc/report_period_20251101_20251130.md: Total Return 6.95%
+- 20251001_20251031_ts_ths/report_period_20251001_20251031.md: Total Return 0.56%
+- 20251101_20251130_ts_ths/report_period_20251101_20251130.md: Total Return 6.68%
+
+1. what are difference with ths and dc ?
+2. why dc month 10 get nagative (-2.63%) profit, but month 11 get more (6.95%) profit?
+3. ths month 10 get litter (0.56%) profit, but month 11 get 6.68% profilt, less then dc 6.95% profit.
+4. can use ths at month 10 at use dc at month 11, for more profit.
+
 - 2025.11.20
   Create single html file:
     - pick stock for next trading date: current hot sectors top 10, and pick stocks from these sectors by score.

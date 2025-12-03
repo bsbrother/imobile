@@ -231,6 +231,7 @@ def money_flow_strategy(stock_basic: pd.DataFrame, start_date: str, end_date: st
                 time.sleep(0.1) # Avoid hitting API rate limits
             except Exception as e:
                 logger.warning(f"Failed to fetch money flow for {trade_date}: {e}")
+                raise
 
         if accumulated_mf.empty:
             logger.warning("No money flow data fetched.")
@@ -248,7 +249,7 @@ def money_flow_strategy(stock_basic: pd.DataFrame, start_date: str, end_date: st
             basic_info = stock_basic[stock_basic['ts_code'] == stock['ts_code']]
             if not basic_info.empty:
                 # Fetch fundamental data for circ_mv
-                daily_basic = PRO.daily_basic(ts_code=stock['ts_code'], trade_date=end_date, fields='circ_mv')
+                daily_basic = data_provider.get_fundamental_data(stock['ts_code'], end_date, end_date)
                 if daily_basic.empty:
                     continue
                     
@@ -262,12 +263,14 @@ def money_flow_strategy(stock_basic: pd.DataFrame, start_date: str, end_date: st
                 mf_ratio = net_mf / circ_mv
                 
                 # 结合价格走势分析
-                price_data = data_provider.get_ohlcv_data(ts_code=stock['ts_code'], start_date=start_date, end_date=end_date)
+                price_data = data_provider.get_ohlcv_data(symbol=stock['ts_code'], start_date=start_date, end_date=end_date)
+                if len(price_data) < 4:
+                    logger.warning(f"Not enough price data for {stock['ts_code']}, skip it.")
+                    continue
                 if 'trade_date' in price_data:
                     price_data = price_data.sort_values(by='trade_date', ascending=False)
                 if len(price_data) > 1:
-                    price_change = (price_data.iloc[0]['close'] /
-                                  price_data.iloc[3]['close'] - 1) * 100
+                    price_change = (price_data.iloc[0]['close'] / price_data.iloc[3]['close'] - 1) * 100
                     
                     # [MODIFIED] Thresholds: 
                     # 1. Relative Inflow > 0.5% of Circ Cap (Significant buying)
@@ -283,6 +286,9 @@ def money_flow_strategy(stock_basic: pd.DataFrame, start_date: str, end_date: st
                         })
     except Exception as e:
         logger.error(f"资金流向策略执行出错: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
     logger.info(f"Got {len(strong_stocks)} stocks from money flow strategy.")
     return strong_stocks
 
@@ -293,7 +299,7 @@ def limit_up_strategy(stock_basic: pd.DataFrame, start_date: str, end_date: str)
     strong_stocks = []
     try:
         # 获取当日涨停股票
-        daily_data = data_provider.get_ohlcv_data(start_date=start_date, end_date=end_date)
+        daily_data = data_provider.get_stock_data(symbols=stock_basic['ts_code'].tolist(), start_date=start_date, end_date=end_date)
         if 'trade_date' in daily_data:
             daily_data = daily_data.sort_values(by='trade_date', ascending=False)
         # 筛选涨停股 (假设涨跌幅超过9.5%为涨停)
@@ -304,7 +310,7 @@ def limit_up_strategy(stock_basic: pd.DataFrame, start_date: str, end_date: str)
             basic_info = stock_basic[stock_basic['ts_code'] == stock['ts_code']]
             if not basic_info.empty:
                 # 分析连续涨停情况
-                hist_data = data_provider.get_ohlcv_data(ts_code=stock['ts_code'], start_date=start_date, end_date=end_date)
+                hist_data = data_provider.get_ohlcv_data(symbol=stock['ts_code'], start_date=start_date, end_date=end_date)
                 if 'trade_date' in hist_data:
                     hist_data = hist_data.sort_values(by='trade_date', ascending=False)
                 # 计算连续涨停天数
@@ -326,6 +332,7 @@ def limit_up_strategy(stock_basic: pd.DataFrame, start_date: str, end_date: str)
                     })
     except Exception as e:
         logger.error(f"涨停板策略执行出错: {e}")
+        raise
     logger.info(f"Got {len(strong_stocks)} stocks from limit up strategy.")
     return strong_stocks
 
@@ -469,6 +476,7 @@ def is_late_trend(ts_code: str, ref_end_date: str, regime_data: Any = None) -> b
     start_k_date = get_trading_days_before(ref_end_date, lookback_days - 1)
     # no need get_kline(has adj(qfq/hfq)), repalce by OHLCV data.
     kline = data_provider.get_ohlcv_data(symbol=ts_code, start_date=start_k_date, end_date=ref_end_date)
+    # TODO: use stock_basic list_date to no-limit need >= 20 days data.
     if kline is None or kline.empty or len(kline) < 20:
         logger.warning(f"Get kline failed or insufficient data, ts_code={ts_code}")
         return False
@@ -506,7 +514,7 @@ def is_late_trend(ts_code: str, ref_end_date: str, regime_data: Any = None) -> b
                 return True
     except Exception as e:
         logger.warning(f"计算短期涨幅失败, ts_code={ts_code}, error={e}")
-        return True
+        raise
 
     # 3. 成交量放大到均量多倍，可能是尾声放量
     if latest_vol_ma20 > 0 and latest_vol > latest_vol_ma20 * vol_ratio_limit:

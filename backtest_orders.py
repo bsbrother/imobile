@@ -50,7 +50,7 @@ load_dotenv()
 # 1. Load configures from .env, $BACKTEST_PATH/config.json, e.g. REPORT_PATH, initial cash, strategy parameters etc.
 CONFIG_FILE = os.getenv("CONFIG_FILE", default="/backtest/config.json")
 BACKTEST_PATH = os.getenv('BACKTEST_PATH', './backtest')
-REPORT_PATH = os.path.join(BACKTEST_PATH, 'backtest_results')
+REPORT_PATH = os.getenv('REPORT_DIR', os.path.join(BACKTEST_PATH, 'backtest_results'))
 LOG_LEVEL = os.getenv("LOG_LEVEL", default="INFO")
 LOG_PATH = os.getenv("LOG_PATH", default="./logs")
 configure_logger(log_level=LOG_LEVEL, log_path=LOG_PATH)
@@ -1460,7 +1460,7 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
         #analyzer.adjust_orders(this_date, os.path.join(REPORT_PATH, f'adjusted_orders_{this_date.replace("-", "")}.json'))
 
         if this_date != dates[-1]:
-            time.sleep(60) # Sleep to avoid API rate limits
+            time.sleep(30) # Sleep to avoid API rate limits
 
     if not analyzer:
         logger.info("No orders were processed in the given date range.")
@@ -1472,11 +1472,6 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
 
 
 if __name__ == '__main__':
-    os.system(f"""
-        rm -f db/test_imobile.db; sqlite3 db/test_imobile.db < db/imobile.sql;
-        rm -rf {REPORT_PATH}/*; rm -rf /tmp/tmp
-    """)
-
     user_id = 1
     start_date = '2025-11-01'
     end_date = '2025-11-20'
@@ -1492,10 +1487,20 @@ if __name__ == '__main__':
             user_id = int(argv[4])
     if src not in ['ts_ths', 'ts_dc']:
         raise ValueError(f"Invalid source: {src}. Valid sources are 'ts_ths' and 'ts_dc'.")
+    
+    print(f"DEBUG: Running with start_date={start_date}, end_date={end_date}, src={src}")
+    REPORT_PATH = os.path.join(REPORT_PATH, f'{start_date}_{end_date}_{src}')
+    os.makedirs(REPORT_PATH, exist_ok=True)
+    os.system(f"""
+        rm -f db/test_imobile.db; sqlite3 db/test_imobile.db < db/imobile.sql;
+        rm -rf {REPORT_PATH}/*; rm -rf /tmp/tmp
+    """)
 
     try:
         pick_orders_trading(start_date=start_date, end_date=end_date, user_id=user_id, src=src)
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         logger.error(f"Error during automatic order picking: {e}")
         raise e
     finally:

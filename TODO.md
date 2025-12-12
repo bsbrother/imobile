@@ -1,4 +1,93 @@
 # TODO
+- 2025.12.12 result_ts_vs_index.py
+Period               | Index Returns (SSE, CSI300)    | Method Returns
+----------------------------------------------------------------------------------------------------
+From 20250701 to 20250731,
+- index(SSE: 3.74%, CSI300: 0.42%) return.
+- ts_combine: -3.63%, ts_dc: 0.11%, ts_ths: -0.42%
+--------------------------------------------------
+From 20250801 to 20250831,
+- index(SSE: 7.97%, CSI300: 10.33%) return.
+- ts_combine: 6.52%, ts_dc: 12.59%, ts_ths: 9.29%
+--------------------------------------------------
+From 20250901 to 20250930,
+- index(SSE: 0.12%, CSI300: 0.00%) return.
+- ts_combine: 6.35%, ts_dc: 8.34%, ts_ths: 3.25%
+--------------------------------------------------
+From 20251001 to 20251031,
+- index(SSE: 1.85%, CSI300: 1.49%) return.
+- ts_combine: 0.33%, ts_dc: 1.54%, ts_ths: 0.08%
+--------------------------------------------------
+From 20251101 to 20251130,
+- index(MISMATCH! SSE:-1.67%/-2.01%, CSI:-2.46%) return.
+- ts_combine: 4.63%, ts_dc: 9.27%, ts_ths: 3.27%
+--------------------------------------------------
+
+- 2025.12.11
+  https://github.com/rejith77/SMA-Trading-Agent
+  An autonomous financial trading agent powered by LangGraph, LangChain, and OpenAI, capable of executing financial analysis tasks such as fetching stock data, calculating indicators (like SMA/RSI), and running strategy backtests automatically through iterative reasoning.
+
+  [AI auto pick stock, trading and backtest] https://github.com/sngyai/Sequoia
+    strategies = {
+        '放量上涨': enter.check_volume,
+        '均线多头': keep_increasing.check,
+        '停机坪': parking_apron.check,
+        '回踩年线': backtrace_ma250.check,
+        # '突破平台': breakthrough_platform.check,
+        '无大幅回撤': low_backtrace_increase.check,
+        '海龟交易法则': turtle_trade.check_enter,
+        '高而窄的旗形': high_tight_flag.check,
+        '放量跌停': climax_limitdown.check,
+    }
+
+- 2025.12.10
+- 策略核心逻辑与进阶优化建议
+板块动量轮动策略: 买入当期热点板块中的龙头股，并持有至月底。
+
+为了让策略更有效，你可以从以下几个方面进行优化，这也是专业量化研究的常见方向：
+
+动态选股：当前策略使用了固定的股票池。你可以将其改进为在每个月末，根据过去20-60天的涨幅、成交额、市值等因子，从所有A股中动态筛选出强势板块的龙头股。
+
+引入多因子模型：像搜索中提到的那样，结合估值（PE/PB）、动量、财务质量等多个因子进行综合评分选股。
+
+改进买卖点：不止在期初期末交易，可以引入均线突破、RSI等技术指标作为买卖信号。
+
+风险控制：在策略中加入止损、止盈和仓位管理的规则。
+
+降低交易成本：在cerebro.broker.set_slippage_perc()中设置滑点，以更真实地模拟交易。
+
+- 2025.12.06
+Not re-runing again, all result at backtest/backtest_results/20251001_20251031_ts_xxx/.
+xxx is ths, dc, combine.
+ths: return 2.49%
+dc: return 0.22%
+combine: -1.23%
+
+Analysis each trading date(pick stocks, create smart orders, trading orders), why ths return best, dc return better, and combine both(ths and dc) is low. fix it.
+
+- 2005.12.05
+python backtest_orders.py 20251101 20251130 ts_xxx, xxx is: ths, dc, combine
+results at backtest/backtest_results/20251101_20251130_ts_xxx/.
+
+You not need re-running again, just anaysis each trading date(pick stocks, create smart orders, trading orders) at these directory:
+- ths:
+  | Metric | Strategy | SSE Composite | CSI 300 |
+  |--------|----------|---------------|---------|
+  | **Total Return** | 15.60% | -2.55% | -2.72% |
+
+- dc:
+  | Metric | Strategy | SSE Composite | CSI 300 |
+  |--------|----------|---------------|---------|
+  | **Total Return** | 2.49% | -2.55% | -2.72% |
+
+- combine:
+  | Metric | Strategy | SSE Composite | CSI 300 |
+  |--------|----------|---------------|---------|
+  | **Total Return** | -0.11% | -2.21% | -2.72% |
+
+- Why combine (ths and dc) get litter profit(-0.11%) then ths(15.60% and dc(2.49%)?
+- Why ths get more profit then dc ?
+
 - 2025.12.03
 Strategy: Instead of switching monthly, consider diversifying. Allocate 50% capital to THS strategy and 50% to DC.
 In Oct, you would have averaged ~ -1.0% (better than -2.6%).
@@ -8,6 +97,7 @@ create a "Combined Strategy" script that runs both and merges the picks.
 - 2025.12.02
 Analysis backtest result at backtest/backtest_results/, it has 4 folders, according to provider tushare api ts_dc or ts_ths, period from 20251001 to 20251031 or from 20251101 to 20251130. Each trading date pick stocks as pick_stocks_yyyymmdd.json, create smart orders as smart_orders_yyyymmdd, excute orders(buy/sell) as report_orders_yyyymmdd.md.
 - 20251001_20251031_ts_dc/report_period_20251001_20251031.md: Total Return -2.63%
+
 - 20251101_20251130_ts_dc/report_period_20251101_20251130.md: Total Return 6.95%
 - 20251001_20251031_ts_ths/report_period_20251001_20251031.md: Total Return 0.56%
 - 20251101_20251130_ts_ths/report_period_20251101_20251130.md: Total Return 6.68%

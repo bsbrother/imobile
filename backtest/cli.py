@@ -741,6 +741,9 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                     else:
                         # If no target data (e.g. live trading), use close * 1.01 as proxy for open
                         buy_price = close_price * 1.01
+                    
+                    # Optimize Entry: Buy at 99% of Open to capture intraday dips
+                    buy_price = round(buy_price * 0.99, 2)
                 else:
                     # Use the calculated buy_price (RSI/BB/Support based)
                     # Ensure it's not higher than yesterday's close in Bear market

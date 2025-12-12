@@ -100,9 +100,9 @@
     "bull_market": {
       "ranking": {
         "weights": {
-          "momentum": 0.55,
+          "momentum": 0.45,
           "volume": 0.3,
-          "technical": 0.15
+          "technical": 0.25
         }
       },
       "price_range": [
@@ -188,10 +188,10 @@
   "trading_rules": {
     "risk_reward_ratios": {
       "bull_market": {
-        "take_profit_pct": 0.30,
-        "stop_loss_pct": 0.15,
+        "take_profit_pct": 0.18,
+        "stop_loss_pct": 0.06,
         "trailing_stop_enabled": true,
-        "max_hold_days": 15,
+        "max_hold_days": 10,
         "min_hold_days": 3
       },
       "normal_market": {
@@ -225,10 +225,10 @@
     },
     "late_trend_filter": {
       "bull_market": {
-        "ma_threshold": 1.40,
-        "short_gain_threshold": 0.50,
-        "mid_gain_threshold": 0.80,
-        "volume_multiplier": 4.0
+        "ma_threshold": 1.60,
+        "short_gain_threshold": 0.60,
+        "mid_gain_threshold": 1.00,
+        "volume_multiplier": 5.0
       },
       "normal_market": {
         "ma_threshold": 1.25,

@@ -99,17 +99,41 @@ def pick_combined_stocks(start_date: str, end_date: str) -> pd.DataFrame:
 
     # 4. Calculate Combined Score
     # Logic:
-    # - Base: Max(score_ths, score_dc)
-    # - Bonus: If src_ths AND src_dc, add +20 (or significant boost)
+    # - Normalize scores from both sources to 0-100 scale if they aren't already
+    # - Sum the scores: final = score_ths + score_dc
+    # - This naturally rewards intersection (sum of two scores) but allows high-scoring single source to compete
     
-    def calc_final_score(row):
-        base = max(row.get('score_ths', 0), row.get('score_dc', 0))
-        bonus = 0
-        if row.get('src_ths') and row.get('src_dc'):
-            bonus = 20 # Intersection Bonus
-        return base + bonus
+    def normalize_score(df, col):
+        if df.empty or col not in df.columns:
+            return
+        max_val = df[col].max()
+        min_val = df[col].min()
+        if max_val > min_val:
+            df[col] = (df[col] - min_val) / (max_val - min_val) * 100
+        elif max_val > 0:
+            df[col] = 100
+        else:
+            df[col] = 0
 
-    merged_df['final_score'] = merged_df.apply(calc_final_score, axis=1)
+    # Create copies to avoid setting on slice warnings if any
+    # We already have merged_df. 
+    # But we need to normalize based on the ORIGINAL distribution to preserve relative strength?
+    # Actually, merged_df has the raw scores.
+    # Let's normalize within the merged set? No, that mixes distributions.
+    # Best to use the raw scores if they are already on similar scales (0-100).
+    # ts_ths_dc.py produces scores roughly 0-100.
+    
+    # Max Score + Bonus Strategy
+    # Logic: Take the higher score of the two sources.    # Create final score: Weighted Average + Bonus
+    # Logic: Use weighted average to smooth out noise.
+    # Weight THS (0.3) lower than DC (0.7) as DC signals appear more reliable recently.
+    merged_df['weighted_score'] = merged_df['score_ths'] * 0.3 + merged_df['score_dc'] * 0.7
+    
+    # Add bonus for consensus (present in both)
+    # Increased bonus to 20 to strongly reward high-conviction picks.
+    merged_df['bonus'] = merged_df.apply(lambda row: 20 if row['src_ths'] and row['src_dc'] else 0, axis=1)
+    
+    merged_df['final_score'] = merged_df['weighted_score'] + merged_df['bonus']
     
     # Combine Strategy Strings
     def combine_strategies(row):

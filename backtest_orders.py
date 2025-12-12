@@ -92,9 +92,18 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_ths') -> str:
     # hot sectors picker
     # Pass regime info to picker if needed, or just let it pick based on sectors
     # For now, we assume picker logic is independent or we will update it later.
-    result = os.system(f'python pick_stocks_from_sector/ts_ths_dc.py {this_date} {src}')
+    if src == 'ts_combine':
+        result = os.system(f'python pick_stocks_from_sector/ts_combine.py {this_date}')
+    elif src == 'ts_go':
+        # Compile and run the Go stock picker
+        # Command: cd utils/go-stock; go build -o pick_stocks cmd/pick_stocks/main.go; ./pick_stocks {this_date}
+        cmd = f'cd utils/go-stock && go build -o pick_stocks cmd/pick_stocks/main.go && ./pick_stocks -date {this_date}'
+        logger.info(f"Running Go stock picker: {cmd}")
+        result = os.system(cmd)
+    else:
+        result = os.system(f'python pick_stocks_from_sector/ts_ths_dc.py {this_date} {src}')
     if result != 0:
-        raise ValueError(f"Failed to pick strong stocks from hot sectors for {this_date}.")
+        raise ValueError(f"Failed to pick strong stocks from hot sectors for {this_date} using {src}.")
     with open('/tmp/tmp', 'r') as f:
         strong_stocks = json.load(f)
     data = {
@@ -144,19 +153,24 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1) -> st
 
     with DB.cursor() as cursor:
         cursor.execute("""
-            SELECT id, code, trigger_condition, valid_until, buy_or_sell_quantity, name
+            SELECT id, code, trigger_condition, valid_until, buy_or_sell_quantity, name, last_updated
             FROM smart_orders
             WHERE status='running' AND user_id=?
         """, (user_id,))
         for order in cursor.fetchall():
-            # the order is buy order, cancel it if expired(over valid_until).
+            # the order is buy order.
             if '触发买入' in order[2]:
-                if this_date >= order[3]:
+                # Cancel if expired OR if it's a stale buy order from previous days.
+                # Relaxed: Allow buy orders to persist for 2 days to avoid churning.
+                last_updated = datetime.strptime(order[6], '%Y-%m-%d %H:%M:%S') if isinstance(order[6], str) else order[6]
+                days_since_update = (datetime.strptime(this_date, '%Y%m%d') - last_updated).days
+                
+                if this_date >= order[3] or days_since_update >= 2: 
                     no_buy_cancel_symbols.append(order[1])
                     cursor.execute("""
                         UPDATE smart_orders
                         SET status='cancelled',
-                            reason_of_ending='order_expired_before_buy',
+                            reason_of_ending='order_expired_or_stale',
                             last_updated=?
                         WHERE id=? AND user_id=?
                     """, (convert_to_datetime(this_date), order[0], user_id))
@@ -170,6 +184,7 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1) -> st
             }
 
         added_orders = adjusted_orders = prev_orders= 0
+        logger.info(f"Current running orders: {len(running_orders)}/{MAX_POSITIONS}")
         for order in data['smart_orders']:
             # Append to smart_orders table in db/imobile.db
             if order['symbol'] not in running_orders:
@@ -240,10 +255,12 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1) -> st
                     profit_price = trigger_condition.split(',')[0].split('>=')[1].replace('元(触发止盈)', '')
                     lose_price = trigger_condition.split(',')[1].split('<=')[1].replace('元(触发止损)', '')
                     
-                    # Increase TP by 5% (let winners run)
-                    profit_price = round(float(profit_price) * 1.05, 2)
-                    # Raise SL by 5% (lock in profits / reduce risk)
-                    lose_price = round(float(lose_price) * 1.05, 2)
+                    # Increase TP by 10% (let winners run more)
+                    profit_price = round(float(profit_price) * 1.10, 2)
+                    # Do NOT raise SL blindly to avoid noise-out. Keep original SL or raise very slightly.
+                    # lose_price = round(float(lose_price) * 1.02, 2) 
+                    # For now, keep SL same to give room for volatility.
+                    lose_price = float(lose_price)
 
                     # the order is about to expire today, force sell at market price next day.
                     reason_of_ending = ''
@@ -431,8 +448,7 @@ def execute_buy_order(user_id: int, symbol: str, name: str,
             '即时买一价', quantity,
             f"ORD_{next_date}_{symbol}_{user_id}", 'running', valid_until,
             convert_to_datetime(transaction_date)
-        ))
-
+            ))
         has_exceptions = False
 
     if has_exceptions:
@@ -1089,26 +1105,30 @@ class OrderAnalyzer:
                     notes = sell[4]
 
                     # Extract P&L from notes (format: "... P&L: ¥123.45 (12.34%)")
-                    # Or calculate from cost basis
-                    cursor.execute("""
-                        SELECT cost_basis_diluted
-                        FROM holding_stocks
-                        WHERE code = ? AND user_id = ?
-                    """, (symbol, self.user_id))
+                    # Prioritize notes as holding_stocks might be updated (re-entry) or deleted
+                    transaction_pnl = 0.0
+                    pnl_found = False
+                    
+                    if 'P&L:' in notes:
+                        try:
+                            pnl_str = notes.split('P&L: ¥')[1].split(' ')[0]
+                            transaction_pnl = float(pnl_str)
+                            pnl_found = True
+                        except Exception as e:
+                            logger.warning(f"Could not parse P&L from notes for {symbol}: {e}")
+                    
+                    if not pnl_found:
+                        # Fallback to cost basis from holding_stocks (RISKY if re-entered)
+                        cursor.execute("""
+                            SELECT cost_basis_diluted
+                            FROM holding_stocks
+                            WHERE code = ? AND user_id = ?
+                        """, (symbol, self.user_id))
 
-                    cost_row = cursor.fetchone()
-                    if cost_row:
-                        cost_basis = float(cost_row[0]) * quantity
-                        transaction_pnl = net_amount - cost_basis
-                    else:
-                        # Position closed, try to parse from notes
-                        if 'P&L:' in notes:
-                            try:
-                                pnl_str = notes.split('P&L: ¥')[1].split(' ')[0]
-                                transaction_pnl = float(pnl_str)
-                            except Exception as e:
-                                logger.warning(f"Could not parse P&L from notes for {symbol}: {e}")
-                                transaction_pnl = 0
+                        cost_row = cursor.fetchone()
+                        if cost_row:
+                            cost_basis = float(cost_row[0]) * quantity
+                            transaction_pnl = net_amount - cost_basis
                         else:
                             transaction_pnl = 0
 
@@ -1234,7 +1254,10 @@ class OrderAnalyzer:
                         
                         # Calculate Metrics
                         close_end = pd.to_numeric(df_index.loc[common_dates[-1], 'close'])
-                        close_start = pd.to_numeric(df_index.loc[common_dates[0], 'close'])
+                        if 'pre_close' in df_index.columns and pd.to_numeric(df_index.loc[common_dates[0], 'pre_close']) > 0:
+                            close_start = pd.to_numeric(df_index.loc[common_dates[0], 'pre_close'])
+                        else:
+                            close_start = pd.to_numeric(df_index.loc[common_dates[0], 'close'])
                         bench_total_return = (float(close_end) / float(close_start)) - 1
                         excess_return = strat_ret - bench_total_return
                         
@@ -1429,7 +1452,7 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
     start_date -- The start date (format: YYYY-MM-DD), default is today.
     end_date -- The end date (format: YYYY-MM-DD), default is today.
     user_id -- The user ID for the trading account.
-    src -- The source of stocks, default is 'ts_ths'. or 'ts_dc'
+    src -- The source of stocks, default is 'ts_ths', or 'ts_dc', or 'ts_combine'
     """
     today = convert_trade_date(datetime.now().strftime('%Y-%m-%d'))
     if not start_date:
@@ -1485,8 +1508,8 @@ if __name__ == '__main__':
             src = argv[3]
         if len(argv) >= 5:
             user_id = int(argv[4])
-    if src not in ['ts_ths', 'ts_dc']:
-        raise ValueError(f"Invalid source: {src}. Valid sources are 'ts_ths' and 'ts_dc'.")
+    if src not in ['ts_ths', 'ts_dc', 'ts_combine', 'ts_go']:
+        raise ValueError(f"Invalid source: {src}. Valid sources are 'ts_ths', 'ts_dc', 'ts_combine', and 'ts_go'.")
     
     print(f"DEBUG: Running with start_date={start_date}, end_date={end_date}, src={src}")
     REPORT_PATH = os.path.join(REPORT_PATH, f'{start_date}_{end_date}_{src}')

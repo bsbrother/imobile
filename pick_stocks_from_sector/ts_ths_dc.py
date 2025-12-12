@@ -181,7 +181,7 @@ def sector_momentum_strategy(stock_basic: pd.DataFrame, concept_list: pd.DataFra
                     
                     # [MODIFIED] Remove < 15% cap to allow Dragon stocks
                     # Only filter out weak stocks (< 5%)
-                    if stock_3d_return > 5:
+                    if stock_3d_return > 3:
                         sector_stocks.append({
                             'ts_code': member['con_code'],
                             'name': member['con_name'] if 'con_name' in member else member['name'],
@@ -354,7 +354,7 @@ def calculate_stock_scores(df: pd.DataFrame) -> pd.DataFrame:
     if 'strategy_count' in df.columns:
         max_strategy_count = df['strategy_count'].max()
         if max_strategy_count > 0:
-            df['strategy_score'] = (df['strategy_count'] / max_strategy_count) * 30
+            df['strategy_score'] = (df['strategy_count'] / max_strategy_count) * 20
 
     # 2. 动量得分 (权重: 25%)
     # 板块动量策略
@@ -369,7 +369,7 @@ def calculate_stock_scores(df: pd.DataFrame) -> pd.DataFrame:
                 df['momentum_score'] = df.get('momentum_score', np.nan).astype(float) # pyright: ignore
                 df.loc[momentum_mask, 'momentum_score'] = (
                     (momentum_stocks['stock_3d_return'] - min_momentum) /
-                    (max_momentum - min_momentum) * 25
+                    (max_momentum - min_momentum) * 20
                 )
     # 3. 资金流向得分 (权重: 15%)
     money_flow_mask = df['strategy'].str.contains('资金流向')
@@ -383,7 +383,7 @@ def calculate_stock_scores(df: pd.DataFrame) -> pd.DataFrame:
                 df['money_flow_score'] = df.get('money_flow_score', np.nan).astype(float) # pyright: ignore
                 df.loc[money_flow_mask, 'money_flow_score'] = (
                     (money_flow_stocks['mf_ratio'] - min_mf) /
-                    (max_mf - min_mf) * 15
+                    (max_mf - min_mf) * 30
                 )
 
     # 4. 涨停板得分 (权重: 10%)
@@ -443,33 +443,34 @@ def is_late_trend(ts_code: str, ref_end_date: str, regime_data: Any = None) -> b
     
     if regime_data:
         # Get late_trend_filter config from regime data
-        # regime_data structure: {'regime': 'bull', ...config...}
-        # But config.json structure is nested. 
-        # We should rely on what's passed. 
-        # If regime_data is the full config dict for that regime, we look for 'late_trend_filter'
-        # However, detect_market_regime returns the specific regime config.
-        # Let's assume we need to look up the thresholds manually or they are passed.
-        
-        # Actually, let's use the thresholds we defined in config.json
-        # Since we can't easily access config.json here without importing global_cm,
-        # we will use a simple mapping based on regime name if available.
-        regime = regime_data.get('regime', 'normal')
-        
-        if regime == 'bull':
-            ma20_ext_limit = 0.40
-            ret_5d_limit = 0.50
-            ret_10d_limit = 0.80
-            vol_ratio_limit = 4.0
-        elif regime == 'volatile':
-            ma20_ext_limit = 0.20
-            ret_5d_limit = 0.20
-            ret_10d_limit = 0.35
-            vol_ratio_limit = 2.5
-        elif regime == 'bear':
-            ma20_ext_limit = 0.15
-            ret_5d_limit = 0.15
-            ret_10d_limit = 0.25
-            vol_ratio_limit = 2.0
+        filter_config = regime_data.get('late_trend_filter', {})
+        if filter_config:
+            ma20_ext_limit = filter_config.get('ma_threshold', ma20_ext_limit)
+            # Convert threshold (e.g. 1.4) to extension limit (0.4)
+            if ma20_ext_limit > 1.0:
+                ma20_ext_limit -= 1.0
+                
+            ret_5d_limit = filter_config.get('short_gain_threshold', ret_5d_limit)
+            ret_10d_limit = filter_config.get('mid_gain_threshold', ret_10d_limit)
+            vol_ratio_limit = filter_config.get('volume_multiplier', vol_ratio_limit)
+        else:
+            # Fallback to simple mapping if config not present
+            regime = regime_data.get('regime', 'normal')
+            if regime == 'bull':
+                ma20_ext_limit = 0.60
+                ret_5d_limit = 0.60
+                ret_10d_limit = 1.00
+                vol_ratio_limit = 4.0
+            elif regime == 'volatile':
+                ma20_ext_limit = 0.20
+                ret_5d_limit = 0.20
+                ret_10d_limit = 0.35
+                vol_ratio_limit = 2.5
+            elif regime == 'bear':
+                ma20_ext_limit = 0.15
+                ret_5d_limit = 0.15
+                ret_10d_limit = 0.25
+                vol_ratio_limit = 2.0
             
     # 获取最近 30 个交易日的K线数据
     lookback_days = 30
@@ -608,7 +609,7 @@ def pick_strong_stocks(start_date: str, end_date: str, src: str='ts_ths') -> pd.
 
 def no_risky_stocks(stock_basic: pd.DataFrame, mainboard: bool = True) -> list[str]:
     """
-    返回适合短线操作的股票列表, default is only no risk, lower pct_chg mainboard stocks.
+    return default is only no risk mainboard stocks.
     Usage:
     risky_free_list = no_risky_stocks(stock_basic=stock_basic)
     filtered_df = filtered_df[filtered_df['ts_code'].isin(risky_free_list)].reset_index(drop=True)

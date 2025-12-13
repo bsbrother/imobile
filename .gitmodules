@@ -1,0 +1,9 @@
+[submodule "utils/Sequoia"]
+	path = utils/Sequoia
+	url = https://github.com/sngyai/Sequoia
+[submodule "utils/go-stock"]
+	path = utils/go-stock
+	url = https://github.com/ArvinLovegood/go-stock
+[submodule "utils/droidrun"]
+	path = utils/droidrun
+	url = https://github.com/droidrun/droidrun

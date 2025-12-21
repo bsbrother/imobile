@@ -176,6 +176,11 @@ def create_parser() -> argparse.ArgumentParser:
         type=str,
         help='Output file path for smart orders JSON'
     )
+    analyze_parser.add_argument(
+        '--initial-cash',
+        type=float,
+        help='Override initial cash for position sizing (used for compounding)'
+    )
 
     subparsers.add_parser('version', help='Show version information')
 
@@ -583,7 +588,8 @@ def pick_next_trading_date_stocks(config_path: Optional[str] = None,
 def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                                        symbols: List[str] = [],
                                        config_path: Optional[str] = None,
-                                       output_file: Optional[str] = None) -> Dict[str, Any]:
+                                       output_file: Optional[str] = None,
+                                       initial_cash: Optional[float] = None) -> Dict[str, Any]:
     """
     Analyze picked stocks and generate smart orders with entry/exit prices and quantities.
 
@@ -616,7 +622,10 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
         config_manager = ConfigManager(config_path)
 
         # Get analysis parameters from config
-        initial_cash = config_manager.get('init_info.initial_cash', 600000)
+        # Use provided initial_cash if available (for compounding), otherwise from config
+        config_initial_cash = config_manager.get('init_info.initial_cash', 600000)
+        initial_cash = initial_cash if initial_cash is not None else config_initial_cash
+        
         max_positions = config_manager.get('trading_rules.position_sizing.max_positions', 10)
         lookback_days = config_manager.get('pattern_detector.lookback_days', 20)
 
@@ -742,8 +751,8 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                         # If no target data (e.g. live trading), use close * 1.01 as proxy for open
                         buy_price = close_price * 1.01
                     
-                    # Optimize Entry: Buy at 99% of Open to capture intraday dips
-                    buy_price = round(buy_price * 0.99, 2)
+                    # Optimize Entry: Buy at Open Price strictly as requested
+                    buy_price = round(buy_price, 2)
                 else:
                     # Use the calculated buy_price (RSI/BB/Support based)
                     # Ensure it's not higher than yesterday's close in Bear market
@@ -945,7 +954,8 @@ def main():
                 stocks_file=args.stocks_file if hasattr(args, 'stocks_file') else None,
                 symbols=symbols_list,
                 config_path=args.config if hasattr(args, 'config') else None,
-                output_file=args.output if hasattr(args, 'output') else None
+                output_file=args.output if hasattr(args, 'output') else None,
+                initial_cash=args.initial_cash if hasattr(args, 'initial_cash') else None
             )
 
         elif args.command == 'config':

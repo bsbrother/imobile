@@ -216,4 +216,4 @@ marimo/_lsp/
 __marimo__/
 
 trajectory/
-backtest/backtest_results/
+#backtest/backtest_results/

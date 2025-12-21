@@ -64,7 +64,7 @@ TAX = global_cm.get('portfolio_config.tax', 0.0005)  # 10W * 0.005% = 50 # Only 
 if not os.path.exists(REPORT_PATH):
     os.makedirs(REPORT_PATH)
 
-def pick_stocks_to_file(this_date: str, src: str = 'ts_ths') -> str:
+def pick_stocks_to_file(this_date: str, src: str = 'ts_go') -> str:
     """
     Pick stocks and save to a file for a specific date.
 
@@ -121,7 +121,7 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_ths') -> str:
     return pick_output_file
 
 
-def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1) -> str:
+def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, current_capital: float = None) -> str:
     """
     Create smart orders based on picked stocks for a specific date.
     # TODO:
@@ -130,6 +130,7 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1) -> st
     Arguments:
     pick_input_file -- The JSON file containing picked stocks
     user_id -- The user ID for whom to create smart orders
+    current_capital -- Current available capital (Initial + Realized P&L), default uses INITIAL_CASH
 
     Returns:
     str -- Path to the output file
@@ -137,7 +138,12 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1) -> st
     this_date = os.path.basename(pick_input_file).split('_')[-1].replace('.json', '')
     smart_output_file = os.path.join(REPORT_PATH, f'smart_orders_{this_date}.json')
     logger.info(f"Creating smart orders from {pick_input_file}...")
-    result = os.system(f'python -m backtest.cli analyze --stocks-file {pick_input_file} -o {smart_output_file}')
+    
+    cmd = f'python -m backtest.cli analyze --stocks-file {pick_input_file} -o {smart_output_file}'
+    if current_capital:
+         cmd += f' --initial-cash {current_capital}'
+         
+    result = os.system(cmd)
     if result != 0:
         raise ValueError(f"Failed to create smart orders from {pick_input_file}.")
     logger.info(f"Created smart orders, saved to {smart_output_file}")
@@ -735,7 +741,183 @@ class OrderAnalyzer:
                             'executed': False,
                             'reason': 'Sell order execution failed'
                         }
-                else:
+                
+                # Calculate holding days once for use in multiple checks
+                # get_trading_days_between returns a list of dates, so take len()
+                holding_days_val = len(calendar.get_trading_days_between(purchase_date, date))
+
+                # Early Weakness Cut (T+1 Protection)
+                # If stock shows significant weakness on the first sellable day (T+1), cut immediately.
+                if holding_days_val == 2:
+                    current_gap_pct = ((open_price - prev_close) / prev_close) * 100
+                    current_close_pct = ((close_price - prev_close) / prev_close) * 100
+                    
+                    # 1. Gap Down Cut: Open < -4%
+                    if current_gap_pct < -4.0:
+                        logger.info(f"Early Weakness Cut (Gap Down) triggered for {symbol}: Gap {current_gap_pct:.2f}%")
+                        sell_price = open_price # Sell at Open
+                        reason = 'early_cut_gap'
+                        
+                        success = execute_sell_order(
+                            self.user_id, symbol, name, sell_price,
+                            min(available_shares, quantity), date,
+                            order_number, reason
+                        )
+                        if success:
+                            cost = cost_basis * quantity
+                            exit_value = sell_price * quantity
+                            pnl = exit_value - cost
+                            pnl_pct = (pnl / cost) * 100
+                            return {
+                                'executed': True,
+                                'action': 'sell',
+                                'buy_fill_price': cost_basis,
+                                'exit_price': sell_price,
+                                'exit_reason': reason,
+                                'quantity': quantity,
+                                'cost_basis': cost,
+                                'exit_value': exit_value,
+                                'pnl': pnl,
+                                'pnl_pct': pnl_pct,
+                                't1_restriction': False,
+                                'purchase_date': purchase_date,
+                                'holding_days': holding_days_val,
+                                'market_summary': {
+                                    'prev_close': prev_close,
+                                    'open': open_price,
+                                    'high': high_price,
+                                    'low': low_price,
+                                    'close': close_price,
+                                    'turnover_rate': float(market_data.get('turnover_rate', 0))
+                                }
+                            }
+                    
+                    # 2. Intraday Drop Cut: Close < -5%
+                    if current_close_pct < -5.0:
+                        logger.info(f"Early Weakness Cut (Big Drop) triggered for {symbol}: Close {current_close_pct:.2f}%")
+                        sell_price = close_price # Sell at Close
+                        reason = 'early_cut_drop'
+                        
+                        success = execute_sell_order(
+                            self.user_id, symbol, name, sell_price,
+                            min(available_shares, quantity), date,
+                            order_number, reason
+                        )
+                        if success:
+                            cost = cost_basis * quantity
+                            exit_value = sell_price * quantity
+                            pnl = exit_value - cost
+                            pnl_pct = (pnl / cost) * 100
+                            return {
+                                'executed': True,
+                                'action': 'sell',
+                                'buy_fill_price': cost_basis,
+                                'exit_price': sell_price,
+                                'exit_reason': reason,
+                                'quantity': quantity,
+                                'cost_basis': cost,
+                                'exit_value': exit_value,
+                                'pnl': pnl,
+                                'pnl_pct': pnl_pct,
+                                't1_restriction': False,
+                                'purchase_date': purchase_date,
+                                'holding_days': holding_days_val,
+                                'market_summary': {
+                                    'prev_close': prev_close,
+                                    'open': open_price,
+                                    'high': high_price,
+                                    'low': low_price,
+                                    'close': close_price,
+                                    'turnover_rate': float(market_data.get('turnover_rate', 0))
+                                }
+                            }
+
+                # Strict Day-3 Close to avoid Unrealized P&L
+                # User request: "at ... 3 trading dates has unrealized P&L... avoid it happend."
+                # Force sell at Market Close on the 3rd day (or Max Hold Day) to realize P&L.
+                if holding_days_val >= 3:
+                    logger.info(f"Strict Day-3 Close triggered for {symbol}: held {holding_days_val} days")
+                    sell_price = close_price
+                    reason = 'strict_day_3_close'
+                    
+                    success = execute_sell_order(
+                        self.user_id, symbol, name, sell_price,
+                        min(available_shares, quantity), date,
+                        order_number, reason
+                    )
+                    if success:
+                        cost = cost_basis * quantity
+                        exit_value = sell_price * quantity
+                        pnl = exit_value - cost
+                        pnl_pct = (pnl / cost) * 100
+                        return {
+                            'executed': True,
+                            'action': 'sell',
+                            'buy_fill_price': cost_basis,
+                            'exit_price': sell_price,
+                            'exit_reason': reason,
+                            'quantity': quantity,
+                            'cost_basis': cost,
+                            'exit_value': exit_value,
+                            'pnl': pnl,
+                            'pnl_pct': pnl_pct,
+                            't1_restriction': False,
+                            'purchase_date': purchase_date,
+                            'holding_days': holding_days_val,
+                            'market_summary': {
+                                'prev_close': prev_close,
+                                'open': open_price,
+                                'high': high_price,
+                                'low': low_price,
+                                'close': close_price,
+                                'turnover_rate': float(market_data.get('turnover_rate', 0))
+                            }
+                        }
+
+                # Check for Stagnation Cut
+                # Trigger: Held >= 3 days (T+3) AND Abs(Return) < 3%
+                # Action: Sell at CLOSE price
+                current_return_pct = ((close_price - cost_basis) / cost_basis) * 100
+                if holding_days_val >= 3 and abs(current_return_pct) < 3.0:
+                    logger.info(f"Stagnation Cut triggered for {symbol}: held {holding_days_val} days, return {current_return_pct:.2f}%")
+                    sell_price = close_price
+                    reason = 'stagnation_cut'
+                    
+                    success = execute_sell_order(
+                        self.user_id, symbol, name, sell_price,
+                        min(available_shares, quantity), date,
+                        order_number, reason
+                    )
+                    if success:
+                        cost = cost_basis * quantity
+                        exit_value = sell_price * quantity
+                        pnl = exit_value - cost
+                        pnl_pct = (pnl / cost) * 100
+                        return {
+                            'executed': True,
+                            'action': 'sell',
+                            'buy_fill_price': cost_basis,
+                            'exit_price': sell_price,
+                            'exit_reason': reason,
+                            'quantity': quantity,
+                            'cost_basis': cost,
+                            'exit_value': exit_value,
+                            'pnl': pnl,
+                            'pnl_pct': pnl_pct,
+                            't1_restriction': False,
+                            'purchase_date': purchase_date,
+                            'holding_days': holding_days_val,
+                            'market_summary': {
+                                'prev_close': prev_close,
+                                'open': open_price,
+                                'high': high_price,
+                                'low': low_price,
+                                'close': close_price,
+                                'turnover_rate': float(market_data.get('turnover_rate', 0))
+                            }
+                        }
+                
+                # Update Trailing Stop logic continues...
                     # Holding continues - Update Trailing Stop
                     new_stop_loss, reason = calculate_trailing_stop(
                         entry_price=cost_basis,
@@ -815,13 +997,35 @@ class OrderAnalyzer:
             }
 
         # Calculate actual fill price
-        buy_fill_price = min(buy_price, open_price)
+        buy_fill_price = open_price # 2025.12.14: cannot buy at min(buy_price, open_price)
 
         # Execute buy order
+        # Recalculate SL/TP based on ACTUAL fill price
+        # This prevents wide stops when filling way above limit price (e.g. gap up)
+        sl_pct = self.strategy_config.get('stop_loss_pct', 9.0)
+        tp_pct = self.strategy_config.get('profit_target_pct', 18.0)
+        
+        # Adjust for market regime if available
+        # Note: In real live trading this implies checking regime again, but here we use config defaults
+        # if regime was bull, config might be different. 
+        # For simplicity, we stick to the percentages stored in order if possible, or recalculate.
+        # Ideally, we should use the percentages implied by the original order, but recalculated on new base.
+        
+        # Calculate implied percentages from original order
+        orig_sl_pct = (order['buy_price'] - order['sell_stop_loss_price']) / order['buy_price'] * 100
+        orig_tp_pct = (order['sell_take_profit_price'] - order['buy_price']) / order['buy_price'] * 100
+        
+        # Use limit percentages if reasonable, otherwise default
+        final_sl_pct = orig_sl_pct if 3 < orig_sl_pct < 15 else sl_pct
+        final_tp_pct = orig_tp_pct if 5 < orig_tp_pct < 30 else tp_pct
+        
+        new_take_profit = round(buy_fill_price * (1 + final_tp_pct/100), 2)
+        new_stop_loss = round(buy_fill_price * (1 - final_sl_pct/100), 2)
+
         success = execute_buy_order(
             self.user_id, symbol, name,
             buy_fill_price, quantity,
-            take_profit, stop_loss,
+            new_take_profit, new_stop_loss, # Use recalculated values
             date, order_number,
             holding_days=self.holding_days
         )
@@ -855,7 +1059,7 @@ class OrderAnalyzer:
             }
 
 
-    def generate_daily_report(self, date: str, output_file: str):
+    def generate_daily_report(self, date: str, output_file: str, cumulative_realized_pnl: float = 0.0):
         """Generate order completion report for a specific date with T+1 compliance.
         The reports will show:
         - Which orders were executed (filled)
@@ -864,7 +1068,7 @@ class OrderAnalyzer:
         - Portfolio performance over the 2-day period
         - Recommendations for order adjustments
         """
-        logger.info(f"Generating report for {date}...")
+        logger.info(f"Generating report for {date} (Cum P&L: {cumulative_realized_pnl})...")
 
         # Update available shares at start of new trading day
         update_available_shares_for_new_day(date=date, user_id=self.user_id)
@@ -928,7 +1132,7 @@ class OrderAnalyzer:
 
         # Generate markdown report
         self._write_markdown_report_t1(date, results, total_invested, total_pnl,
-                                       executed_count, t1_restricted_count, output_file)
+                                       executed_count, t1_restricted_count, output_file, cumulative_realized_pnl)
 
         logger.info(f"✓ Report saved to {output_file}")
         return results
@@ -936,7 +1140,7 @@ class OrderAnalyzer:
     def _write_markdown_report_t1(self, date: str, results: List[Dict],
                                    total_invested: float, total_pnl: float,
                                    executed_count: int, t1_restricted_count: int,
-                                   output_file: str):
+                                   output_file: str, cumulative_realized_pnl: float = 0.0):
         """Write results to markdown file with T+1 compliance info."""
 
         with open(output_file, 'w', encoding='utf-8') as f:
@@ -946,13 +1150,18 @@ class OrderAnalyzer:
             f.write(f"**Market Pattern:** {self.smart_orders_data['market_pattern']}\n")
             f.write("**T+1 Compliance:** ✓ Enforced\n\n")
 
+            total_cumulative_realized_pnl = cumulative_realized_pnl + total_pnl
+            current_portfolio_nav = INITIAL_CASH + total_cumulative_realized_pnl
+            cash_remaining = current_portfolio_nav - total_invested
+
             f.write("## Portfolio Summary\n\n")
-            f.write(f"- **Initial Capital:** ¥{INITIAL_CASH:,.2f}\n")
+            f.write(f"- **Current Portfolio:** ¥{current_portfolio_nav:,.2f} *(Initial + Cumulative Realized P&L)*\n")
             f.write(f"- **Orders Executed:** {executed_count}/{len(self.orders)}\n")
             f.write(f"- **T+1 Restricted Positions:** {t1_restricted_count}\n")
             f.write(f"- **Total Invested:** ¥{total_invested:,.2f}\n")
-            f.write(f"- **Realized P&L:** ¥{total_pnl:,.2f}\n")
-            f.write(f"- **Cash Remaining:** ¥{INITIAL_CASH - total_invested + total_pnl:,.2f}\n\n")
+            f.write(f"- **Realized P&L (Today):** ¥{total_pnl:,.2f}\n")
+            f.write(f"- **Cumulative Realized P&L:** ¥{total_cumulative_realized_pnl:,.2f}\n")
+            f.write(f"- **Cash Remaining:** ¥{cash_remaining:,.2f}\n\n")
 
             f.write("## Order Execution Details\n\n")
 
@@ -1444,7 +1653,7 @@ class OrderAnalyzer:
             f.write("  - 🔴 Expired: Has exceeded max holding period\n")
 
 
-def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=None, user_id: int = 1, src: str = 'ts_ths'):
+def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=None, user_id: int = 1, src: str = 'ts_go'):
     """
     Pick stocks, create smart orders and trading for the specified date range.
 
@@ -1452,7 +1661,7 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
     start_date -- The start date (format: YYYY-MM-DD), default is today.
     end_date -- The end date (format: YYYY-MM-DD), default is today.
     user_id -- The user ID for the trading account.
-    src -- The source of stocks, default is 'ts_ths', or 'ts_dc', or 'ts_combine'
+    src -- The source of stocks, default is 'ts_go', or 'ts_ths', 'ts_dc', 'ts_combine'
     """
     today = convert_trade_date(datetime.now().strftime('%Y-%m-%d'))
     if not start_date:
@@ -1471,13 +1680,37 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
         # Step 1: Pick stocks
         pick_output_file = pick_stocks_to_file(this_date, src=src)
 
+        # Step 1.5: Calculate Cumulative Realized P&L and Current Capital
+        cumulative_realized_pnl = 0.0
+        with DB.cursor() as cursor:
+            # Calculate realized P&L from all sell transactions strictly BEFORE today
+            # We want to use the capital that is available at start of day (or end of yesterday) for sizing today's orders
+            cursor.execute("""
+                SELECT notes FROM transactions 
+                WHERE user_id=? AND transaction_type='sell' AND transaction_date < ?
+            """, (user_id, convert_to_datetime(this_date)))
+            sells = cursor.fetchall()
+            for row in sells:
+                notes = row[0]
+                # Try parsing P&L from notes (format: "... P&L: ¥123.45 (12.34%)")
+                if 'P&L: ¥' in notes:
+                    try:
+                        pnl_val = float(notes.split('P&L: ¥')[1].split(' ')[0])
+                        cumulative_realized_pnl += pnl_val
+                    except:
+                        pass
+        
+        current_capital = INITIAL_CASH + cumulative_realized_pnl
+        logger.info(f"[{this_date}] Cumulative Realized P&L (Pre-market): ¥{cumulative_realized_pnl:,.2f}, Avail Capital: ¥{current_capital:,.2f}")
+
         # Step 2: Create smart orders from picks and save to database
-        smart_output_file = create_smart_orders_from_picks(pick_output_file, user_id=user_id)
+        smart_output_file = create_smart_orders_from_picks(pick_output_file, user_id=user_id, current_capital=current_capital)
 
         # Step 3: Analyze orders and generate reports
         analyzer = OrderAnalyzer(smart_orders_file=smart_output_file, user_id=user_id)
         # Step 3.1: Generate report for this_date
-        analyzer.generate_daily_report(this_date, os.path.join(REPORT_PATH, f'report_orders_{this_date}.md'))
+        # We pass the same pre-market cumulative P&L. The report generator will add today's realized P&L to it.
+        analyzer.generate_daily_report(this_date, os.path.join(REPORT_PATH, f'report_orders_{this_date}.md'), cumulative_realized_pnl)
 
         # Step 3.2: Adjust orders based on this_date close
         #analyzer.adjust_orders(this_date, os.path.join(REPORT_PATH, f'adjusted_orders_{this_date.replace("-", "")}.json'))
@@ -1496,9 +1729,9 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
 
 if __name__ == '__main__':
     user_id = 1
-    start_date = '2025-11-01'
-    end_date = '2025-11-20'
-    src = 'ts_ths'
+    start_date = '2025-12-01'
+    end_date = '2025-12-31'
+    src = 'ts_go'
     if argv := sys.argv:
         if len(argv) >= 2:
             start_date = argv[1]

@@ -1,4 +1,12 @@
 # TODO
+- 2025.12.23
+All readl trading stocks in db/imobile.db, tables and fields descript at db/imboile.sql.
+
+According to backtest_orders.py, create a backtest_only_sell_older_stocks.py:
+1. Just only sell current has stocks, not buy new stocks.
+2. analysis
+
+
 - 2025.12.12 result_ts_vs_index.py
 Period               | Index Returns (SSE, CSI300)    | Method Returns
 ----------------------------------------------------------------------------------------------------

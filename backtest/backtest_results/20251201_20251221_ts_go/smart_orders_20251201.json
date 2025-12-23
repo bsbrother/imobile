@@ -1,1 +1,264 @@
-{"analysis_date": "2025-12-21 11:39:57", "target_trading_date": "20251201", "market_pattern": "normal", "regime_data": {"take_profit_pct": 0.18, "stop_loss_pct": 0.09, "trailing_stop_enabled": true, "max_hold_days": 7, "min_hold_days": 2, "late_trend_filter": {"ma_threshold": 1.25, "short_gain_threshold": 0.3, "mid_gain_threshold": 0.5, "volume_multiplier": 3.0}, "regime": "normal"}, "strategy_config": {"profit_target_pct": 18.0, "stop_loss_pct": 9.0, "max_position_pct": 0.15}, "portfolio_config": {"initial_cash": 600000.0, "max_positions": 8, "total_allocated": 489415.0}, "total_orders": 8, "smart_orders": [{"symbol": "002356.SZ", "name": "\u8d6b\u7f8e\u96c6\u56e2", "analysis_date": "2025-12-21 11:39:57", "current_price": 4.15, "buy_price": 4.15, "sell_take_profit_price": 4.9, "sell_stop_loss_price": 3.78, "buy_quantity": 18000, "position_value": 74700.0, "technical_indicators": {"rsi": 69.54, "bb_position": 90.4, "atr": 0.26, "recent_high": 4.4, "recent_low": 3.62}, "risk_metrics": {"potential_gain_pct": 18.07, "potential_loss_pct": -8.92, "risk_reward_ratio": 2.03, "position_risk_pct": 12.45}, "market_data": {"turnover_rate": 8.65, "volume_ratio": 0.64, "pe": 0.0}}, {"symbol": "000530.SZ", "name": "\u51b0\u5c71\u51b7\u70ed", "analysis_date": "2025-12-21 11:39:57", "current_price": 6.15, "buy_price": 5.99, "sell_take_profit_price": 7.07, "sell_stop_loss_price": 5.45, "buy_quantity": 12500, "position_value": 74875.0, "technical_indicators": {"rsi": 25.98, "bb_position": 17.87, "atr": 0.22, "recent_high": 6.24, "recent_low": 6.05}, "risk_metrics": {"potential_gain_pct": 18.03, "potential_loss_pct": -9.02, "risk_reward_ratio": 2.0, "position_risk_pct": 12.48}, "market_data": {"turnover_rate": 2.88, "volume_ratio": 0.7, "pe": 47.0}}, {"symbol": "600981.SH", "name": "\u82cf\u8c6a\u6c47\u9e3f", "analysis_date": "2025-12-21 11:39:57", "current_price": 3.08, "buy_price": 3.08, "sell_take_profit_price": 3.63, "sell_stop_loss_price": 2.8, "buy_quantity": 24300, "position_value": 74844.0, "technical_indicators": {"rsi": 55.26, "bb_position": 82.48, "atr": 0.1, "recent_high": 3.08, "recent_low": 2.75}, "risk_metrics": {"potential_gain_pct": 17.86, "potential_loss_pct": -9.09, "risk_reward_ratio": 1.96, "position_risk_pct": 12.47}, "market_data": {"turnover_rate": 2.81, "volume_ratio": 2.8, "pe": 235.31}}, {"symbol": "002540.SZ", "name": "\u4e9a\u592a\u79d1\u6280", "analysis_date": "2025-12-21 11:39:57", "current_price": 6.56, "buy_price": 6.49, "sell_take_profit_price": 7.66, "sell_stop_loss_price": 5.91, "buy_quantity": 11500, "position_value": 74635.0, "technical_indicators": {"rsi": 40.0, "bb_position": 10.89, "atr": 0.28, "recent_high": 6.93, "recent_low": 6.44}, "risk_metrics": {"potential_gain_pct": 18.03, "potential_loss_pct": -8.94, "risk_reward_ratio": 2.02, "position_risk_pct": 12.44}, "market_data": {"turnover_rate": 0.92, "volume_ratio": 0.42, "pe": 17.72}}, {"symbol": "600868.SH", "name": "\u6885\u96c1\u5409\u7965", "analysis_date": "2025-12-21 11:39:57", "current_price": 3.58, "buy_price": 3.58, "sell_take_profit_price": 4.22, "sell_stop_loss_price": 3.26, "buy_quantity": 18800, "position_value": 67304.0, "technical_indicators": {"rsi": 56.41, "bb_position": 99.01, "atr": 0.18, "recent_high": 3.58, "recent_low": 2.78}, "risk_metrics": {"potential_gain_pct": 17.88, "potential_loss_pct": -8.94, "risk_reward_ratio": 2.0, "position_risk_pct": 11.22}, "market_data": {"turnover_rate": 22.29, "volume_ratio": 2.91, "pe": 0.0}}, {"symbol": "000816.SZ", "name": "\u667a\u6167\u519c\u4e1a", "analysis_date": "2025-12-21 11:39:57", "current_price": 3.58, "buy_price": 3.58, "sell_take_profit_price": 4.22, "sell_stop_loss_price": 3.26, "buy_quantity": 14600, "position_value": 52268.0, "technical_indicators": {"rsi": 55.42, "bb_position": 73.19, "atr": 0.13, "recent_high": 3.6, "recent_low": 3.4}, "risk_metrics": {"potential_gain_pct": 17.88, "potential_loss_pct": -8.94, "risk_reward_ratio": 2.0, "position_risk_pct": 8.71}, "market_data": {"turnover_rate": 3.37, "volume_ratio": 0.85, "pe": 0.0}}, {"symbol": "002413.SZ", "name": "\u96f7\u79d1\u9632\u52a1", "analysis_date": "2025-12-21 11:39:57", "current_price": 7.66, "buy_price": 7.66, "sell_take_profit_price": 9.04, "sell_stop_loss_price": 6.97, "buy_quantity": 5200, "position_value": 39832.0, "technical_indicators": {"rsi": 72.04, "bb_position": 107.31, "atr": 0.42, "recent_high": 7.98, "recent_low": 5.79}, "risk_metrics": {"potential_gain_pct": 18.02, "potential_loss_pct": -9.01, "risk_reward_ratio": 2.0, "position_risk_pct": 6.64}, "market_data": {"turnover_rate": 21.41, "volume_ratio": 1.02, "pe": 0.0}}, {"symbol": "002563.SZ", "name": "\u68ee\u9a6c\u670d\u9970", "analysis_date": "2025-12-21 11:39:57", "current_price": 6.07, "buy_price": 6.07, "sell_take_profit_price": 7.16, "sell_stop_loss_price": 5.52, "buy_quantity": 5100, "position_value": 30957.0, "technical_indicators": {"rsi": 60.58, "bb_position": 89.3, "atr": 0.22, "recent_high": 6.26, "recent_low": 5.75}, "risk_metrics": {"potential_gain_pct": 17.96, "potential_loss_pct": -9.06, "risk_reward_ratio": 1.98, "position_risk_pct": 5.16}, "market_data": {"turnover_rate": 2.5, "volume_ratio": 1.37, "pe": 14.38}}]}
+
+  "analysis_date": "2025-12-21 11:39:57",
+  "target_trading_date": "20251201",
+  "market_pattern": "normal",
+  "regime_data": {
+    "take_profit_pct": 0.18,
+    "stop_loss_pct": 0.09,
+    "trailing_stop_enabled": true,
+    "max_hold_days": 7,
+    "min_hold_days": 2,
+    "late_trend_filter": {
+      "ma_threshold": 1.25,
+      "short_gain_threshold": 0.3,
+      "mid_gain_threshold": 0.5,
+      "volume_multiplier": 3.0
+    },
+    "regime": "normal"
+  },
+  "strategy_config": {
+    "profit_target_pct": 18.0,
+    "stop_loss_pct": 9.0,
+    "max_position_pct": 0.15
+  },
+  "portfolio_config": {
+    "initial_cash": 600000.0,
+    "max_positions": 8,
+    "total_allocated": 489415.0
+  },
+  "total_orders": 8,
+  "smart_orders": [
+    {
+      "symbol": "002356.SZ",
+      "name": "赫美集团",
+      "analysis_date": "2025-12-21 11:39:57",
+      "current_price": 4.15,
+      "buy_price": 4.15,
+      "sell_take_profit_price": 4.9,
+      "sell_stop_loss_price": 3.78,
+      "buy_quantity": 18000,
+      "position_value": 74700.0,
+      "technical_indicators": {
+        "rsi": 69.54,
+        "bb_position": 90.4,
+        "atr": 0.26,
+        "recent_high": 4.4,
+        "recent_low": 3.62
+      },
+      "risk_metrics": {
+        "potential_gain_pct": 18.07,
+        "potential_loss_pct": -8.92,
+        "risk_reward_ratio": 2.03,
+        "position_risk_pct": 12.45
+      },
+      "market_data": {
+        "turnover_rate": 8.65,
+        "volume_ratio": 0.64,
+        "pe": 0.0
+      }
+    },
+    {
+      "symbol": "000530.SZ",
+      "name": "冰山冷热",
+      "analysis_date": "2025-12-21 11:39:57",
+      "current_price": 6.15,
+      "buy_price": 5.99,
+      "sell_take_profit_price": 7.07,
+      "sell_stop_loss_price": 5.45,
+      "buy_quantity": 12500,
+      "position_value": 74875.0,
+      "technical_indicators": {
+        "rsi": 25.98,
+        "bb_position": 17.87,
+        "atr": 0.22,
+        "recent_high": 6.24,
+        "recent_low": 6.05
+      },
+      "risk_metrics": {
+        "potential_gain_pct": 18.03,
+        "potential_loss_pct": -9.02,
+        "risk_reward_ratio": 2.0,
+        "position_risk_pct": 12.48
+      },
+      "market_data": {
+        "turnover_rate": 2.88,
+        "volume_ratio": 0.7,
+        "pe": 47.0
+      }
+    },
+    {
+      "symbol": "600981.SH",
+      "name": "苏豪汇鸿",
+      "analysis_date": "2025-12-21 11:39:57",
+      "current_price": 3.08,
+      "buy_price": 3.08,
+      "sell_take_profit_price": 3.63,
+      "sell_stop_loss_price": 2.8,
+      "buy_quantity": 24300,
+      "position_value": 74844.0,
+      "technical_indicators": {
+        "rsi": 55.26,
+        "bb_position": 82.48,
+        "atr": 0.1,
+        "recent_high": 3.08,
+        "recent_low": 2.75
+      },
+      "risk_metrics": {
+        "potential_gain_pct": 17.86,
+        "potential_loss_pct": -9.09,
+        "risk_reward_ratio": 1.96,
+        "position_risk_pct": 12.47
+      },
+      "market_data": {
+        "turnover_rate": 2.81,
+        "volume_ratio": 2.8,
+        "pe": 235.31
+      }
+    },
+    {
+      "symbol": "002540.SZ",
+      "name": "亚太科技",
+      "analysis_date": "2025-12-21 11:39:57",
+      "current_price": 6.56,
+      "buy_price": 6.49,
+      "sell_take_profit_price": 7.66,
+      "sell_stop_loss_price": 5.91,
+      "buy_quantity": 11500,
+      "position_value": 74635.0,
+      "technical_indicators": {
+        "rsi": 40.0,
+        "bb_position": 10.89,
+        "atr": 0.28,
+        "recent_high": 6.93,
+        "recent_low": 6.44
+      },
+      "risk_metrics": {
+        "potential_gain_pct": 18.03,
+        "potential_loss_pct": -8.94,
+        "risk_reward_ratio": 2.02,
+        "position_risk_pct": 12.44
+      },
+      "market_data": {
+        "turnover_rate": 0.92,
+        "volume_ratio": 0.42,
+        "pe": 17.72
+      }
+    },
+    {
+      "symbol": "600868.SH",
+      "name": "梅雁吉祥",
+      "analysis_date": "2025-12-21 11:39:57",
+      "current_price": 3.58,
+      "buy_price": 3.58,
+      "sell_take_profit_price": 4.22,
+      "sell_stop_loss_price": 3.26,
+      "buy_quantity": 18800,
+      "position_value": 67304.0,
+      "technical_indicators": {
+        "rsi": 56.41,
+        "bb_position": 99.01,
+        "atr": 0.18,
+        "recent_high": 3.58,
+        "recent_low": 2.78
+      },
+      "risk_metrics": {
+        "potential_gain_pct": 17.88,
+        "potential_loss_pct": -8.94,
+        "risk_reward_ratio": 2.0,
+        "position_risk_pct": 11.22
+      },
+      "market_data": {
+        "turnover_rate": 22.29,
+        "volume_ratio": 2.91,
+        "pe": 0.0
+      }
+    },
+    {
+      "symbol": "000816.SZ",
+      "name": "智慧农业",
+      "analysis_date": "2025-12-21 11:39:57",
+      "current_price": 3.58,
+      "buy_price": 3.58,
+      "sell_take_profit_price": 4.22,
+      "sell_stop_loss_price": 3.26,
+      "buy_quantity": 14600,
+      "position_value": 52268.0,
+      "technical_indicators": {
+        "rsi": 55.42,
+        "bb_position": 73.19,
+        "atr": 0.13,
+        "recent_high": 3.6,
+        "recent_low": 3.4
+      },
+      "risk_metrics": {
+        "potential_gain_pct": 17.88,
+        "potential_loss_pct": -8.94,
+        "risk_reward_ratio": 2.0,
+        "position_risk_pct": 8.71
+      },
+      "market_data": {
+        "turnover_rate": 3.37,
+        "volume_ratio": 0.85,
+        "pe": 0.0
+      }
+    },
+    {
+      "symbol": "002413.SZ",
+      "name": "雷科防务",
+      "analysis_date": "2025-12-21 11:39:57",
+      "current_price": 7.66,
+      "buy_price": 7.66,
+      "sell_take_profit_price": 9.04,
+      "sell_stop_loss_price": 6.97,
+      "buy_quantity": 5200,
+      "position_value": 39832.0,
+      "technical_indicators": {
+        "rsi": 72.04,
+        "bb_position": 107.31,
+        "atr": 0.42,
+        "recent_high": 7.98,
+        "recent_low": 5.79
+      },
+      "risk_metrics": {
+        "potential_gain_pct": 18.02,
+        "potential_loss_pct": -9.01,
+        "risk_reward_ratio": 2.0,
+        "position_risk_pct": 6.64
+      },
+      "market_data": {
+        "turnover_rate": 21.41,
+        "volume_ratio": 1.02,
+        "pe": 0.0
+      }
+    },
+    {
+      "symbol": "002563.SZ",
+      "name": "森马服饰",
+      "analysis_date": "2025-12-21 11:39:57",
+      "current_price": 6.07,
+      "buy_price": 6.07,
+      "sell_take_profit_price": 7.16,
+      "sell_stop_loss_price": 5.52,
+      "buy_quantity": 5100,
+      "position_value": 30957.0,
+      "technical_indicators": {
+        "rsi": 60.58,
+        "bb_position": 89.3,
+        "atr": 0.22,
+        "recent_high": 6.26,
+        "recent_low": 5.75
+      },
+      "risk_metrics": {
+        "potential_gain_pct": 17.96,
+        "potential_loss_pct": -9.06,
+        "risk_reward_ratio": 1.98,
+        "position_risk_pct": 5.16
+      },
+      "market_data": {
+        "turnover_rate": 2.5,
+        "volume_ratio": 1.37,
+        "pe": 14.38
+      }
+    }
+  ]
+}

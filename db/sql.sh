@@ -22,6 +22,7 @@ EOF
 # Recreate db
 rm db/imobile.db; sqlite3 db/imobile.db < db/imobile.sql
 
-sqlite3 db/imobile.db 'select count(*) from market_indices; select * from summary_account; select count(*) from holding_stocks'
-sqlite3 db/imobile.db -line 'select * from holding_stocks limit 1'
+#sqlite3 db/imobile.db 'select count(*) from market_indices; select * from summary_account; select count(*) from holding_stocks'
+#sqlite3 db/imobile.db -line 'select * from holding_stocks limit 1'
+sqlite3 db/imobile.db -line 'select * from app_config'
 

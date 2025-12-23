@@ -9,7 +9,11 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Tuple, Optional
 from loguru import logger
 
-from droidrun import DroidAgent, AdbTools
+from droidrun import (
+    AdbTools,
+    DroidAgent, DroidrunConfig,
+    AgentConfig, CodeActConfig, DeviceConfig, LoggingConfig, TracingConfig
+)
 from llama_index.llms.google_genai import GoogleGenAI
 
 
@@ -46,7 +50,7 @@ def close_app(app_package_name: str = GUOTAI_PACKAGE_NAME):
     time.sleep(3)
 
 
-def open_app(tools: AdbTools, app_package_name: str = GUOTAI_PACKAGE_NAME):
+async def open_app(tools: AdbTools, app_package_name: str = GUOTAI_PACKAGE_NAME):
     """Open the specified app on the connected device.
 
     # Check app main activity:
@@ -63,11 +67,11 @@ def open_app(tools: AdbTools, app_package_name: str = GUOTAI_PACKAGE_NAME):
     """
 
     logger.info(f"Opening app {app_package_name}...")
-    tools.start_app(app_package_name)
+    await tools.start_app(app_package_name)
     time.sleep(5)  # Wait for app to open
 
 
-def pre_requirements(app_package_name: str = GUOTAI_PACKAGE_NAME) -> tuple[AdbTools, GoogleGenAI]:
+async def pre_requirements(app_package_name: str = GUOTAI_PACKAGE_NAME) -> tuple[AdbTools, GoogleGenAI, DroidrunConfig]:
     """Check device connectivity and app existence."""
 
     llm = create_gemini_with_thinking(
@@ -86,11 +90,34 @@ def pre_requirements(app_package_name: str = GUOTAI_PACKAGE_NAME) -> tuple[AdbTo
     )
     """
 
-    tools = get_device_connectivity()
+    tools = await get_device_connectivity()
     if not tools:
         raise ValueError("❌ No connected Android device found. Please connect a device via ADB.")
-    check_app_exist(tools, app_package_name)
-    return tools, llm
+    await check_app_exist(tools, app_package_name)
+
+    # https://docs.droidrun.ai/sdk/configuration
+    # Flow: Goal → Planning → Execution → Reflection → Re-planning (if needed) → Result, 50+ steps. need vision=True and gemini-2.5-flash or gpt-4o.
+    config = DroidrunConfig(
+        agent=AgentConfig(
+            max_steps=60,
+            reasoning=True,
+            after_sleep_action=1.5,
+            codeact=CodeActConfig(vision=True, safe_execution=True)
+        ),
+        #device=DeviceConfig(
+        #    serial="127.0.0.1:6555",
+        #    platform="android",
+        #    use_tcp=False
+        #),
+        logging=LoggingConfig(
+            debug=False,
+            save_trajectory='none', #"action",
+            trajectory_gifs=False
+        ),
+        tracing=TracingConfig(enabled=False),
+    )                             
+
+    return tools, llm, config
 
 
 def replay_page(description: List[str] = ['行情', '我的持仓']):
@@ -148,59 +175,54 @@ def replay_page(description: List[str] = ['行情', '我的持仓']):
     logger.info("✅ Replay completed successfully")
 
 
-async def droid_run(llm: GoogleGenAI | None = None, tools: AdbTools | None = None, goal: str | None = None):
+def get_agent(config: DroidrunConfig | None = None, llm: GoogleGenAI | None = None, tools: AdbTools | None = None, goal: str | None = None) -> DroidAgent:
+    """
+    Create a DroidAgent instance with the specified goal, LLM, and AdbTools.
+
+    Args:
+        config: DroidrunConfig instance
+        llm: GoogleGenAI instance
+        tools: AdbTools instance
+        goal: Goal for the agent
+
+    Returns:
+        DroidAgent instance
+    """
+
     if not goal:
         raise ValueError("❌ Goal not set. Please provide a goal.")
-
-    if llm is None:
+    if not llm:
         raise ValueError("❌ LLM not provided. Please provide a GoogleGenAI instance.")
-
-    if tools is None:
+    if not tools:
         raise ValueError("❌ AdbTools not provided. Please connect a device via ADB.")
 
     agent = DroidAgent(
         goal=goal,
-        llm=llm,
+        config=config,
+        llms=llm,
         tools=tools,
-        # Flow: Goal → Planning → Execution → Reflection → Re-planning (if needed) → Result, 50+ steps. need vision=True and gemini-2.5-flash or gpt-4o.
-        #reflection=True,
-        #vision=True,
-        # Flow: Goal → Planning → Step-by-step Execution → Result, 15-20 steps.
-        reasoning=True,      # Optional: enable planning/reasoning
         timeout=10000,
-        max_steps=60,
-        enable_tracing=False,       # Requires running 'phoenix serve' in a separate terminal first. Use for LLM response debugging.
-        save_trajectories='none',   # Save trajectories to local file for analysis
-        debug=False,
     )
 
-    result = await agent.run()
-    # Default result: {'success': True, 'reason': 'All stock and index data has been successfully extracted.', 'output': 'All stock and index data has been successfully extracted.', 'steps': 8}
-    if not result['success']:
-        raise ValueError(f"❌ Goal not completed: {result['reason']}")
-    return result['output']
+    return agent
 
 
 def get_format_output(tools: AdbTools, output:str, start_str:str = 'csv_format_name,', data_name:str = 'which data') -> str:
     """
     Get CSV format string from doridrun output to extract relevant data.
+
+    output: 'I have successfully extracted all indices and stocks from the \'我的持仓\' page, formatted them into CSV format, and stored the result. Here is the final CSV data:\n\nIndex Name,Number,Ratio\n沪,3890.45,"+0.36%"\n深,
     """
     if not output:
         return output
-    # Index Name, Index_Name etc
+    import unicodedata
+    # import pdb;pdb.set_trace()
+    SPLIT_STR = ['data is:', 'data:', 'result:']
+    for s in SPLIT_STR:
+        if s in output:
+            output = output.split(s)[-1].strip()
+            break
     start_str = start_str.strip().lower()
-    start = output.split(',', 1)[0].split(' ', 1)[-1].split('_', 1)[-1].strip().lower() + ','
-    if not output.lower().startswith(start_str) and start != start_str:
-        output = str(tools.reason).strip()
-        start = output.split(',', 1)[0].split(' ', 1)[-1].split('_', 1)[-1].strip().lower() + ','
-    if not output.lower().startswith(start_str) and start != start_str:
-        output = tools.get_memory()[-1].strip()
-        start = output.split(',', 1)[0].split(' ', 1)[-1].split('_', 1)[-1].strip().lower() + ','
-        if not output.lower().startswith(start_str) and start != start_str:
-            if ':' not in output:
-                # AI analyze: ["Indices: [{'name':x,..},...]\n]Stocks: [{'name':x,...},...]", "Stocks: [{'name':x,...},...]"]
-                raise ValueError(f"FORMAT ERROR: need AI to extract {data_name}: {output}")
-            output = output.split(':', 1)[1].strip()
     start = output.split(',', 1)[0].split(' ', 1)[-1].split('_', 1)[-1].strip().lower() + ','
     if not output.lower().startswith(start_str) and start != start_str:
         output_save = output
@@ -214,7 +236,7 @@ def get_format_output(tools: AdbTools, output:str, start_str:str = 'csv_format_n
     return output
 
 
-async def get_order_from_app_smart_order_page(llm: GoogleGenAI, tools: AdbTools) -> str:
+async def get_order_from_app_smart_order_page(config: DroidrunConfig, llm: GoogleGenAI, tools: AdbTools) -> str:
     """
     Get real-time smart order data from mobile guotai app smart order page.
 
@@ -238,14 +260,17 @@ async def get_order_from_app_smart_order_page(llm: GoogleGenAI, tools: AdbTools)
     Extract all visible orders (name,code,trigger_condition,buy_or_sell_price_type,buy_or_sell_quantity,valid_until,order_number,reason_of_ending) from the list. Store the extracted orders in memory using remember().
     Continue scroll down the order list with resource id "com.guotai.dazhihui:id/table_view_body" to load more orders until '全部加载完成' visible.
     When the order list has been scrolled down, then extract all newly visible orders and append them to the 'Extracted Orders' in memory until '全部加载完成' visible.
-    Format the last 'Extracted Orders' in memory into CSV format, stored the final result in memory using remember() and return it.
+    Format the last 'Extracted Orders' in memory into CSV format, and return the final CSV data in your response starting with 'result:'.
     """
-    output = await droid_run(llm=llm, tools=tools, goal=goal)
-    output = get_format_output(tools, output, 'name,', 'orders data')
+    agent = get_agent(config=config, llm=llm, tools=tools, goal=goal)
+    result = await agent.run()
+    if not result.success:
+        raise ValueError(f"❌ Goal get orders not completed: {result.reason}")
+    output = get_format_output(tools, result.reason, 'name,', 'orders data')
     return output
 
 
-async def get_index_stock_from_app_quote_page(llm: GoogleGenAI, tools: AdbTools) -> str:
+async def get_index_stock_from_app_quote_page(config: DroidrunConfig, llm: GoogleGenAI, tools: AdbTools) -> str:
     """
     Get real-time index and stock data from mobile guotai app quote page.
 
@@ -265,14 +290,17 @@ async def get_index_stock_from_app_quote_page(llm: GoogleGenAI, tools: AdbTools)
     Extract the 3 indices (name, number, ratio) from the top of the screen and all visible stocks (name, code, latest price, increase percentage, increase amount) from the list. Store both sets of data in memory using remember().
     Continue scroll down the stock list with resource id "com.guotai.dazhihui:id/table_view_body" to load more stocks until '查看持仓' visible.
     When the stock list has been scrolled down, then extract all newly visible stocks and append them to the 'Extracted Stocks' in memory until '查看持仓' visible.
-    Format the last 'Extracted Indices' and 'Extracted Stocks' in memory into CSV format, combine them with two new lines separator, stored the final result in memory using remember() and return it.
+    Format the last 'Extracted Indices' and 'Extracted Stocks' in memory into CSV format, combine them with two new lines separator, and return the final CSV data in your response starting with 'result:'.
     """
-    output = await droid_run(llm=llm, tools=tools, goal=goal)
-    output = get_format_output(tools, output, 'name,', 'quote data')
+    agent = get_agent(config=config, llm=llm, tools=tools, goal=goal)
+    result = await agent.run()
+    if not result.success:
+        raise ValueError(f"❌ Goal get index and stock not completed: {result.reason}")
+    output = get_format_output(tools, result.reason, 'name,', 'quote data')
     return output
 
 
-async def get_summary_position_from_app_position_page(llm: GoogleGenAI, tools: AdbTools) -> str:
+async def get_summary_position_from_app_position_page(config: DroidrunConfig, llm: GoogleGenAI, tools: AdbTools) -> str:
     """
     Get real-time summary and position data from mobile guotai app position page.
 
@@ -296,10 +324,13 @@ async def get_summary_position_from_app_position_page(llm: GoogleGenAI, tools: A
     and all visible stocks (name, market_cap, open, available, current_price, cost, floating_profit, floating_loss_percentage) from the list. Store both sets of data in memory using remember().
     Continue scroll down the stock list with resource id "com.guotai.dazhihui:id/table_view_body" to load more stocks until '查看已清仓股票' visible.
     When the stock list has been scrolled down, then extract all newly visible stocks and append them to the 'Extracted Stocks' in memory until '查看已清仓股票' visible.
-    Format the last 'Extracted Summary' and 'Extracted Stocks' in memory into CSV format, combine them with two new lines separator, stored the final result in memory using remember() and return it.
+    Format the last 'Extracted Summary' and 'Extracted Stocks' in memory into CSV format, combine them with two new lines separator, and return the final CSV data in your response starting with 'result:'.
     """
-    output = await droid_run(llm=llm, tools=tools, goal=goal)
-    output = get_format_output(tools, output, 'floating_profit_loss,', 'position data')
+    agent = get_agent(config=config, llm=llm, tools=tools, goal=goal)
+    result = await agent.run()
+    if not result.success:
+        raise ValueError(f"❌ Goal get summary and position not completed: {result.reason}")
+    output = get_format_output(tools, result.reason, 'floating_profit_loss,', 'position data')
     return output
 
 
@@ -379,6 +410,22 @@ def parse_number(num_str: str) -> float:
         except Exception as e:
             raise ValueError(f"❌ Failed to parse number from string: {num_str}, ERROR: {e}")
     return 0.0
+
+
+def normalize_stock_name(name: str) -> str:
+    """Normalize stock name by converting full-width characters to half-width.
+
+    Args:
+        name: Stock name string (e.g., '深振业Ａ')
+
+    Returns:
+        Normalized string (e.g., '深振业A')
+    """
+    if not name:
+        return ""
+    import unicodedata
+    return unicodedata.normalize('NFKC', name)
+
 
 
 def sync_index_quote_data_to_db(quote_data: Optional[str] = None, user_id: int = 1) -> Dict:
@@ -469,8 +516,12 @@ def sync_index_quote_data_to_db(quote_data: Optional[str] = None, user_id: int =
                 header, stock_rows = parse_csv_data(sections[1])
                 for row in stock_rows:
                     if len(row) >= 5:
-                        stock_name = row[0]
+                        stock_name = normalize_stock_name(row[0])
                         stock_code = row[1]
+                        # stock_code must 6 number, if not, prefix fill with 0.
+                        if re.match(r'^\d{1,6}$', stock_code):
+                            if len(stock_code) < 6:
+                                stock_code = stock_code.zfill(6)
                         current_price = parse_number(row[2])
                         change_percent = parse_percentage(row[3])
                         change_amount = parse_number(row[4])
@@ -478,7 +529,7 @@ def sync_index_quote_data_to_db(quote_data: Optional[str] = None, user_id: int =
                         # Check stock_code validity
                         if not stock_code or not re.match(r'^\d{6}$', stock_code):
                             raise ValueError(f"Invalid stock code format: {stock_code} for stock {stock_name}. row: {row}")
-                        if not stock_name or not re.match(r'^[\u4e00-\u9fff\uFF21-\uFF3AA-Z]+$', stock_name):
+                        if not stock_name or not re.match(r'^[\w\uFF21-\uFF3A*]+$', stock_name):
                             raise ValueError(f"Invalid stock name format: {stock_name}")
 
                         # Track this stock code
@@ -617,7 +668,7 @@ def sync_summary_position_data_to_db(position_data: Optional[str] = None, user_i
                 header, position_rows = parse_csv_data(sections[1])
                 for row in position_rows:
                     if len(row) >= 8:
-                        stock_name = row[0]
+                        stock_name = normalize_stock_name(row[0])
                         market_value = parse_number(row[1])
                         holdings = int(parse_number(row[2]))
                         available_shares = int(parse_number(row[3]))
@@ -626,7 +677,7 @@ def sync_summary_position_data_to_db(position_data: Optional[str] = None, user_i
                         pnl_float = parse_number(row[6])
                         pnl_float_percent = parse_percentage(row[7])
 
-                        if not stock_name or not re.match(r'^[\u4e00-\u9fff\uFF21-\uFF3AA-Z]+$', stock_name):
+                        if not stock_name or not re.match(r'^[\w\uFF21-\uFF3A*]+$', stock_name):
                             raise ValueError(f"Invalid stock name format: {stock_name}")
 
                         # Track this stock name
@@ -711,6 +762,7 @@ def sync_order_data_to_db(order_data: Optional[str] = None, user_id: int = 1) ->
     }
     has_exceptions = True
     with DB.cursor() as cursor:
+        current_time = datetime.now().isoformat()
         # Track order numbers from source data
         source_order_numbers = set()
 
@@ -719,7 +771,7 @@ def sync_order_data_to_db(order_data: Optional[str] = None, user_id: int = 1) ->
             header, order_rows = parse_csv_data(order_data)
             for row in order_rows:
                 if len(row) >= 8:
-                    name = row[0]
+                    name = normalize_stock_name(row[0])
                     code = row[1]
                     trigger_condition = row[2]
                     buy_or_sell_price_type = row[3]
@@ -730,7 +782,7 @@ def sync_order_data_to_db(order_data: Optional[str] = None, user_id: int = 1) ->
 
                     if not name and not code: #,,,,xxx,xxx,,
                         continue
-                    if not name or not re.match(r'^[\u4e00-\u9fff\uFF21-\uFF3AA-Z]+$', name):
+                    if not name or not re.match(r'^[\w\uFF21-\uFF3A*]+$', name):
                         raise ValueError(f"Invalid stock name format: {name}")
 
                     # Track this order number
@@ -749,7 +801,7 @@ def sync_order_data_to_db(order_data: Optional[str] = None, user_id: int = 1) ->
                             valid_until = excluded.valid_until,
                             reason_of_ending = excluded.reason_of_ending,
                             last_updated = excluded.last_updated
-                    """, (user_id, code, name, trigger_condition, buy_or_sell_price_type, buy_or_sell_quantity, valid_until, order_number, reason_of_ending, datetime.now))
+                    """, (user_id, code, name, trigger_condition, buy_or_sell_price_type, buy_or_sell_quantity, valid_until, order_number, reason_of_ending, current_time))
                     result['orders_updated'] += 1
 
             # Remove orphaned order records (exist in DB but not in source data)
@@ -817,18 +869,17 @@ async def cron_sync_app_data_to_db(check_trading_day_and_time: bool = True) -> d
         return {'skipped': True, 'reason': 'After market close + 1 hour'}
 
     logger.info("Starting cron job to sync app data to database...")
-    tools, llm = pre_requirements()
+    tools, llm, config = await pre_requirements()
     result_quote = result_position = result_order = {}
     need_index_quote = need_summary_position = need_smart_order = True
     times = 1
+    close_app()
+    replay_page(description=['我的持仓',])
     while (need_index_quote or need_summary_position or need_smart_order) and times <= 3:
         quote_data = position_data = order_data = None
-        if times == 1:
-            close_app()
-            replay_page(description=['我的持仓',])
 
         if need_index_quote:
-            quote_data = await get_index_stock_from_app_quote_page(llm=llm, tools=tools)
+            quote_data = await get_index_stock_from_app_quote_page(config=config, llm=llm, tools=tools)
             result_quote = sync_index_quote_data_to_db(quote_data, user_id=1)
             if result_quote['success']:
                 logger.info(f'sync_index_quote_data_to_db done, result: {result_quote}')
@@ -845,9 +896,7 @@ async def cron_sync_app_data_to_db(check_trading_day_and_time: bool = True) -> d
                     logger.error("Max retry attempts reached. Exiting cron job.")
                     break
         if need_summary_position:
-            if times == 1:
-                tools, llm = pre_requirements()
-            position_data = await get_summary_position_from_app_position_page(llm=llm, tools=tools)
+            position_data = await get_summary_position_from_app_position_page(config=config, llm=llm, tools=tools)
             result_position = sync_summary_position_data_to_db(position_data, user_id=1)
             if result_position['success']:
                 logger.info(f'sync_summary_position_data_to_db done, result: {result_position}')
@@ -858,7 +907,6 @@ async def cron_sync_app_data_to_db(check_trading_day_and_time: bool = True) -> d
                 times += 1
                 if times <= 3:
                     logger.info(f"Retrying... Attempt {times}/3 after 5 seconds.")
-                    #os.system("DROIDRUN_TELEMETRY_ENABLED=false droidrun run 'Tab BACK' --provider GoogleGenAI --model gemini-2.5-pro")
                     time.sleep(5)
                     continue
                 else:
@@ -866,9 +914,7 @@ async def cron_sync_app_data_to_db(check_trading_day_and_time: bool = True) -> d
                     break
 
         if need_smart_order:
-            if times == 1:
-                tools, llm = pre_requirements()
-            order_data = await get_order_from_app_smart_order_page(llm=llm, tools=tools)
+            order_data = await get_order_from_app_smart_order_page(config=config, llm=llm, tools=tools)
             result_order = sync_order_data_to_db(order_data, user_id=1)
             if result_order['success']:
                 logger.info(f'sync_order_data_to_db done, result: {result_order}')
@@ -880,8 +926,10 @@ async def cron_sync_app_data_to_db(check_trading_day_and_time: bool = True) -> d
                 if times <= 3:
                     logger.info(f"Retrying... Attempt {times}/3 after 5 seconds.")
                     time.sleep(5)
+                    continue
                 else:
                     logger.error("Max retry attempts reached. Exiting cron job.")
+                    break
 
     result = {
         'quote_sync_result': result_quote,

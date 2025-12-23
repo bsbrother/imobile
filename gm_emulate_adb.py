@@ -32,7 +32,7 @@ def get_device_serials():
             devices.append(serial)
     return devices
 
-def get_device_connectivity() -> AdbTools:
+async def get_device_connectivity() -> AdbTools:
     """if the device is connected and the DroidRun Portal is working, return the AdbTools instance.
     Raises an error if no device is connected or if the accessibility service is not enabled.
     """
@@ -42,12 +42,19 @@ def get_device_connectivity() -> AdbTools:
     try:
         tools = AdbTools(serial=devices[0])
         # Test get_state to check accessibility service
-        state = tools.get_state()
-        if 'phone_state' in state and 'a11y_tree' in state:
+        state = await tools.get_state()
+        # State is a tuple: (description_str, unknown_str, ui_elements_list, metadata_dict)
+        if isinstance(state, tuple) and len(state) >= 4 and isinstance(state[2], list):
             print("✅ Device state retrieved successfully - accessibility service is working")
+            # Optional: log current app
+            if isinstance(state[3], dict) and 'currentApp' in state[3]:
+                print(f"   Current App: {state[3]['currentApp']}")
             return tools
         else:
-            raise
+            print(f"⚠️  Device state returned unexpected format.")
+            print(f"State type: {type(state)}")
+            print(f"State content: {state}")
+            raise RuntimeError("Device state returned but invalid format")
     except Exception as e:
         print("\n" + "="*60)
         print("SETUP REQUIRED:")
@@ -59,7 +66,7 @@ def get_device_connectivity() -> AdbTools:
         print("="*60)
         raise RuntimeError(f"❌ Failed to get device state: {e}")
 
-def check_app_exist(tools: AdbTools, app_name: str | None = None):
+async def check_app_exist(tools: AdbTools, app_name: str | None = None):
     """
     Check if the app is installed on the device.
 
@@ -71,7 +78,7 @@ def check_app_exist(tools: AdbTools, app_name: str | None = None):
     """
 
     try:
-        packages = tools.list_packages(include_system_apps=False)
+        packages = await tools.list_packages(include_system_apps=False)
         if app_name not in packages:
             raise
         print(f"✅ App '{app_name}' is installed on mobile.")
@@ -80,7 +87,10 @@ def check_app_exist(tools: AdbTools, app_name: str | None = None):
         raise RuntimeError(f"❌ Failed to check app exist: {e}")
 
 
+async def main():
+    tools = await get_device_connectivity()
+    await check_app_exist(tools, GUOTAI_PACKAGE_NAME)
+
 if __name__ == "__main__":
-    tools = get_device_connectivity()
-    check_app_exist(tools, GUOTAI_PACKAGE_NAME)
+    asyncio.run(main())
 

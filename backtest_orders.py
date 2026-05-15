@@ -849,11 +849,11 @@ class OrderAnalyzer:
 
                 # Strict Day-3 Close to avoid Unrealized P&L
                 # User request: "at ... 3 trading dates has unrealized P&L... avoid it happend."
-                # Force sell at Market Close on the 3rd day (or Max Hold Day) to realize P&L.
-                if holding_days_val >= 3:
-                    logger.info(f"Strict Day-3 Close triggered for {symbol}: held {holding_days_val} days")
+                # Force sell at Market Close on the Max Hold Day to realize P&L.
+                if holding_days_val >= self.holding_days:
+                    logger.info(f"Strict Max-Hold Close triggered for {symbol}: held {holding_days_val} days")
                     sell_price = close_price
-                    reason = 'strict_day_3_close'
+                    reason = 'strict_max_hold_close'
                     
                     success = execute_sell_order(
                         self.user_id, symbol, name, sell_price,
@@ -890,10 +890,11 @@ class OrderAnalyzer:
                         }
 
                 # Check for Stagnation Cut
-                # Trigger: Held >= 3 days (T+3) AND Abs(Return) < 3%
+                # Trigger: Held >= half holding period AND Return < 2% (only cut flat/losing)
                 # Action: Sell at CLOSE price
                 current_return_pct = ((close_price - cost_basis) / cost_basis) * 100
-                if holding_days_val >= 3 and abs(current_return_pct) < 3.0:
+                stagnation_days = max(3, self.holding_days // 2 + 1)
+                if holding_days_val >= stagnation_days and current_return_pct < 2.0:
                     logger.info(f"Stagnation Cut triggered for {symbol}: held {holding_days_val} days, return {current_return_pct:.2f}%")
                     sell_price = close_price
                     reason = 'stagnation_cut'

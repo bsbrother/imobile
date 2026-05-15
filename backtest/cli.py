@@ -783,14 +783,14 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                     # Equal weight across remaining positions, using remaining_cash
                     position_value = remaining_cash / remaining_slots
                 else:
-                    # Risk-adjusted position sizing based on remaining cash
-                    position_value = remaining_cash * max_position_pct
+                    # Allocate up to max_position_pct (we use remaining_slots to distribute better if equal_weight is false)
+                    position_value = remaining_cash / remaining_slots
 
                 # Adjust for risk (stop loss distance)
                 risk_per_share = buy_price - sell_stop_loss
                 if risk_per_share > 0:
-                    # Risk-based position sizing: don't risk more than 2% of portfolio per position
-                    max_risk_amount = remaining_cash * 0.02
+                    # Risk-based position sizing: don't risk more than 5% of portfolio per position (relaxed for higher returns)
+                    max_risk_amount = remaining_cash * 0.05
                     risk_adjusted_shares = int(max_risk_amount / risk_per_share)
                     value_based_shares = int(position_value / buy_price)
                     buy_quantity = min(risk_adjusted_shares, value_based_shares)

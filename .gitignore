@@ -2,6 +2,7 @@ GIT.sh
 
 db/
 backups/
+backtest/backtest_results/
 
 *.py[cod]
 .web

@@ -4,7 +4,7 @@ import pandas as pd
 import glob
 import re
 
-BACKTEST_DIR = './backtest/backtest_results/20251001_20251031_ts_combine'
+BACKTEST_DIR = './backtest/backtest_results/20250101_20250831_ts_month_src'
 
 def load_pick_stocks():
     files = glob.glob(os.path.join(BACKTEST_DIR, 'pick_stocks_*.json'))

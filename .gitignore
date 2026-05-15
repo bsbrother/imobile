@@ -1,5 +1,8 @@
 GIT.sh
 
+db/
+backups/
+
 *.py[cod]
 .web
 *.db

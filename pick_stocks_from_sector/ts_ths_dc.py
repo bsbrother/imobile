@@ -244,7 +244,9 @@ def money_flow_strategy(stock_basic: pd.DataFrame, start_date: str, end_date: st
         top_money_flow = top_money_flow[top_money_flow['ts_code'].isin(stock_basic['ts_code'])].reset_index(drop=True)
         logger.info("分析主力资金净流入前100的股票")
         # [MODIFIED] Switch to Relative Money Flow (Net Inflow / Circulating Market Cap)
-        # Need to fetch daily_basic for circ_mv
+        # Fetch bulk OHLCV data for price checks
+        all_stock_data = data_provider.get_bulk_ohlcv_by_date_range(start_date, end_date)
+
         for _, stock in top_money_flow.iterrows():
             basic_info = stock_basic[stock_basic['ts_code'] == stock['ts_code']]
             if not basic_info.empty:
@@ -263,9 +265,9 @@ def money_flow_strategy(stock_basic: pd.DataFrame, start_date: str, end_date: st
                 mf_ratio = net_mf / circ_mv
                 
                 # 结合价格走势分析
-                price_data = data_provider.get_ohlcv_data(symbol=stock['ts_code'], start_date=start_date, end_date=end_date)
+                price_data = all_stock_data.get(stock['ts_code'], pd.DataFrame())
                 if len(price_data) < 4:
-                    logger.warning(f"Not enough price data for {stock['ts_code']}, skip it.")
+                    logger.debug(f"Not enough price data for {stock['ts_code']}, skip it.")
                     continue
                 if 'trade_date' in price_data:
                     price_data = price_data.sort_values(by='trade_date', ascending=False)
@@ -298,40 +300,41 @@ def limit_up_strategy(stock_basic: pd.DataFrame, start_date: str, end_date: str)
     logger.info("策略3: 涨停板选股")
     strong_stocks = []
     try:
-        # 获取当日涨停股票
-        daily_data = data_provider.get_stock_data(symbols=stock_basic['ts_code'].tolist(), start_date=start_date, end_date=end_date)
-        if 'trade_date' in daily_data:
-            daily_data = daily_data.sort_values(by='trade_date', ascending=False)
-        # 筛选涨停股 (假设涨跌幅超过9.5%为涨停)
-        limit_up_stocks = daily_data[daily_data['pct_chg'] > 9.5]
-        limit_up_stocks = limit_up_stocks[limit_up_stocks['ts_code'].isin(stock_basic['ts_code'])].reset_index(drop=True)
-        logger.info(f"发现 {len(limit_up_stocks)} 只涨停股票")
-        for _, stock in limit_up_stocks.iterrows():
-            basic_info = stock_basic[stock_basic['ts_code'] == stock['ts_code']]
-            if not basic_info.empty:
-                # 分析连续涨停情况
-                hist_data = data_provider.get_ohlcv_data(symbol=stock['ts_code'], start_date=start_date, end_date=end_date)
-                if 'trade_date' in hist_data:
-                    hist_data = hist_data.sort_values(by='trade_date', ascending=False)
-                # 计算连续涨停天数
-                consecutive_limit_up = 0
-                for i in range(min(RECENT_DAYS, len(hist_data))):
-                    if hist_data.iloc[i]['pct_chg'] > 9.5:
-                        consecutive_limit_up += 1
-                    else:
-                        break
-                # 首板或二板重点关注
-                if consecutive_limit_up < 2:
-                    strong_stocks.append({
-                        'ts_code': stock['ts_code'],
-                        'name': basic_info.iloc[0]['name'],
-                        'consecutive_days': consecutive_limit_up,
-                        'pct_chg': stock['pct_chg'],
-                        'amount': stock['amount'],
-                        'strategy': '涨停板'
-                    })
+        # Get all stocks OHLCV data using bulk fetch
+        all_stock_data = data_provider.get_bulk_ohlcv_by_date_range(start_date, end_date)
+        
+        for _, stock in stock_basic.iterrows():
+            ts_code = stock['ts_code']
+            hist_data = all_stock_data.get(ts_code, pd.DataFrame())
+            
+            if not hist_data.empty and 'trade_date' in hist_data:
+                hist_data = hist_data.sort_values(by='trade_date', ascending=False)
+                
+                # Check if it hit limit up on the latest day (end_date)
+                latest_day = hist_data.iloc[0]
+                if latest_day['pct_chg'] > 9.5:
+                    # Calculate consecutive limit up
+                    consecutive_limit_up = 0
+                    for i in range(min(RECENT_DAYS, len(hist_data))):
+                        if hist_data.iloc[i]['pct_chg'] > 9.5:
+                            consecutive_limit_up += 1
+                        else:
+                            break
+                            
+                    # Focus on 1st or 2nd board
+                    if consecutive_limit_up < 2:
+                        strong_stocks.append({
+                            'ts_code': ts_code,
+                            'name': stock['name'],
+                            'consecutive_days': consecutive_limit_up,
+                            'pct_chg': latest_day['pct_chg'],
+                            'amount': latest_day['amount'],
+                            'strategy': '涨停板'
+                        })
     except Exception as e:
         logger.error(f"涨停板策略执行出错: {e}")
+        import traceback
+        traceback.print_exc()
         raise
     logger.info(f"Got {len(strong_stocks)} stocks from limit up strategy.")
     return strong_stocks
@@ -479,7 +482,7 @@ def is_late_trend(ts_code: str, ref_end_date: str, regime_data: Any = None) -> b
     kline = data_provider.get_ohlcv_data(symbol=ts_code, start_date=start_k_date, end_date=ref_end_date)
     # TODO: use stock_basic list_date to no-limit need >= 20 days data.
     if kline is None or kline.empty or len(kline) < 20:
-        logger.warning(f"Get kline failed or insufficient data, ts_code={ts_code}")
+        logger.debug(f"Get kline failed or insufficient data, ts_code={ts_code}")
         return False
 
     close = kline["close"].astype(float)
@@ -626,8 +629,8 @@ def no_risky_stocks(stock_basic: pd.DataFrame, mainboard: bool = True) -> list[s
     # 沪市主板股票代码以600/601/603/605开头，科创板股票代码以688开头。
     # 深市主板股票代码以000/001/002/003/004开头，创业板股票代码以300/301开头。
     # 北交所股票代码以8|92开头。 新三板: 400/430/830开头。
-    # Default only mainboard stocks
-    ts_code_pattern = r'^(?:C|N|\*|4|9|8|30|688)|ST' if mainboard else r'^(?:C|N|\*|9|8|)|ST'
+    # Allow mainboard + ChiNext(30) + STAR(688)
+    ts_code_pattern = r'^(?:C|N|\*|4|9|8)|ST' if mainboard else r'^(?:C|N|\*|9|8|)|ST'
     exclude_conditions = (
         stock_basic['name'].str.contains(name_pattern, regex=True, na=False) |
         stock_basic['ts_code'].str.contains(ts_code_pattern, regex=True, na=False)

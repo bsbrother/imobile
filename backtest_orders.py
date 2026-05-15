@@ -83,17 +83,32 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_go') -> str:
     regime_name = regime_data['regime']
     logger.info(f"Market Regime for {this_date}: {regime_name}")
 
-    """
-    # market_pattern picker
-    result = os.system(f'python -m backtest.cli pick --date {this_date} -o /tmp/tmp')
-    if result != 0:
-        raise ValueError(f"Failed to pick stocks for {this_date}.")
-    """
+    if src == 'ts_auto':
+        # Select strategy based on regime (detect by 3-6 month before current trading date)
+        # Using 6 months (120 days) logic modified in market_regime.py
+        if regime_name == 'bull':
+            src = 'ts_longup'
+        elif regime_name == 'bear':
+            src = 'ts_hma'
+        elif regime_name == 'volatile':
+            src = 'ts_ai_pick'
+        else: # normal
+            src = 'ts_go'
+        logger.info(f"Auto-selected strategy {src} for regime {regime_name}")
+
     # hot sectors picker
     # Pass regime info to picker if needed, or just let it pick based on sectors
     # For now, we assume picker logic is independent or we will update it later.
     if src == 'ts_combine':
         result = os.system(f'python pick_stocks_from_sector/ts_combine.py {this_date}')
+    elif src == 'ts_month_src':
+        result = os.system(f'python pick_stocks_from_sector/ts_month_src.py {this_date}')
+    elif src == 'ts_longup':
+        result = os.system(f'python pick_stocks_from_sector/ts_longup.py {this_date}')
+    elif src == 'ts_hma':
+        result = os.system(f'python pick_stocks_from_sector/ts_hma.py {this_date}')
+    elif src == 'ts_ai_pick':
+        result = os.system(f'python pick_stocks_from_sector/ts_ai_pick.py {this_date}')
     elif src == 'ts_go':
         # Compile and run the Go stock picker
         # Command: cd utils/go-stock; go build -o pick_stocks cmd/pick_stocks/main.go; ./pick_stocks {this_date}
@@ -999,6 +1014,21 @@ class OrderAnalyzer:
         # Calculate actual fill price
         buy_fill_price = open_price # 2025.12.14: cannot buy at min(buy_price, open_price)
 
+        # REAL-WORLD FIX: Filter out impossible limit-up opens (retail cannot reliably buy a limit-up open)
+        limit_up_price = round(prev_close * (1.195 if symbol.startswith(('30', '688')) else 1.095), 2)
+        if open_price >= limit_up_price:
+            return {
+                'executed': False,
+                'reason': f'Open price {open_price} hit limit up {limit_up_price}',
+                'market_summary': {
+                    'prev_close': prev_close,
+                    'open': open_price,
+                    'high': high_price,
+                    'low': low_price,
+                    'close': close_price
+                }
+            }
+
         # Execute buy order
         # Recalculate SL/TP based on ACTUAL fill price
         # This prevents wide stops when filling way above limit price (e.g. gap up)
@@ -1741,8 +1771,8 @@ if __name__ == '__main__':
             src = argv[3]
         if len(argv) >= 5:
             user_id = int(argv[4])
-    if src not in ['ts_ths', 'ts_dc', 'ts_combine', 'ts_go']:
-        raise ValueError(f"Invalid source: {src}. Valid sources are 'ts_ths', 'ts_dc', 'ts_combine', and 'ts_go'.")
+    if src not in ['ts_ths', 'ts_dc', 'ts_combine', 'ts_go', 'ts_month_src']:
+        raise ValueError(f"Invalid source: {src}. Valid sources are 'ts_ths', 'ts_dc', 'ts_combine', 'ts_go', and 'ts_month_src'.")
     
     print(f"DEBUG: Running with start_date={start_date}, end_date={end_date}, src={src}")
     REPORT_PATH = os.path.join(REPORT_PATH, f'{start_date}_{end_date}_{src}')

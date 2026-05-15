@@ -1,5 +1,6 @@
 import os
 import re
+import glob
 from collections import defaultdict
 
 RESULTS_DIR = '/home/kasm-user/apps/imobile/backtest/backtest_results'
@@ -10,6 +11,76 @@ def parse_percentage(value_str):
         return float(value_str.replace('%', '').strip())
     except ValueError:
         return None
+
+def calculate_monthly_returns(dir_path):
+    files = sorted(glob.glob(os.path.join(dir_path, 'report_orders_*.md')))
+    if not files:
+        return None
+        
+    current_cash = 600000.0
+    monthly_values = {}
+    open_positions = {}
+    total_value = current_cash
+    
+    for f in files:
+        date_str = re.search(r'report_orders_(\d+).md', f).group(1)
+        month_str = date_str[:6]
+        
+        with open(f, 'r', encoding='utf-8') as file:
+            content = file.read()
+            
+        sections = content.split('### ')[1:]
+        
+        for section in sections:
+            lines = section.split('\n')
+            if not lines: continue
+            
+            symbol_match = re.search(r'(\d{6}\.[A-Z]{2})', lines[0])
+            symbol = symbol_match.group(1) if symbol_match else "UNKNOWN"
+            
+            qty_match = re.search(r'Quantity:\s*(\d+)\s*shares', section)
+            qty = int(qty_match.group(1)) if qty_match else 0
+            
+            if 'BUY ORDER FILLED' in section:
+                cost_match = re.search(r'Cost:\s*¥([\d,]+\.?\d*)', section)
+                cost = float(cost_match.group(1).replace(',', '')) if cost_match else 0.0
+                current_cash -= cost
+                
+                price_match = re.search(r'Current Price:\s*¥([\d,]+\.?\d*)', section)
+                price = float(price_match.group(1).replace(',', '')) if price_match else (cost/qty if qty > 0 else 0)
+                
+                open_positions[symbol] = {'qty': qty, 'price': price}
+                
+            elif 'SELL ORDER FILLED' in section:
+                exit_price_match = re.search(r'Exit Price:\s*¥([\d,]+\.?\d*)', section)
+                exit_price = float(exit_price_match.group(1).replace(',', '')) if exit_price_match else 0.0
+                revenue = qty * exit_price
+                current_cash += revenue
+                
+                if symbol in open_positions:
+                    del open_positions[symbol]
+                
+            else:
+                price_match = re.search(r'Current Price:\s*¥([\d,]+\.?\d*)', section)
+                if price_match and symbol in open_positions:
+                    open_positions[symbol]['price'] = float(price_match.group(1).replace(',', ''))
+        
+        holdings_value = sum(pos['qty'] * pos['price'] for pos in open_positions.values())
+        total_value = current_cash + holdings_value
+        monthly_values[month_str] = total_value
+        
+    initial_capital = 600000.0
+    return_pct = (total_value - initial_capital) / initial_capital * 100
+    
+    monthly_returns = {}
+    prev_val = initial_capital
+    for m in sorted(monthly_values.keys()):
+        val = monthly_values[m]
+        pct = (val - prev_val) / prev_val * 100
+        monthly_returns[m] = pct
+        prev_val = val
+        
+    return return_pct, monthly_returns
 
 def main():
     if not os.path.exists(RESULTS_DIR):
@@ -35,31 +106,42 @@ def main():
         period_key = f"{start_date}_{end_date}"
         
         report_file = os.path.join(full_path, f"report_period_{period_key}.md")
-        if not os.path.exists(report_file):
-            continue
+        
+        monthly_str = ""
+        calc_result = calculate_monthly_returns(full_path)
+        
+        if calc_result is not None:
+            partial_ret, monthly_returns = calc_result
+            monthly_parts = [f"{m}: {pct:.2f}%" for m, pct in monthly_returns.items()]
+            monthly_str = " [" + ", ".join(monthly_parts) + "]"
+        
+        if os.path.exists(report_file):
+            with open(report_file, 'r', encoding='utf-8') as f:
+                content = f.read()
 
-        with open(report_file, 'r', encoding='utf-8') as f:
-            content = f.read()
+            # Parse Benchmark Comparison table
+            # | Metric | Strategy | SSE Composite | CSI 300 |
+            # | **Total Return** | 0.33% | 1.85% | 1.49% |
+            table_pattern = re.compile(r'\|\s*\*\*Total Return\*\*\s*\|\s*([^|\n]+)\|\s*([^|\n]+)\|\s*([^|\n]+)\|')
+            table_match = table_pattern.search(content)
 
-        # Parse Benchmark Comparison table
-        # | Metric | Strategy | SSE Composite | CSI 300 |
-        # | **Total Return** | 0.33% | 1.85% | 1.49% |
-        # Looking for the "Total Return" line in the Benchmark Comparison table specifically.
-        # Note: "Total Return" also appears in Portfolio Performance Summary but with fewer columns.
-        # Using [^|\n] to ensure we don't match across lines.
-        table_pattern = re.compile(r'\|\s*\*\*Total Return\*\*\s*\|\s*([^|\n]+)\|\s*([^|\n]+)\|\s*([^|\n]+)\|')
-        table_match = table_pattern.search(content)
+            if table_match:
+                strategy_ret = table_match.group(1).strip()
+                sse_ret = table_match.group(2).strip()
+                csi300_ret = table_match.group(3).strip()
 
-        if table_match:
-            strategy_ret = table_match.group(1).strip()
-            sse_ret = table_match.group(2).strip()
-            csi300_ret = table_match.group(3).strip()
-
-            results[period_key][method] = {
-                'strategy': strategy_ret,
-                'sse': sse_ret,
-                'csi': csi300_ret
-            }
+                results[period_key][method] = {
+                    'strategy': f"{strategy_ret}{monthly_str}",
+                    'sse': sse_ret,
+                    'csi': csi300_ret
+                }
+        else:
+            if calc_result is not None:
+                results[period_key][method] = {
+                    'strategy': f"{partial_ret:.2f}% (Running){monthly_str}",
+                    'sse': 'N/A',
+                    'csi': 'N/A'
+                }
 
     # Sort periods
     sorted_periods = sorted(results.keys())

@@ -671,14 +671,16 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
         stop_loss_pct = 3.0  # default 3%
 
         for signal in sell_signals:
-            if 'profit_target' in signal:
+            if signal is None:
+                continue
+            if 'profit_target' in str(signal):
                 try:
-                    profit_target_pct = float(signal.split('_')[-1].replace('pct', ''))
+                    profit_target_pct = float(str(signal).split('_')[-1].replace('pct', ''))
                 except (ValueError, IndexError):
                     pass
-            if 'stop_loss' in signal:
+            if 'stop_loss' in str(signal):
                 try:
-                    stop_loss_pct = float(signal.split('_')[-1].replace('pct', ''))
+                    stop_loss_pct = float(str(signal).split('_')[-1].replace('pct', ''))
                 except (ValueError, IndexError):
                     pass
         logger.debug(f"Using profit target: {profit_target_pct}%, stop loss: {stop_loss_pct}%")

@@ -580,10 +580,10 @@ def execute_sell_order(user_id: int, symbol: str, name: str,
         cursor.execute("""
             UPDATE smart_orders
             SET status = 'completed',
-                reason_of_ending = ? || ', ' || reason_of_ending,
+                reason_of_ending = ? || ', ' || COALESCE(reason_of_ending, ''),
                 last_updated = ?
-            WHERE order_number = ?
-        """, (reason, convert_to_datetime(transaction_date), order_number))
+            WHERE code = ? AND user_id = ? AND status = 'running'
+        """, (reason, convert_to_datetime(transaction_date), symbol, user_id))
 
         logger.info(f"✓ Sell order executed: {symbol} x{quantity} @ ¥{sell_price}, P&L: ¥{pnl:.2f}")
         has_exceptions = False

@@ -1142,7 +1142,8 @@ class OrderAnalyzer:
 
             # Get market data
             #market_data = self.get_market_data(symbol, date)
-            market_data = data_provider.get_stock_data(symbol, date, date).iloc[-1]
+            md_df = data_provider.get_stock_data(symbol, date, date)
+            market_data = md_df.iloc[-1] if not md_df.empty else None
 
             # Check execution with T+1 compliance
             execution = self.check_order_execution(order, market_data, date)

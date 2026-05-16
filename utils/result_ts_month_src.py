@@ -28,16 +28,20 @@ def calculate_monthly_returns(dir_path):
         with open(f, 'r', encoding='utf-8') as file:
             content = file.read()
             
-        current_portfolio_match = re.search(r'Current Portfolio:\*\*\s*¥([-]?[\d,]+\.?\d*)', content)
-        if current_portfolio_match:
-            portfolio_val = float(current_portfolio_match.group(1).replace(',', ''))
+        true_portfolio_match = re.search(r'True Total Portfolio Value:\*\*\s*¥([-]?[\d,]+\.?\d*)', content)
+        if true_portfolio_match:
+            total_value = float(true_portfolio_match.group(1).replace(',', ''))
         else:
-            portfolio_val = initial_capital
+            current_portfolio_match = re.search(r'Current Portfolio:\*\*\s*¥([-]?[\d,]+\.?\d*)', content)
+            if current_portfolio_match:
+                portfolio_val = float(current_portfolio_match.group(1).replace(',', ''))
+            else:
+                portfolio_val = initial_capital
+                
+            unrealized_pnl_matches = re.findall(r'Unrealized P&L:\s*¥([-]?[\d,]+\.?\d*)', content)
+            unrealized_pnl = sum(float(x.replace(',', '')) for x in unrealized_pnl_matches)
+            total_value = portfolio_val + unrealized_pnl
             
-        unrealized_pnl_matches = re.findall(r'Unrealized P&L:\s*¥([-]?[\d,]+\.?\d*)', content)
-        unrealized_pnl = sum(float(x.replace(',', '')) for x in unrealized_pnl_matches)
-        
-        total_value = portfolio_val + unrealized_pnl
         monthly_values[month_str] = total_value
         
     return_pct = (total_value - initial_capital) / initial_capital * 100
@@ -83,7 +87,7 @@ def main():
         if calc_result is not None:
             partial_ret, monthly_returns = calc_result
             monthly_parts = [f"{m}: {pct:.2f}%" for m, pct in monthly_returns.items()]
-            monthly_str = " [" + ", ".join(monthly_parts) + f", Total: {partial_ret:.2f}%]"
+            monthly_str = " [" + ", ".join(monthly_parts) + "]"
         
         if os.path.exists(report_file):
             with open(report_file, 'r', encoding='utf-8') as f:
@@ -101,14 +105,14 @@ def main():
                 csi300_ret = table_match.group(3).strip()
 
                 results[period_key][method] = {
-                    'strategy': f"{strategy_ret}{monthly_str}",
+                    'strategy': f"total: {strategy_ret} (Done){monthly_str}",
                     'sse': sse_ret,
                     'csi': csi300_ret
                 }
         else:
             if calc_result is not None:
                 results[period_key][method] = {
-                    'strategy': f"{partial_ret:.2f}% (Running){monthly_str}",
+                    'strategy': f"total: {partial_ret:.2f}% (Running){monthly_str}",
                     'sse': 'N/A',
                     'csi': 'N/A'
                 }

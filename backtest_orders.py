@@ -949,41 +949,42 @@ class OrderAnalyzer:
                             }
                         }
                 
-                # Update Trailing Stop logic continues...
-                    # Holding continues - Update Trailing Stop
-                    new_stop_loss, reason = calculate_trailing_stop(
-                        entry_price=cost_basis,
-                        current_price=high_price,
-                        initial_stop_loss=stop_loss
-                    )
-                    
-                    if new_stop_loss > stop_loss:
-                        # Update smart order with new stop loss
-                        with DB.cursor() as cursor:
-                            trigger_condition = f'股价>={take_profit:.2f}元(触发止盈),股价<={new_stop_loss:.2f}元(触发止损)'
-                            cursor.execute("""
-                                UPDATE smart_orders
-                                SET trigger_condition = ?,
-                                    last_updated = ?
-                                WHERE order_number = ?
-                            """, (trigger_condition, convert_to_datetime(date), order_number))
-                        logger.info(f"Updated trailing stop for {symbol}: {stop_loss} -> {new_stop_loss} ({reason})")
+                # Holding continues - Update Trailing Stop
+                new_stop_loss, reason = calculate_trailing_stop(
+                    entry_price=cost_basis,
+                    current_price=high_price,
+                    initial_stop_loss=stop_loss
+                )
+                
+                if new_stop_loss > stop_loss:
+                    # Update smart order with new stop loss
+                    with DB.cursor() as cursor:
+                        trigger_condition = f'股价>={take_profit:.2f}元(触发止盈),股价<={new_stop_loss:.2f}元(触发止损)'
+                        cursor.execute("""
+                            UPDATE smart_orders
+                            SET trigger_condition = ?,
+                                last_updated = ?
+                            WHERE order_number = ?
+                        """, (trigger_condition, convert_to_datetime(date), order_number))
+                    logger.info(f"Updated trailing stop for {symbol}: {stop_loss} -> {new_stop_loss} ({reason})")
 
-                    return {
-                        'executed': True,
-                        'action': 'hold',
-                        'exit_reason': 'held',
-                        'exit_price': close_price,
-                        't1_restriction': False,
-                        'purchase_date': purchase_date,
-                        'market_summary': {
-                            'prev_close': prev_close,
-                            'open': open_price,
-                            'high': high_price,
-                            'low': low_price,
-                            'close': close_price
-                        }
+                return {
+                    'executed': True,
+                    'action': 'hold',
+                    'exit_reason': 'held',
+                    'exit_price': close_price,
+                    't1_restriction': False,
+                    'purchase_date': purchase_date,
+                    'unrealized_pnl': (close_price - cost_basis) * holdings,
+                    'unrealized_pnl_pct': ((close_price - cost_basis) / cost_basis) * 100,
+                    'market_summary': {
+                        'prev_close': prev_close,
+                        'open': open_price,
+                        'high': high_price,
+                        'low': low_price,
+                        'close': close_price
                     }
+                }
             else:
                 # T+1 restriction: bought today, cannot sell
                 return {
@@ -1186,8 +1187,24 @@ class OrderAnalyzer:
             current_portfolio_nav = INITIAL_CASH + total_cumulative_realized_pnl
             cash_remaining = current_portfolio_nav - total_invested
 
+            # Calculate total unrealized P&L from ALL current holdings
+            total_unrealized_pnl = 0.0
+            with DB.cursor() as cursor:
+                cursor.execute("SELECT code, holdings, cost_basis_total FROM holding_stocks WHERE user_id=?", (self.user_id,))
+                for row in cursor.fetchall():
+                    sym = row[0]
+                    holdings = row[1]
+                    cost = row[2]
+                    md = data_provider.get_stock_data(sym, date, date)
+                    if not md.empty:
+                        total_unrealized_pnl += (float(md.iloc[-1]['close']) * holdings) - cost
+            
+            true_total_portfolio_value = current_portfolio_nav + total_unrealized_pnl
+
             f.write("## Portfolio Summary\n\n")
             f.write(f"- **Current Portfolio:** ¥{current_portfolio_nav:,.2f} *(Initial + Cumulative Realized P&L)*\n")
+            f.write(f"- **True Total Portfolio Value:** ¥{true_total_portfolio_value:,.2f} *(Includes Unrealized P&L)*\n")
+            f.write(f"- **Total Unrealized P&L:** ¥{total_unrealized_pnl:,.2f}\n")
             f.write(f"- **Orders Executed:** {executed_count}/{len(self.orders)}\n")
             f.write(f"- **T+1 Restricted Positions:** {t1_restricted_count}\n")
             f.write(f"- **Total Invested:** ¥{total_invested:,.2f}\n")
@@ -1714,6 +1731,7 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
 
         # Step 1.5: Calculate Cumulative Realized P&L and Current Capital
         cumulative_realized_pnl = 0.0
+        current_holdings_cost = 0.0
         with DB.cursor() as cursor:
             # Calculate realized P&L from all sell transactions strictly BEFORE today
             # We want to use the capital that is available at start of day (or end of yesterday) for sizing today's orders
@@ -1731,9 +1749,18 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
                         cumulative_realized_pnl += pnl_val
                     except:
                         pass
+
+            # Calculate cost of currently held stocks to determine available cash
+            cursor.execute("""
+                SELECT sum(cost_basis_total) FROM holding_stocks WHERE user_id=?
+            """, (user_id,))
+            res = cursor.fetchone()
+            if res and res[0]:
+                current_holdings_cost = float(res[0])
         
-        current_capital = INITIAL_CASH + cumulative_realized_pnl
-        logger.info(f"[{this_date}] Cumulative Realized P&L (Pre-market): ¥{cumulative_realized_pnl:,.2f}, Avail Capital: ¥{current_capital:,.2f}")
+        current_portfolio_nav = INITIAL_CASH + cumulative_realized_pnl
+        current_capital = current_portfolio_nav - current_holdings_cost
+        logger.info(f"[{this_date}] Cumulative Realized P&L: ¥{cumulative_realized_pnl:,.2f}, Total Equity (Cash+Holdings): ¥{current_portfolio_nav:,.2f}, Avail Cash: ¥{current_capital:,.2f}")
 
         # Step 2: Create smart orders from picks and save to database
         smart_output_file = create_smart_orders_from_picks(pick_output_file, user_id=user_id, current_capital=current_capital)

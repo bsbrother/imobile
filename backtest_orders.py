@@ -703,6 +703,22 @@ class OrderAnalyzer:
                 raise ValueError(f"Invalid last_updated date for holding {symbol}: {last_updated}")
             can_sell_today = available_shares > 0 and purchase_date < date
             if can_sell_today:
+                # REAL-WORLD FIX: Cannot sell if stock is locked at limit down all day
+                limit_down_price = round(prev_close * (0.805 if symbol.startswith(('30', '688')) else 0.905), 2)
+                if high_price <= limit_down_price:
+                    logger.warning(f"Stock {symbol} locked at limit down {limit_down_price} all day. Cannot sell.")
+                    return {
+                        'executed': False,
+                        'reason': 'locked_limit_down',
+                        'market_summary': {
+                            'prev_close': prev_close,
+                            'open': open_price,
+                            'high': high_price,
+                            'low': low_price,
+                            'close': close_price
+                        }
+                    }
+
                 # Check sell triggers (take-profit or stop-loss)
                 tp_hit = high_price >= take_profit
                 sl_hit = low_price <= stop_loss
@@ -996,21 +1012,6 @@ class OrderAnalyzer:
         if open_price > prev_close * 1.03 and close_price < open_price:
             #return {"executed": False, "reason": f"gap_up_fade_filter: {(open_price/prev_close):.2%}, {prev_close}, {open_price}, {close_price}"}
             pass
-
-        # No holding - check buy trigger: buy_price is today open_price, current_price is prev_close_price.
-        buy_executed = open_price >= prev_close
-        if not buy_executed:
-            return {
-                'executed': False,
-                'reason': f'Open price ¥{open_price} < Prev close price ¥{prev_close}',
-                'market_summary': {
-                    'prev_close': prev_close,
-                    'open': open_price,
-                    'high': high_price,
-                    'low': low_price,
-                    'close': close_price
-                }
-            }
 
         # Calculate actual fill price
         buy_fill_price = open_price # 2025.12.14: cannot buy at min(buy_price, open_price)

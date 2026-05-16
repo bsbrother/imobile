@@ -629,8 +629,10 @@ def pick_stocks(target_date: str, lookahead: bool = False) -> List[StockPick]:
     news_service = NewsService()
     analyzer = GeminiDailyAnalyzer()
     
-    hot_sectors_context = get_hot_sectors(target_date)
-    market_dashboard = get_market_dashboard(target_date)
+    # Get context for the previous date (avoid lookahead)
+    prev_date = get_trading_days_before(target_date, 1)
+    hot_sectors_context = get_hot_sectors(prev_date)
+    market_dashboard = get_market_dashboard(prev_date)
     
     if not analyzer.is_available():
         logger.error("Analyzer unavailable")

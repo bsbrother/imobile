@@ -313,9 +313,8 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
                     data['smart_orders'][i] = order
                     break
 
-        for i, order in enumerate(data['smart_orders']):
-            if order['symbol'] in no_buy_cancel_symbols:
-                data['smart_orders'].pop(i)
+        # Safely remove items without breaking enumeration
+        data['smart_orders'] = [o for o in data['smart_orders'] if o['symbol'] not in no_buy_cancel_symbols]
 
         # Add not in data['smart_orders'] but in previous smart output file into data['smart_orders'].
         prev_date = calendar.get_trading_days_before(this_date, 1)
@@ -325,10 +324,13 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
             with open(prev_smart_output_file, 'r') as f:
                 prev_data = json.load(f)
             data_keys = [ o['symbol'] for o in data['smart_orders']]
-            left_running_orders = [ o for o in prev_data['smart_orders'] if o['symbol'] not in data_keys and o['symbol'] in running_orders ]
-            for i, order in enumerate(left_running_orders):
-                if order['symbol'] in no_buy_cancel_symbols:
-                    left_running_orders.pop(i)
+            
+            # Reconstruct left running orders safely
+            left_running_orders = [ o for o in prev_data.get('smart_orders', []) 
+                                    if o['symbol'] not in data_keys 
+                                    and o['symbol'] in running_orders 
+                                    and o['symbol'] not in no_buy_cancel_symbols ]
+            
             for order in left_running_orders:
                 valid_until = running_orders[order['symbol']]['valid_until']
                 # the order is about to expire today, force sell at market price next day.
@@ -698,9 +700,32 @@ class OrderAnalyzer:
         can_sell_today = False
         if holding:
             holdings, available_shares, cost_basis, last_updated = holding
-            purchase_date = convert_trade_date(last_updated)
+            
+            # Fetch TRUE purchase date from transactions table to calculate exact holding days
+            purchase_date = None
+            with DB.cursor() as cursor:
+                cursor.execute("""
+                    SELECT MAX(transaction_date) FROM transactions 
+                    WHERE code=? AND user_id=? AND transaction_type='sell'
+                """, (symbol, self.user_id))
+                last_sell = cursor.fetchone()[0]
+                if last_sell:
+                    cursor.execute("""
+                        SELECT MIN(transaction_date) FROM transactions 
+                        WHERE code=? AND user_id=? AND transaction_type='buy' AND transaction_date > ?
+                    """, (symbol, self.user_id, last_sell))
+                else:
+                    cursor.execute("""
+                        SELECT MIN(transaction_date) FROM transactions 
+                        WHERE code=? AND user_id=? AND transaction_type='buy'
+                    """, (symbol, self.user_id))
+                p_date = cursor.fetchone()[0]
+                if p_date:
+                    purchase_date = convert_trade_date(p_date)
+                    
             if not purchase_date:
-                raise ValueError(f"Invalid last_updated date for holding {symbol}: {last_updated}")
+                purchase_date = convert_trade_date(last_updated)
+                
             can_sell_today = available_shares > 0 and purchase_date < date
             if can_sell_today:
                 # REAL-WORLD FIX: Cannot sell if stock is locked at limit down all day
@@ -1318,10 +1343,30 @@ class OrderAnalyzer:
                 """, (self.user_id, convert_to_datetime(date)))
 
                 for row in cursor.fetchall():
-                    purchase_date = convert_trade_date(row[6])
-                    if not purchase_date:
-                        raise ValueError(f"Invalid last_updated date for holding {row[0]}: {row[6]}")
                     symbol = row[0]
+                    
+                    purchase_date = None
+                    cursor.execute("""
+                        SELECT MAX(transaction_date) FROM transactions 
+                        WHERE code=? AND user_id=? AND transaction_type='sell'
+                    """, (symbol, self.user_id))
+                    last_sell = cursor.fetchone()[0]
+                    if last_sell:
+                        cursor.execute("""
+                            SELECT MIN(transaction_date) FROM transactions 
+                            WHERE code=? AND user_id=? AND transaction_type='buy' AND transaction_date > ?
+                        """, (symbol, self.user_id, last_sell))
+                    else:
+                        cursor.execute("""
+                            SELECT MIN(transaction_date) FROM transactions 
+                            WHERE code=? AND user_id=? AND transaction_type='buy'
+                        """, (symbol, self.user_id))
+                    p_date = cursor.fetchone()[0]
+                    if p_date:
+                        purchase_date = convert_trade_date(p_date)
+                    if not purchase_date:
+                        purchase_date = convert_trade_date(row[6])
+                        
                     holdings[symbol] = {
                         'name': row[1],
                         'quantity': row[2],

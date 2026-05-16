@@ -86,7 +86,7 @@ def main():
     elif strategy == "ts_daily":
         os.system(f"{sys.executable} pick_stocks_from_sector/ts_daily.py {date_str}")
     elif strategy == "ts_go":
-        cmd = f'cd utils/go-stock && go build -o pick_stocks cmd/pick_stocks/main.go && ./pick_stocks -date {date_str}'
+        cmd = f'cd utils/go-stock && go build -o pick_stocks cmd/pick_stocks/main.go && ./pick_stocks -date {date_str} -output /tmp/tmp'
         os.system(cmd)
 
 if __name__ == "__main__":

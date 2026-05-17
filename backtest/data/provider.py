@@ -394,6 +394,16 @@ class TushareDataProvider(DataProvider):
             logger.debug(f"Retrieved index data from cache for {index_code}")
             return cached_data
 
+        # Fallback to Akshare for indexes (Tushare is very restrictive for index_daily)
+        try:
+            ak_provider = AkshareDataProvider()
+            df = ak_provider.get_index_data(index_code, start_date, end_date)
+            if not df.empty:
+                self.cache.set(cache_key, df)
+                return df
+        except Exception as e:
+            logger.warning(f"Akshare index fetch failed: {e}. Trying Tushare...")
+            
         df = self._ts_call(self.pro.index_daily, ts_code=index_code, start_date=start_date, end_date=end_date)
         if df.empty:
             raise DataProviderError(f"No index data found for {index_code} in date range {start_date}-{end_date}")

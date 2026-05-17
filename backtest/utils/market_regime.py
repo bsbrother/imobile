@@ -26,21 +26,16 @@ def detect_market_regime(date: str, index_code: str = '000001.SH') -> Dict[str, 
     start_date = get_trading_days_before(date, 120) 
     df = data_provider.get_index_data(index_code, start_date, date)
 
-    if df is None or df.empty or len(df) < 120:
-        logger.info("Insufficient data for regime detection, retrying after cache clear")
-        num = CACHE.clear_cache(pattern=f'index_data_{index_code}_*')
-        logger.info(f'clear cache index_data {num}')
-        df = data_provider.get_index_data(index_code, start_date, date)
-    if df is None or df.empty or len(df) < 120:
-        error_msg = f"Insufficient data for regime detection (got {len(df) if df is not None else 0} records, need 120). Index: {index_code}"
+    if df is None or df.empty or len(df) < 60:
+        error_msg = f"Insufficient data for regime detection (got {len(df) if df is not None else 0} records, need at least 60). Index: {index_code}"
         logger.error(error_msg)
         raise ValueError(error_msg)
     else:
         # Calculate indicators
         close = df['close'].astype(float)
 
-        ma60 = close.rolling(60).mean().iloc[-1]
-        ma120 = close.rolling(120).mean().iloc[-1]
+        ma60 = close.rolling(60, min_periods=30).mean().iloc[-1]
+        ma120 = close.rolling(120, min_periods=60).mean().iloc[-1]
         current_price = close.iloc[-1]
 
         # Calculate volatility (annualized)

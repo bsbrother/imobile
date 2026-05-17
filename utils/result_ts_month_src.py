@@ -1,9 +1,10 @@
 import os
+import sys
 import re
 import glob
 from collections import defaultdict
 
-RESULTS_DIR = '/home/kasm-user/apps/imobile/backtest/backtest_results'
+DEFAULT_RESULTS_DIR = 'backtest/backtest_results'
 
 def parse_percentage(value_str):
     """Parses a percentage string like '1.85%' or '-1.52%' to a float."""
@@ -57,21 +58,36 @@ def calculate_monthly_returns(dir_path):
     return return_pct, monthly_returns
 
 def main():
-    if not os.path.exists(RESULTS_DIR):
-        print(f"Directory not found: {RESULTS_DIR}")
+    target_dir = DEFAULT_RESULTS_DIR
+    if len(sys.argv) > 1:
+        target_dir = sys.argv[1]
+        
+    if not os.path.exists(target_dir):
+        print(f"Directory not found: {target_dir}")
         return
 
     # Dictionary to store results: results[period][method] = {strategy_ret, sse_ret, csi300_ret}
     results = defaultdict(dict)
     
     # Regex to parse directory name: yyyymmdd_yyyymmdd_ts_xx
-    dir_pattern = re.compile(r'(\d{8})_(\d{8})_(ts_.+)')
+    dir_pattern = re.compile(r'^(\d{8})_(\d{8})_(ts_.+)$')
 
-    for entry in os.listdir(RESULTS_DIR):
-        full_path = os.path.join(RESULTS_DIR, entry)
-        if not os.path.isdir(full_path):
-            continue
+    dirs_to_process = []
+    basename = os.path.basename(os.path.normpath(target_dir))
+    if dir_pattern.match(basename):
+        dirs_to_process.append(os.path.normpath(target_dir))
+    else:
+        for entry in os.listdir(target_dir):
+            full_path = os.path.join(target_dir, entry)
+            if os.path.isdir(full_path) and dir_pattern.match(entry):
+                dirs_to_process.append(full_path)
 
+    if not dirs_to_process:
+        print(f"No valid backtest result directories found in {target_dir}")
+        return
+
+    for full_path in dirs_to_process:
+        entry = os.path.basename(full_path)
         match = dir_pattern.match(entry)
         if not match:
             continue
@@ -94,8 +110,6 @@ def main():
                 content = f.read()
 
             # Parse Benchmark Comparison table
-            # | Metric | Strategy | SSE Composite | CSI 300 |
-            # | **Total Return** | 0.33% | 1.85% | 1.49% |
             table_pattern = re.compile(r'\|\s*\*\*Total Return\*\*\s*\|\s*([^|\n]+)\|\s*([^|\n]+)\|\s*([^|\n]+)\|')
             table_match = table_pattern.search(content)
 
@@ -131,8 +145,8 @@ def main():
         
         methods = sorted(period_data.keys())
         for m in methods:
-            sse = period_data[m]['sse']
-            csi = period_data[m]['csi']
+            sse = period_data[m].get('sse', 'N/A')
+            csi = period_data[m].get('csi', 'N/A')
             index_groups[(sse, csi)].append(m)
         
         index_display_lines = []
@@ -151,10 +165,9 @@ def main():
         # Start date to End date formatting
         s_date = period.split('_')[0]
         e_date = period.split('_')[1]
-        period_display = f"{s_date} to {e_date}"
 
         print(f"From {s_date} to {e_date},")
-        print(f"- index({index_display}) return.") # Ensure all methods have consistent index returns
+        print(f"- index({index_display}) return.") 
         
         method_returns = []
         for m in methods:

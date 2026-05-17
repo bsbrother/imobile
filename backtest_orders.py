@@ -1852,9 +1852,14 @@ if __name__ == '__main__':
     print(f"DEBUG: Running with start_date={start_date}, end_date={end_date}, src={src}")
     REPORT_PATH = os.path.join(REPORT_PATH, f'{start_date}_{end_date}_{src}')
     os.makedirs(REPORT_PATH, exist_ok=True)
+    
+    # We must wipe the actual DB file being used by DBTEST (usually db/test_imobile.db)
+    # since it's already instantiated at import time.
+    from db.db import DBTEST_IMOBILE_FILE
+    
     os.system(f"""
-        rm -f db/test_imobile.db; sqlite3 db/test_imobile.db < db/imobile.sql;
         rm -rf {REPORT_PATH}/*; rm -rf /tmp/tmp
+        rm -f {DBTEST_IMOBILE_FILE}; sqlite3 {DBTEST_IMOBILE_FILE} < db/imobile.sql;
     """)
 
     try:

@@ -71,16 +71,12 @@ def fetch_stock_news_and_opinion(stock_name: str, stock_code: str, target_date: 
         # Comprehensive query for A-Share
         query = f"{stock_name} {stock_code.split('.')[0]} 股票 {date_str} 最新消息 利好 舆情"
         
-        # Determine days window based on current date vs target date
-        import datetime
-        try:
-            target_dt = datetime.datetime.strptime(target_date, '%Y%m%d')
-            days_diff = (datetime.datetime.now() - target_dt).days
-            search_days = max(7, days_diff + 3) # Window that covers the target date
-        except:
-            search_days = 30
-            
-        response = service.search(query=query, max_results=max_results, days=search_days)
+        response = service.search_stock_news(
+            stock_code=stock_code, 
+            stock_name=stock_name, 
+            max_results=max_results, 
+            focus_keywords=[query]
+        )
         
         if not response or not response.results:
             return ""

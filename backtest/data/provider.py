@@ -370,18 +370,7 @@ class TushareDataProvider(DataProvider):
 
     def get_index_data(self, index_code: str, start_date: str | None = None, end_date: str | None = None) -> pd.DataFrame:
         """
-        Retrieve index data for benchmarking.
-
-        Args:
-            index_code: Index code (e.g., '000300.SH' for CSI 300, '000905.SH' for CSI 500)
-            start_date: Start date in YYYYMMDD format
-            end_date: End date in YYYYMMDD format
-
-        Returns:
-            DataFrame with columns: ts_code, trade_date, open, high, low, close, vol, amount
-
-        Raises:
-            DataProviderError: If data retrieval fails
+        Retrieve index data for benchmarking. Try Tushare first, fallback to Akshare.
         """
         if not index_code:
             raise DataProviderError("No index code provided")
@@ -394,25 +383,28 @@ class TushareDataProvider(DataProvider):
             logger.debug(f"Retrieved index data from cache for {index_code}")
             return cached_data
 
-        # Fallback to Akshare for indexes (Tushare is very restrictive for index_daily)
+        df = pd.DataFrame()
         try:
-            ak_provider = AkshareDataProvider()
-            df = ak_provider.get_index_data(index_code, start_date, end_date)
-            if not df.empty:
-                self.cache.set(cache_key, df)
-                return df
+            # Try Tushare first
+            df = self._ts_call(self.pro.index_daily, ts_code=index_code, start_date=start_date, end_date=end_date)
         except Exception as e:
-            logger.warning(f"Akshare index fetch failed: {e}. Trying Tushare...")
+            logger.warning(f"Tushare index fetch failed: {e}. Trying Akshare fallback...")
             
-        df = self._ts_call(self.pro.index_daily, ts_code=index_code, start_date=start_date, end_date=end_date)
+        if df.empty or len(df) < 60:
+            # Fallback to Akshare if Tushare failed or returned surprisingly few records
+            try:
+                ak_provider = AkshareDataProvider()
+                df_ak = ak_provider.get_index_data(index_code, start_date, end_date)
+                if not df_ak.empty and len(df_ak) > len(df):
+                    df = df_ak
+            except Exception as e:
+                logger.warning(f"Akshare index fetch failed: {e}")
+
         if df.empty:
             raise DataProviderError(f"No index data found for {index_code} in date range {start_date}-{end_date}")
 
-        # Normalize and validate data
-        #data = self.validator.normalize_ohlcv_data(data)
-        #self.validator.validate_ohlcv_data(data)
-        #self.validator.validate_date_range(data, start_date, end_date)
-
+        # Sort and cache
+        df = df.sort_values(by='trade_date').reset_index(drop=True)
         self.cache.set(cache_key, df)
         logger.debug(f"Retrieved {len(df)} index records for {index_code}")
         return df

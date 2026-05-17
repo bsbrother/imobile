@@ -1,3 +1,59 @@
+## 20260518 avoid crashed for mini 30-days index data and adjust regime select strategy.
+✦ 1. What does min_periods=30 mean?
+  Yes, exactly! In Python's Pandas library, when you calculate a 60-day moving average
+  (rolling(60).mean()), it normally returns NaN (Not a Number) if it has anything less
+  than 60 days of data. This causes the .iloc[-1] fetch to crash or return empty.
+
+  By adding min_periods=30 into close.rolling(60, min_periods=30), we are telling the
+  system: "Try to look back 60 days. But if the data is incomplete (e.g. because of
+  suspensions, API limits, or new IPOs) and you only have 30 days, don't crash! Just
+  calculate the moving average using whatever you have." This makes the engine
+  incredibly robust against messy real-world market data.
+
+  2. How the Regime and Strategy Selection Works
+  There are two layers of "regime detection" working together to pick the absolute
+  best strategy for the current market state.
+
+  Layer 1: Macro Market Regime (backtest/utils/market_regime.py)
+  This calculates the overarching 6-month market state and assigns your Risk/Reward
+  Ratios (Take Profit/Stop Loss targets) and Holding Periods:
+   * Bull Market: Price > MA60 > MA120, Volatility < 2.0%. (High TP: 30%, Max Hold: 15
+     days)
+   * Bear Market: Price < MA60 < MA120, Trend < 0. (Low TP: 12%, Max Hold: 5 days)
+   * Volatile Market: Volatility > 3.0%. (Tight Stops, Max Hold: 8 days)
+   * Normal Market: Everything else. (TP: 22%, Max Hold: 10 days)
+
+  Layer 2: Micro Strategy Selection (pick_stocks_from_sector/ts_month_src.py)
+  Before the market opens every day, this script looks at the short-term 40-day window
+  to determine exactly which stock-picking bot to fire up based on immediate momentum
+  and volatility:
+
+   1. Volatile Market (volatility > 2.5%) 🌪️
+      * Strategy -> ts_ai_pick: In choppy, highly volatile markets, technicals fail.
+        We delegate to the AI (Gemini) to read the news, analyze public sentiment, and
+        hand-pick stocks that have real fundamental catalysts to survive the chop.
+   2. Bull Market (Price > MA20 & Trend > 0.5%) 🐂
+      * If Momentum > +5.0% -> ts_longup: The market is surging. We deploy the
+        aggressive long-uptrend strategy to ride the strongest momentum leaders.
+      * If Momentum < +5.0% -> ts_dc: The market is rising but slowly. We deploy the
+        DC (Data Center) strategy to find safe, slow-grind value stocks.
+   3. Bear Market (Price < MA20 & Trend < -0.5%) 🐻
+      * If Momentum < -5.0% -> ts_hma: The market is in free-fall. We deploy the HMA
+        (Hull Moving Average) strategy to strictly catch mathematically precise
+        oversold bounces and reversals.
+      * If Momentum > -5.0% -> ts_daily: The market is drifting lower. We deploy the
+        Daily News-Driven strategy to find isolated hot-sector news plays that are
+        bucking the downtrend.
+   4. Normal Market (Default) 🚶
+      * Strategy -> ts_go: The market is trading sideways. We deploy the Go-based
+        statistical picker to reliably scrape volume/turnover anomalies.
+
+  This dual-layer system guarantees you are deploying the perfect technical picker for
+  the current 40-day trend, while strictly enforcing the risk management profiles of
+  the 6-month macro environment!
+
+
+
 ## 20260516 avoid hardcode, lookahead datas, trading as real market.
 ✦ I have comprehensively audited the entire backtest processor, order generation
   logic, and all individual strategies (ts_daily, ts_ai_pick, ts_hma, ts_longup,

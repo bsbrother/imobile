@@ -221,3 +221,4 @@ __marimo__/
 
 trajectory/
 #backtest/backtest_results/
+logs/

@@ -1748,7 +1748,7 @@ class OrderAnalyzer:
             f.write("  - 🔴 Expired: Has exceeded max holding period\n")
 
 
-def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=None, user_id: int = 1, src: str = 'ts_go'):
+def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=None, user_id: int = 1, src: str = 'ts_go', resume: bool = False):
     """
     Pick stocks, create smart orders and trading for the specified date range.
 
@@ -1757,6 +1757,7 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
     end_date -- The end date (format: YYYY-MM-DD), default is today.
     user_id -- The user ID for the trading account.
     src -- The source of stocks, default is 'ts_go', or 'ts_ths', 'ts_dc', 'ts_combine'
+    resume -- Skip dates that already have report_orders generated
     """
     today = convert_trade_date(datetime.now().strftime('%Y-%m-%d'))
     if not start_date:
@@ -1772,6 +1773,15 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
     logger.info(f"Starting picking from {start_date} to {end_date}...")
     dates = calendar.get_trading_days_between(start_date, end_date)
     for this_date in dates:
+        report_file = os.path.join(REPORT_PATH, f'report_orders_{this_date}.md')
+        if resume and os.path.exists(report_file):
+            logger.info(f"[{this_date}] Found existing report {report_file}, skipping...")
+            # We still need to instantiate OrderAnalyzer to generate period report at the end
+            smart_output_file = os.path.join(REPORT_PATH, f'smart_orders_{this_date}.json')
+            if os.path.exists(smart_output_file):
+                analyzer = OrderAnalyzer(smart_orders_file=smart_output_file, user_id=user_id)
+            continue
+
         # Step 1: Pick stocks
         pick_output_file = pick_stocks_to_file(this_date, src=src)
 
@@ -1837,7 +1847,14 @@ if __name__ == '__main__':
     start_date = '2025-12-01'
     end_date = '2025-12-31'
     src = 'ts_go'
+    resume = False
+    
     if argv := sys.argv:
+        # Check if 'resume' is in the arguments and remove it
+        if 'resume' in argv:
+            resume = True
+            argv.remove('resume')
+            
         if len(argv) >= 2:
             start_date = argv[1]
         if len(argv) >= 3:
@@ -1846,10 +1863,11 @@ if __name__ == '__main__':
             src = argv[3]
         if len(argv) >= 5:
             user_id = int(argv[4])
+            
     if src not in ['ts_ths', 'ts_dc', 'ts_combine', 'ts_go', 'ts_month_src']:
         raise ValueError(f"Invalid source: {src}. Valid sources are 'ts_ths', 'ts_dc', 'ts_combine', 'ts_go', and 'ts_month_src'.")
     
-    print(f"DEBUG: Running with start_date={start_date}, end_date={end_date}, src={src}")
+    print(f"DEBUG: Running with start_date={start_date}, end_date={end_date}, src={src}, resume={resume}")
     REPORT_PATH = os.path.join(REPORT_PATH, f'{start_date}_{end_date}_{src}')
     os.makedirs(REPORT_PATH, exist_ok=True)
     
@@ -1857,13 +1875,16 @@ if __name__ == '__main__':
     # since it's already instantiated at import time.
     from db.db import DBTEST_IMOBILE_FILE
     
-    os.system(f"""
-        rm -rf {REPORT_PATH}/*; rm -rf /tmp/tmp
-        rm -f {DBTEST_IMOBILE_FILE}; sqlite3 {DBTEST_IMOBILE_FILE} < db/imobile.sql;
-    """)
+    if not resume:
+        os.system(f"""
+            rm -rf {REPORT_PATH}/*; rm -rf /tmp/tmp
+            rm -f {DBTEST_IMOBILE_FILE}; sqlite3 {DBTEST_IMOBILE_FILE} < db/imobile.sql;
+        """)
+    else:
+        logger.info(f"Resuming backtest. Existing files in {REPORT_PATH} and database {DBTEST_IMOBILE_FILE} will be preserved.")
 
     try:
-        pick_orders_trading(start_date=start_date, end_date=end_date, user_id=user_id, src=src)
+        pick_orders_trading(start_date=start_date, end_date=end_date, user_id=user_id, src=src, resume=resume)
     except Exception as e:
         import traceback
         traceback.print_exc()

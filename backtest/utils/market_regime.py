@@ -26,8 +26,8 @@ def detect_market_regime(date: str, index_code: str = '000001.SH') -> Dict[str, 
     start_date = get_trading_days_before(date, 120) 
     df = data_provider.get_index_data(index_code, start_date, date)
 
-    if df is None or df.empty or len(df) < 60:
-        error_msg = f"Insufficient data for regime detection (got {len(df) if df is not None else 0} records, need at least 60). Index: {index_code}"
+    if df is None or df.empty or len(df) < 30:
+        error_msg = f"Insufficient data for regime detection (got {len(df) if df is not None else 0} records, need at least 30). Index: {index_code}"
         logger.error(error_msg)
         raise ValueError(error_msg)
     else:

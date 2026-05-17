@@ -197,19 +197,36 @@ class NewsService:
     
     def search(self, stock_name: str, stock_code: str, target_date: str = '', max_results: int = 5) -> str:
         """Search for news, targeting the exact date for historical testing."""
+        # 1. Try stock_news_public_opinion.py first (which uses A-Share optimized SearchService)
+        try:
+            import sys
+            import os
+            utils_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'utils')
+            if utils_path not in sys.path:
+                sys.path.insert(0, utils_path)
+
+            import stock_news_public_opinion
+            news_content = stock_news_public_opinion.fetch_stock_news_and_opinion(stock_name, stock_code, target_date, max_results)
+            if news_content and news_content.strip() != "无相关新闻":
+                logger.info(f"Retrieved news from stock_news_public_opinion for {stock_name}")
+                return news_content
+        except Exception as e:
+            logger.warning(f"stock_news_public_opinion failed: {e}")
+
         # Format exact dates for search query to be very specific to the target date
         date_str = ''
         if target_date:
             try:
+                from datetime import datetime
                 dt = datetime.strptime(target_date, '%Y%m%d')
                 # Use a specific format that search engines index well for stock news
                 date_str = dt.strftime('%Y年%m月%d日')
             except:
                 pass
-        
+
         # Explicitly ask for news on that exact date
         query = f"{stock_name} {stock_code.split('.')[0]} 股票 {date_str} 最新消息 利好"
-        
+
         if self._tavily_client and not self._tavily_exhausted:
             try:
                 response = self._tavily_client.search(
@@ -321,24 +338,18 @@ class GeminiDailyAnalyzer:
             return
             
         try:
-            import google.generativeai as genai
-            genai.configure(api_key=GEMINI_API_KEY)
-            
-            self._model = genai.GenerativeModel(
-                model_name=GEMINI_MODEL,
-                generation_config={
-                    "temperature": 0.0,
-                    "max_output_tokens": 1024,
-                }
-            )
+            from google import genai
+            from google.genai import types
+            self._client = genai.Client(api_key=GEMINI_API_KEY)
+            self._model_name = GEMINI_MODEL
             logger.info(f"Gemini model initialized for ts_daily: {GEMINI_MODEL}")
         except ImportError:
-            logger.error("google-generativeai package not installed")
+            logger.error("google-genai package not installed")
         except Exception as e:
             logger.error(f"Failed to initialize Gemini: {e}")
     
     def is_available(self) -> bool:
-        return self._model is not None
+        return self._client is not None
     
     def analyze(self, stock_info: Dict[str, Any], news_context: str, market_regime: str = 'normal', hot_sectors: str = '', market_dashboard: str = '', target_date: str = '') -> Dict[str, Any]:
         ts_code = stock_info.get('ts_code', '')
@@ -354,7 +365,15 @@ class GeminiDailyAnalyzer:
         prompt = self._build_prompt(stock_info, news_context, market_regime, hot_sectors, market_dashboard, target_date)
         
         try:
-            response = self._model.generate_content(prompt)
+            from google.genai import types
+            response = self._client.models.generate_content(
+                model=self._model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    temperature=0.0,
+                    max_output_tokens=1024,
+                )
+            )
             result = self._parse_response(response.text)
             self._cache.set(ts_code, target_date, market_regime, result)
             return result

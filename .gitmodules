@@ -7,3 +7,12 @@
 [submodule "utils/droidrun"]
 	path = utils/droidrun
 	url = https://github.com/droidrun/droidrun
+[submodule "utils/news_public_opinion/Crucix"]
+	path = utils/news_public_opinion/Crucix
+	url = https://github.com/calesthio/Crucix
+[submodule "utils/news_public_opinion/TrendRadar"]
+	path = utils/news_public_opinion/TrendRadar
+	url = https://github.com/sansan0/TrendRadar
+[submodule "utils/TradingAgents-CN"]
+	path = utils/TradingAgents-CN
+	url = https://github.com/hsliuping/TradingAgents-CN

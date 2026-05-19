@@ -214,7 +214,7 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
                     trigger_condition = f'股价<={order["buy_price"]}元(触发买入)'
                     valid_until = calendar.get_trading_days_after(this_date, holding_days)
                     cursor.execute("""
-                        INSERT INTO smart_orders (user_id, code, name, trigger_condition,
+                        INSERT OR REPLACE INTO smart_orders (user_id, code, name, trigger_condition,
                         buy_or_sell_price_type, buy_or_sell_quantity, order_number,
                         status, valid_until, reason_of_ending, last_updated)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -460,7 +460,7 @@ def execute_buy_order(user_id: int, symbol: str, name: str,
         trigger_condition = f'股价>={take_profit:.2f}元(触发止盈),股价<={stop_loss:.2f}元(触发止损)'
         valid_until = calendar.get_trading_days_after(transaction_date, holding_days)
         cursor.execute("""
-            INSERT INTO smart_orders (
+            INSERT OR REPLACE INTO smart_orders (
                 user_id, code, name, trigger_condition,
                 buy_or_sell_price_type, buy_or_sell_quantity,
                 order_number, status, valid_until,

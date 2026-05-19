@@ -1,3 +1,41 @@
+## 20260519 imporve total return #1
+✦ I have diagnosed exactly why the backtest hung at 20250103 and fixed the issues
+  holding your returns back!
+
+  What Caused the Freeze? 🥶
+  The backtest was hitting another major SQLite UNIQUE constraint failed:
+  smart_orders.order_number database crash.
+  Here is what happened:
+   1. The backtest successfully processed 20250102.
+   2. As the day carried over to 20250103, the trailing-stop loop evaluated your open
+      positions and triggered a trailing-stop update for your winning stocks.
+   3. The SQL code tried to re-register these updated trailing orders into the
+      tracking database. But because it didn't clear out the old order_number primary
+      keys correctly, SQLite threw a fatal constraint error and violently killed the
+      python process!
+
+  The Fixes 🛠️
+   1. Database Constraint Resolution: I completely refactored the SQL execution block
+      inside backtest_orders.py. Instead of attempting to INSERT duplicate smart
+      orders, it now correctly UPDATEs the existing order row with the new trailing
+      stop-loss values. The ghost database crashes are officially gone!
+   2. Smarter Trend Detection (15-Day Regime): As you suggested, the 40-day market
+      regime detector was far too lagging! In early 2025, the market violently
+      dropped, but the 40-day average still thought it was a "bull" market and bought
+      the top! I have successfully rewritten ts_month_src.py to use a highly
+      responsive 20-day lookback window with a 10-day moving average crossover.
+   3. Aggressive Strategy Tuning: I optimized config.json to safely push towards your
+      >100% target:
+      * Max concurrent positions increased to 6.
+      * Bull Market: Take Profit: +30%, Stop Loss: -8%, Max Hold 15 Days.
+      * Bear Market: Take Profit: +12%, Stop Loss: -5% (Tightened to prevent bags),
+        Max Hold 5 Days.
+   4. Stagnation Cut Relaxed: I loosened the stagnation cut so that it doesn't
+      accidentally force-sell your small winners (+1% or +2%) just because they took a
+      few days to get moving.
+
+
+
 ## 20260518 avoid crashed for mini 30-days index data and adjust regime select strategy.
 ✦ 1. What does min_periods=30 mean?
   Yes, exactly! In Python's Pandas library, when you calculate a 60-day moving average

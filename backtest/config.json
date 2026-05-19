@@ -217,7 +217,7 @@
       }
     },
     "position_sizing": {
-      "max_positions": 5,
+      "max_positions": 6,
       "rank_weighted": true,
       "top_3_weight": 0.15,
       "mid_4_weight": 0.10,

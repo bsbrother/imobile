@@ -9,50 +9,50 @@ from backtest import data_provider
 
 def determine_strategy(date_str: str) -> str:
     """
-    Detect market regime based on 40 trading days before the current trading date,
+    Detect market regime based on 20 trading days before the current trading date,
     and select a strategy: ts_ai, ts_daily, ts_dc, ts_go, ts_hma, ts_longup.
     """
-    # 40 trading days before current date
-    start_date = get_trading_days_before(date_str, 40)
+    # 20 trading days before current date (approx 1 month)
+    start_date = get_trading_days_before(date_str, 20)
     end_date = get_trading_days_before(date_str, 1) # up to previous trading day
     
     df = data_provider.get_index_data('000001.SH', start_date, end_date)
-    if df is None or df.empty or len(df) < 10:
+    if df is None or df.empty or len(df) < 5:
         logger.warning(f"[ts_month_src] Not enough index data from {start_date} to {end_date}, fallback to ts_daily")
         return "ts_daily"
     
     df = df.sort_values(by='trade_date')
     close = df['close'].astype(float)
     
-    ma20 = close.rolling(20).mean().iloc[-1] if len(close) >= 20 else close.mean()
+    ma10 = close.rolling(10).mean().iloc[-1] if len(close) >= 10 else close.mean()
     current_price = close.iloc[-1]
     
     returns = close.pct_change()
     volatility = returns.std() * 100
-    trend_20d = (current_price - ma20) / ma20 * 100
+    trend_10d = (current_price - ma10) / ma10 * 100
     momentum = (current_price / close.iloc[0] - 1) * 100
 
     logger.info(f"[ts_month_src] Analyzing historical data from {start_date} to {end_date} for date {date_str}")
-    logger.info(f"[ts_month_src] Momentum: {momentum:.2f}%, Volatility: {volatility:.2f}%, Trend20d: {trend_20d:.2f}%")
+    logger.info(f"[ts_month_src] Momentum: {momentum:.2f}%, Volatility: {volatility:.2f}%, Trend10d: {trend_10d:.2f}%")
     
     regime = "normal"
-    if volatility > 2.5:
+    if volatility > 2.2:
         regime = "volatile"
-    elif current_price > ma20 and trend_20d > 0.5:
+    elif current_price > ma10 and trend_10d > 0.3:
         regime = "bull"
-    elif current_price < ma20 and trend_20d < -0.5:
+    elif current_price < ma10 and trend_10d < -0.3:
         regime = "bear"
         
     logger.info(f"[ts_month_src] Detected regime: {regime}")
     
     # Map regime to available strategies
     if regime == "bull":
-        if momentum > 5.0:
+        if momentum > 4.0:
             strategy = "ts_longup"
         else:
             strategy = "ts_dc"
     elif regime == "bear":
-        if momentum < -5.0:
+        if momentum < -4.0:
             strategy = "ts_hma"
         else:
             strategy = "ts_daily"

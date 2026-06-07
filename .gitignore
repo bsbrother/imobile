@@ -23,18 +23,26 @@ build/
 develop-eggs/
 
 # ── Database & Cache ───────────────────────────────────────
+db/go_daily_cache/
+db/db_cache.db
 *.db
 *.db-journal
 *.db-wal
 *.db-shm
 /data_cache/
 /data/
+data_cache/
+data/
+backups/
 
 # ── Backtest Outputs & Logs ────────────────────────────────
 *.log
 /backtest/backtest_results/
 /backups/
 /logs/
+logs/
+tests/
+
 
 # ── IDE & Editor ────────────────────────────────────────────
 .vscode/

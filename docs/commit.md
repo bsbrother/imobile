@@ -1,3 +1,47 @@
+## 20260527
+The original design of ts_month_src.py intelligently switches between ts_dc, ts_hma, ts_longup, and ts_go based on volatility/trend regimes, which helps avoid large drawdowns in unfavorable conditions.
+
+    Next step (once the current run finishes or if we decide to adjust now):
+    Instead of always forcing ts_longup, we can make the regime‑based selection more aggressive by tweaking the thresholds and parameters inside ts_month_src.py (and possibly the underlying strategies) to match your preference for aggressiveness while still retaining regime awareness. For example:
+
+    1. Regime detection thresholds – make it easier to classify as “bull” or “upward” (e.g., lower volatility cut‑off, lower trend threshold).
+    2. Position sizing – increase max_position_pct in each regime (already raised to 0.40/0.30/0.15/0.22; could go higher).
+    3. Risk/reward ratios – loosen stop‑losses and/or increase take‑profit targets (already adjusted: bull TP 0.55/SL 0.03, etc.).
+    4. Universe size – reduce the number of stocks considered (already done via adaptive max_picks per regime) to prevent timeouts and focus on higher‑conviction names.
+    5. Strategy‑specific aggressiveness – within each strategy (e.g., ts_longup), we could lower the score threshold or adjust indicator parameters to pick more stocks.
+
+    Interrupt it now, revert ts_month_src.py to a regime‑based but aggressively tuned version, and launch a new three‑month backtest immediately
+
+
+## 20260519 union news/sentiment/opinion for all strategies(ts_ai, ts_daily, ts_dc, ts_go, ts_hma, ts_longup).
+  ## Both ts_ai and ts_daily are heavily dependent on utils/daily_stock_analysis for their primary, high-quality A-Share news fetching. Neither relies on their own internal search methods
+  Both ts_ai and ts_daily are heavily dependent on
+  utils/daily_stock_analysis for their primary, high-quality A-Share
+  news fetching. Neither relies on their own internal search methods
+  unless the main bot engine fails.
+  ### ts_dc, ts_go, ts_hma, and ts_longup do not use utils/daily_stock_analysis/ or the stock_news_public_opinion.py
+  bridge at all.
+  These four are strictly technical and quantitative strategies. They
+  do not care about news, sentiment, or LLM opinions. Their logic is
+  entirely based on price, volume, and math.
+
+   * ts_dc: Looks at hot sectors, money flow, and limit-up (price
+     ceilings) data.
+   * ts_hma: Uses moving averages (Hull Moving Average) and SuperTrend
+     indicators based purely on Open/High/Low/Close data.
+   * ts_longup: Calculates slopes, moving averages, and ADX (Average
+     Directional Index) to spot trend formations.
+   * ts_go: A Golang backend that processes bulk technical indicators
+     and applies strict filters like "late-trend" checks.
+
+  Because they only need mathematical OHLCV (Open, High, Low, Close,
+  Volume) data from databases (like Tushare), they completely bypass
+  the heavy web-searching and news-gathering machinery located in
+  utils/daily_stock_analysis/.
+
+
+
+
 ## 20260519 imporve total return #1
 ✦ I have diagnosed exactly why the backtest hung at 20250103 and fixed the issues
   holding your returns back!

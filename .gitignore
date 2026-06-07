@@ -58,6 +58,7 @@ trajectories/
 htmlcov/
 .coverage
 .coverage.*
+tests/_*
 
 # ── Misc Tools ─────────────────────────────────────────────
 GIT.sh

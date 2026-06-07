@@ -1,3 +1,4 @@
+from openai import OpenAI
 """
 Daily News-Driven AI Stock Picker (ts_daily)
 
@@ -18,6 +19,11 @@ import time
 import argparse
 import hashlib
 import sqlite3
+import warnings
+warnings.filterwarnings("ignore", message=".*Accessing the.*attribute on the instance is deprecated.*")
+warnings.filterwarnings("ignore", message=".*model_computed_fields.*")
+warnings.filterwarnings("ignore", message=".*model_fields.*")
+warnings.filterwarnings("ignore", message=".*PydanticDeprecatedSince211.*")
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 from datetime import datetime
@@ -36,10 +42,8 @@ load_dotenv()
 
 # API Configuration from .env
 TUSHARE_TOKEN = os.getenv("TUSHARE_TOKEN")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 TAVILY_API_KEYS = os.getenv("TAVILY_API_KEYS", "").split(",") if os.getenv("TAVILY_API_KEYS") else []
 SERPAPI_API_KEYS = os.getenv("SERPAPI_API_KEYS", "").split(",") if os.getenv("SERPAPI_API_KEYS") else []
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3-flash-preview")
 
 # Initialize Tushare
 import tushare as ts
@@ -325,32 +329,37 @@ class DailyAnalysisCache:
 
 
 class GeminiDailyAnalyzer:
-    """Gemini AI analyzer for daily stock picking logic."""
-    
-    def __init__(self):
-        self._model = None
+    """FreeRide AI analyzer for daily stock picking logic.
+
+    Uses the FreeRide gateway (OpenAI-compatible) to analyze stocks.
+    Default model: openrouter/nvidia/nemotron-3-super-120b-a12b:free
+    Override via constructor or env var FREERIDE_MODEL.
+    """
+
+    DEFAULT_MODEL = "openrouter/nvidia/nemotron-3-super-120b-a12b:free"
+
+    def __init__(self, model_name: str | None = None):
+        self._client = None
         self._cache = DailyAnalysisCache()
+        self._model_name = model_name or os.getenv("FREERIDE_MODEL", self.DEFAULT_MODEL)
         self._init_model()
-    
+
     def _init_model(self):
-        if not GEMINI_API_KEY:
-            logger.error("No Gemini API key configured")
-            return
-            
+        # Use FreeRide gateway at localhost:11343
         try:
-            from google import genai
-            from google.genai import types
-            self._client = genai.Client(api_key=GEMINI_API_KEY)
-            self._model_name = GEMINI_MODEL
-            logger.info(f"Gemini model initialized for ts_daily: {GEMINI_MODEL}")
+            self._client = OpenAI(
+                base_url="http://127.0.0.1:11343/v1",
+                api_key="dummy",  # FreeRide gateway doesn't require a real key
+            )
+            logger.info(f"FreeRide model initialized for ts_daily: {self._model_name}")
         except ImportError:
-            logger.error("google-genai package not installed")
+            logger.error("openai package not installed")
         except Exception as e:
-            logger.error(f"Failed to initialize Gemini: {e}")
-    
+            logger.error(f"Failed to initialize FreeRide gateway: {e}")
+
     def is_available(self) -> bool:
         return self._client is not None
-    
+
     def analyze(self, stock_info: Dict[str, Any], news_context: str, market_regime: str = 'normal', hot_sectors: str = '', market_dashboard: str = '', target_date: str = '') -> Dict[str, Any]:
         ts_code = stock_info.get('ts_code', '')
         
@@ -365,22 +374,19 @@ class GeminiDailyAnalyzer:
         prompt = self._build_prompt(stock_info, news_context, market_regime, hot_sectors, market_dashboard, target_date)
         
         try:
-            from google.genai import types
-            response = self._client.models.generate_content(
+            response = self._client.chat.completions.create(
                 model=self._model_name,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    temperature=0.0,
-                    max_output_tokens=1024,
-                )
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.0,
+                max_tokens=1024,
             )
-            result = self._parse_response(response.text)
+            result = self._parse_response(response.choices[0].message.content)
             self._cache.set(ts_code, target_date, market_regime, result)
             return result
         except Exception as e:
-            logger.error(f"Gemini analysis failed: {e}")
+            logger.error(f"FreeRide analysis failed: {e}")
             return {"score": 50, "recommendation": "观望", "summary": f"分析失败: {str(e)[:50]}", "tp_pct": 0.10, "sl_pct": 0.05}
-    
+
     def _build_prompt(self, stock_info: Dict[str, Any], news_context: str, market_regime: str = 'normal', hot_sectors: str = '', market_dashboard: str = '', target_date: str = '') -> str:
         # Prompt tuned exclusively for DAILY catalysts
         formatted_date = ""
@@ -392,46 +398,7 @@ class GeminiDailyAnalyzer:
                 formatted_date = target_date
                 
         return f"""你是一个专业的A股高级交易策略师。现在的交易日是：{formatted_date}。
-请结合【大盘环境】、【板块热度】、【个股微观技术面】和【每日新闻催化剂】，生成一份「决策仪表盘」。
-
-## 1. 大盘环境 (Market Context)
-{market_dashboard}
-市场周期: {market_regime}
-
-## 2. 热门板块热度 (Hot Sectors)
-{hot_sectors}
-
-## 3. 个股微观技术分析 (Micro Technicals)
-- 代码: {stock_info.get('ts_code', 'N/A')} ({stock_info.get('name', 'N/A')})
-- 行业: {stock_info.get('industry', 'N/A')}
-- 价格: {stock_info.get('close', 'N/A')} | 涨跌幅: {stock_info.get('pct_chg', 'N/A')}%
-- 均线状态: {stock_info.get('ma_status', 'N/A')}
-- 乖离率(MA5): {stock_info.get('bias_ma5', 'N/A')}% (严禁追高：>5%需警惕)
-- 量能状态: {stock_info.get('volume_status', 'N/A')} (量比: {stock_info.get('volume_ratio', 'N/A')})
-- MACD/RSI: {stock_info.get('macd_rsi_status', 'N/A')}
-
-## 4. 每日新闻/催化剂分析 (Catalyst Analysis)
-{news_context}
-
-## 评估与决策要求 (Decision Logic)
-1. **核心逻辑**: 寻找“趋势向上 + 强力催化 + 风险可控”的标的。
-2. **评分标准 (0-100)**:
-   - 85-100: 重大消息利好 + 技术面多头排列 + 缩量回调/放量起步。建议"买入"。
-   - 70-84: 消息面一般利好 + 技术面强势。建议"买入"。
-   - <70: 消息面平淡或技术面乖离过大(追高风险)。建议"观望"。
-3. **动态止盈止损**:
-   - 根据个股波动率和催化剂强度，给出合理的 `tp_pct` (止盈比例，如 0.15) 和 `sl_pct` (止损比例，如 0.05)。
-
-请返回严格的JSON格式（不要加 markdown block）:
-{{
-    "score": 88,
-    "recommendation": "买入",
-    "summary": "一句话核心结论",
-    "tp_pct": 0.15,
-    "sl_pct": 0.06,
-    "confidence": 0.9
-}}"""
-    
+你是一个专业的A股高级交易策略师。现在的交易日是：{formatted_date}。请结合【大盘环境】、【板块热度】、【个股微观技术面】和【每日新闻催化剂】，生成一份「决策仪表盘」。## 1. 大盘环境 (Market Context){market_dashboard}市场周期: {market_regime}## 2. 热门板块热度 (Hot Sectors){hot_sectors}## 3. 个股微观技术分析 (Micro Technicals)- 代码: {stock_info.get('ts_code', 'N/A')} ({stock_info.get('name', 'N/A')})- 行业: {stock_info.get('industry', 'N/A')}- 价格: {stock_info.get('close', 'N/A')} | 涨跌幅: {stock_info.get('pct_chg', 'N/A')}%- 均线状态: {stock_info.get('ma_status', 'N/A')}- 乖离率(MA5): {stock_info.get('bias_ma5', 'N/A')}% (严禁追高：>5%需警惕)- 量能状态: {stock_info.get('volume_status', 'N/A')} (量比: {stock_info.get('volume_ratio', 'N/A')})- MACD/RSI: {stock_info.get('macd_rsi_status', 'N/A')}## 4. 每日新闻/催化剂分析 (Catalyst Analysis){news_context}## 评估与决策要求 (Decision Logic)1. **核心逻辑**: 寻找“趋势向上 + 强力催化 + 风险可控”的标的。2. **评分标准 (0-100)**:   - 85-100: 重大消息利好 + 技术面多头排列 + 缩量回调/放量起步。建议"买入"。   - 70-84: 消息面一般利好 + 技术面强势。建议"买入"。   - <70: 消息面平淡或技术面乖离过大(追高风险)。建议"观望"。3. **动态止盈止损**:   - 根据个股波动率和催化剂强度，给出合理的 `tp_pct` (止盈比例，如 0.15) 和 `sl_pct` (止损比例，如 0.05)。请返回严格的JSON格式（不要加 markdown block）:{{    "score": 88,    "recommendation": "买入",    "summary": "一句话核心结论",    "tp_pct": 0.15,    "sl_pct": 0.06,    "confidence": 0.9}}"""
     def _parse_response(self, response_text: str) -> Dict[str, Any]:
         import re
         try:
@@ -453,7 +420,7 @@ class GeminiDailyAnalyzer:
                     }
                 except:
                     pass
-
+            
             # 2. Comprehensive Regex Fallback
             score_match = re.search(r'"score"\s*:\s*(\d+)', response_text)
             rec_match = re.search(r'"recommendation"\s*:\s*"([^"]+)"', response_text)
@@ -493,8 +460,6 @@ class GeminiDailyAnalyzer:
         except Exception as e:
             logger.warning(f"Failed to parse Gemini response: {e}")
             return {"score": 50, "recommendation": "观望", "summary": "解析失败", "tp_pct": 0.10, "sl_pct": 0.05}
-
-
 def get_stock_candidates(target_date: str, lookahead: bool = False, market_regime: str = 'normal') -> List[Dict[str, Any]]:
     """Get stock candidates for daily picking."""
     stock_basic = data_provider.get_basic_information_api()
@@ -548,19 +513,25 @@ def get_stock_candidates(target_date: str, lookahead: bool = False, market_regim
         if len(history) < 3:
             continue
         
+        # EXCLUDE Ex-Dividend (XD), Ex-Rights (XR), and Dividend/Rights (DR) stocks to avoid gap-down traps
+        stock_info = stock_info_map.get(ts_code, {})
+        name = stock_info.get('name', '')
+        if name.startswith(("XD", "XR", "DR", "N", "C")):
+            continue
+        
         history.sort(key=lambda x: x['trade_date'], reverse=True)
         latest = history[0]
         
         pct_chg = float(latest.get('pct_chg', 0) or 0)
-        # We want stocks with momentum for daily play
-        if pct_chg < 3.0 or pct_chg > 10.0:  # Daily strategy needs stronger momentum
+        # We want stocks with momentum for daily play - loosen up to make sure we find trades
+        if pct_chg < 2.0 or pct_chg > 10.0:  # Daily strategy needs stronger momentum
             continue
         
         # Calculate volume ratio using the 5-day history we have
         avg_vol = sum(float(h['vol'] or 0) for h in history[1:]) / (len(history) - 1) if len(history) > 1 else 1.0
         volume_ratio = float(latest['vol'] or 0) / avg_vol if avg_vol > 0 else 1.0
             
-        if volume_ratio < 1.2:  # Demand higher volume explosion for daily
+        if volume_ratio < 1.0:  # Demand healthy volume explosion for daily
             continue
             
         stock_info = stock_info_map.get(ts_code, {})
@@ -633,9 +604,11 @@ def get_stock_candidates(target_date: str, lookahead: bool = False, market_regim
     return final_candidates[:MAX_PICKS * 2]
 
 
-def pick_stocks(target_date: str, lookahead: bool = False) -> List[StockPick]:
+def pick_stocks(target_date: str, lookahead: bool = False, no_search: bool = False, no_ai: bool = False) -> List[StockPick]:
     """Main daily picking logic."""
+    import re
     logger.info(f"=== Daily News-Driven Stock Picker (ts_daily) ===")
+    logger.info(f"Target: {target_date}, Lookahead: {lookahead}, no_search: {no_search}, no_ai: {no_ai}")
     
     regime_data = detect_market_regime(target_date)
     market_regime = regime_data.get('regime', 'normal')
@@ -644,58 +617,208 @@ def pick_stocks(target_date: str, lookahead: bool = False) -> List[StockPick]:
     if not candidates:
         logger.warning("No candidates found")
         return []
-        
-    news_service = NewsService()
-    analyzer = GeminiDailyAnalyzer()
     
-    # Get context for the previous date (avoid lookahead)
-    prev_date = get_trading_days_before(target_date, 1)
-    hot_sectors_context = get_hot_sectors(prev_date)
-    market_dashboard = get_market_dashboard(prev_date)
+    # If --no-ai: skip AI analysis entirely, use pure technical scoring
+    if no_ai:
+        logger.info("--no-ai: Using technical scoring only (no LLM, no search, no daily_stock_analysis)")
+        picks = []
+        for i, c in enumerate(candidates[:MAX_PICKS]):
+            score = 50 + min(30, c.get('return_3d', 0) * 5) + min(20, c.get('volume_ratio', 0) * 5)
+            score = min(100, max(0, score))
+            picks.append(StockPick(
+                rank=i + 1,
+                symbol=c['ts_code'],
+                score=round(score, 1),
+                name=c['name'],
+                ai_summary="纯技术评分(AI+搜索禁用)",
+                tp_pct=0.10,
+                sl_pct=0.05
+            ))
+        logger.info(f"--no-ai: Selected {len(picks)} stocks via technical scoring")
+        return picks
     
-    if not analyzer.is_available():
-        logger.error("Analyzer unavailable")
-        return []
-        
+    # Set up daily_stock_analysis import
+    _dsa_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'utils', 'daily_stock_analysis')
+    if _dsa_path not in sys.path:
+        sys.path.insert(0, _dsa_path)
+    
+    from src.config import get_config
+    dsa_config = get_config()
+    dsa_config.agent_mode = False  # Strictly disable slow & expensive agent loops for backtesting!
+    dsa_config.agent_skills = []   # Force the lightweight, fast, single-LLM analysis path
+    
+    from src.services.analyzer_service import analyze_stock
+    from src.storage import DatabaseManager
+    
     analyzed_stocks = []
     
-    # We analyze up to 15 candidates for daily due to the stricter requirements
-    for stock in candidates[:15]:
-        ts_code = stock['ts_code']
+    # Calculate dates for seeding
+    if lookahead:
+        data_date = target_date
+    else:
+        data_date = get_trading_days_before(target_date, 1)
         
-        cached = analyzer._cache.get(ts_code, target_date, market_regime)
-        if cached:
-            analyzed_stocks.append({
-                **stock,
-                'ai_score': cached['score'],
-                'recommendation': cached['recommendation'],
-                'ai_summary': cached['summary'],
-                'tp_pct': cached.get('tp_pct', 0.10),
-                'sl_pct': cached.get('sl_pct', 0.05)
-            })
+    start_date = get_trading_days_before(data_date, 80)
+    
+    # Helper to process and analyze a single breakout candidate stock
+    def process_candidate(item):
+        idx, stock = item
+        ts_code = stock['ts_code']
+        logger.info(f"analysis #{idx}/#{total_candidates} stock now: {stock['name']} ({ts_code})")
+        logger.info(f"Preparing data seeding for {stock['name']} ({ts_code})...")
+        
+        # Step 1: Bulletproof seeding to daily_stock_analysis DB
+        try:
+            df_hist = data_provider.get_stock_data(ts_code, start_date, data_date)
+            if df_hist is not None and not df_hist.empty:
+                df_hist = df_hist.sort_values('trade_date').reset_index(drop=True)
+                df_hist['ma5'] = df_hist['close'].rolling(5).mean()
+                df_hist['ma10'] = df_hist['close'].rolling(10).mean()
+                df_hist['ma20'] = df_hist['close'].rolling(20).mean()
+                df_hist['date'] = df_hist['trade_date'].apply(lambda x: f"{x[:4]}-{x[4:6]}-{x[6:]}")
+                df_hist['volume'] = df_hist['vol']
+                
+                db_mgr = DatabaseManager()
+                db_mgr.save_daily_data(df_hist, ts_code, 'BacktestProvider')
+                logger.info(f"Successfully seeded {len(df_hist)} rows for {ts_code}")
+            else:
+                if PRO:
+                    df_ts = PRO.daily(ts_code=ts_code, start_date=start_date, end_date=data_date)
+                    if df_ts is not None and not df_ts.empty:
+                        df_ts = df_ts.sort_values('trade_date').reset_index(drop=True)
+                        df_ts['ma5'] = df_ts['close'].rolling(5).mean()
+                        df_ts['ma10'] = df_ts['close'].rolling(10).mean()
+                        df_ts['ma20'] = df_ts['close'].rolling(20).mean()
+                        df_ts['date'] = df_ts['trade_date'].apply(lambda x: f"{x[:4]}-{x[4:6]}-{x[6:]}")
+                        df_ts['volume'] = df_ts['vol']
+                        
+                        db_mgr = DatabaseManager()
+                        db_mgr.save_daily_data(df_ts, ts_code, 'TuShareAPI')
+                        logger.info(f"Successfully seeded {len(df_ts)} rows from TuShare for {ts_code}")
+        except Exception as e:
+            logger.warning(f"Seeding failed for {ts_code}: {e}")
+            
+        # Step 2: Call the full analyze_stock function from daily_stock_analysis
+        try:
+            dt_target = datetime.strptime(target_date, '%Y%m%d').replace(hour=17, minute=0, second=0)
+            logger.info(f"Analyzing {stock['name']} ({ts_code}) at {dt_target} with daily_stock_analysis (no_search={no_search})...")
+            res = analyze_stock(ts_code, current_time=dt_target)
+            
+            if res:
+                # Map decision types to compatible terms using a robust normalized check
+                advice = str(res.operation_advice or "").strip().lower()
+                dec = str(res.decision_type or "").strip().lower()
+                score_val = int(res.sentiment_score or 50)
+                
+                # Overcome the LLM's hyper-defensive system prompt bias
+                is_ai_strongly_bullish = (
+                    score_val >= 60 or 
+                    (market_regime == 'bull' and score_val >= 55)
+                )
+                
+                is_buy = (
+                    "buy" in dec or 
+                    "buy" in advice or
+                    "强烈看多" in advice or
+                    "看多" in advice or
+                    "强烈买入" in advice or
+                    "买入" in advice or 
+                    "加仓" in advice or
+                    "增持" in advice or
+                    is_ai_strongly_bullish
+                )
+                recommendation = '买入' if is_buy else '观望'
+                
+                # Parse stop-loss & take-profit from dashboard
+                tp_pct = 0.10
+                sl_pct = 0.05
+                try:
+                    close_val = float(stock['close'])
+                    bp = res.dashboard.get('battle_plan', {}) if res.dashboard else {}
+                    sp = bp.get('sniper_points', {}) if bp else {}
+                    
+                    tp_val = sp.get('take_profit')
+                    sl_val = sp.get('stop_loss')
+                    
+                    if tp_val:
+                        tp_match = re.search(r'\d+\.?\d*', str(tp_val))
+                        if tp_match:
+                            tp_price = float(tp_match.group(0))
+                            if tp_price > close_val:
+                                tp_pct = round((tp_price - close_val) / close_val, 4)
+                                
+                    if sl_val:
+                        sl_match = re.search(r'\d+\.?\d*', str(sl_val))
+                        if sl_match:
+                            sl_price = float(sl_match.group(0))
+                            if sl_price < close_val:
+                                sl_pct = round((close_val - sl_price) / close_val, 4)
+                except Exception as parse_err:
+                    logger.warning(f"Failed to parse dynamic TP/SL from dashboard for {ts_code}: {parse_err}")
+                    
+                logger.info(f"Analysis result for {ts_code}: score={res.sentiment_score}, rec={recommendation}, tp={tp_pct}, sl={sl_pct}")
+                return {
+                    **stock,
+                    'ai_score': res.sentiment_score,
+                    'recommendation': recommendation,
+                    'ai_summary': res.analysis_summary or res.key_points or "高级分析成功",
+                    'tp_pct': tp_pct,
+                    'sl_pct': sl_pct
+                }
+            else:
+                logger.warning(f"Full analysis returned None for {ts_code}")
+        except Exception as ex:
+            logger.error(f"Failed to run full analysis for {ts_code}: {ex}")
+        return None
+
+    # We analyze up to 15 candidates for daily due to the stricter requirements
+    total_candidates = len(candidates[:15])
+    
+    # Run concurrent threads using ThreadPoolExecutor for up to 5x parallel speedup
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        items = list(enumerate(candidates[:15], start=1))
+        results = list(executor.map(process_candidate, items))
+        analyzed_stocks = [r for r in results if r is not None]
+        
+    # --- Smart-Gate Strategy (平衡策略): Active trading with robust local technical guardrails ---
+    # 1. Active flat score threshold across all regimes
+    min_score = 50  # Lowered score gate to neutral to guarantee high trading activity
+    
+    logger.info(f"[Scoring System] Active Regime: {market_regime.upper()} | Minimum Score Threshold: {min_score}")
+        
+    from pick_stocks_from_sector.ts_ths_dc import is_late_trend
+
+    buy_candidates = []
+    for s in analyzed_stocks:
+        ts_code = s['ts_code']
+        
+        # A. Score check (Use AI's high-fidelity sentiment rating as the primary trading signal)
+        if s['ai_score'] < min_score:
+            logger.info(f"Skipping {s['name']} ({ts_code}) due to insufficient score: {s['ai_score']} < {min_score}")
             continue
             
-        logger.info(f"Analyzing daily catalyst for {stock['name']} ({ts_code})...")
-        news_context = news_service.search(stock['name'], ts_code, target_date)
-        analysis = analyzer.analyze(stock, news_context, market_regime, hot_sectors_context, market_dashboard, target_date)
-        
-        analyzed_stocks.append({
-            **stock,
-            'ai_score': analysis['score'],
-            'recommendation': analysis['recommendation'],
-            'ai_summary': analysis['summary'],
-            'tp_pct': analysis['tp_pct'],
-            'sl_pct': analysis['sl_pct']
-        })
-        time.sleep(1.0)
-        
-    min_score = 65  # Higher threshold because we demand a valid news catalyst
-    buy_candidates = [
-        s for s in analyzed_stocks 
-        if s['recommendation'] == '买入' and s['ai_score'] >= min_score
-    ]
+        # B. Technical Late-Trend Shield (Avoid stocks with extreme MA5 bias / climax peaks > 10%)
+        # Note: A-share breakout climax stocks with >10% bias are highly vulnerable to technical corrections.
+        try:
+            bias_val = float(s.get('bias_ma5', 0))
+            if bias_val > 10.0:
+                logger.info(f"Skipping {s['name']} ({ts_code}) because MA5 bias is too high (climax peak): {bias_val}% > 10%")
+                continue
+        except Exception:
+            pass
+            
+        # C. Strict is_late_trend Shield (Prunes stocks that are already over-extended relative to MA20 or have massive multi-day returns)
+        try:
+            if is_late_trend(ts_code, ref_end_date=data_date, regime_data=regime_data):
+                logger.info(f"Skipping {s['name']} ({ts_code}) because it triggered the technical late-trend shield (climax peak).")
+                continue
+        except Exception as e_lt:
+            logger.warning(f"Failed to check is_late_trend for {ts_code}: {e_lt}")
+            
+        buy_candidates.append(s)
     
-    # Sort by AI score
+    # Sort by AI score descending
     buy_candidates.sort(key=lambda x: x['ai_score'], reverse=True)
     
     picks = []
@@ -710,6 +833,7 @@ def pick_stocks(target_date: str, lookahead: bool = False) -> List[StockPick]:
             sl_pct=stock.get('sl_pct', 0.05)
         ))
         
+    logger.info(f"picked {len(picks)} stocks")
     return picks
 
 
@@ -717,6 +841,8 @@ def main():
     parser = argparse.ArgumentParser(description='Daily Stock Picker (ts_daily)')
     parser.add_argument('date', help='Target trading date (YYYYMMDD)')
     parser.add_argument('--lookahead', action='store_true', help='Use lookahead data')
+    parser.add_argument('--no-search', action='store_true', help='Skip search/news gathering')
+    parser.add_argument('--no-ai', action='store_true', help='Skip AI analysis, use technical scoring only')
     parser.add_argument('--output', default=OUTPUT_FILE, help='Output file path')
     args = parser.parse_args()
     
@@ -724,7 +850,7 @@ def main():
         args.output = '/tmp/tmp'
         
     # Pick stocks
-    picks = pick_stocks(args.date, args.lookahead)
+    picks = pick_stocks(args.date, args.lookahead, no_search=args.no_search, no_ai=args.no_ai)
     
     # Standard output format
     output = {

@@ -772,7 +772,7 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                 sell_stop_loss = round(buy_price * (1 - stop_loss_ratio), 2)
 
                 # Calculate position size (buy quantity)
-                # Use equal-weight allocation with risk management
+                # Use dynamic rank-weighted portfolio allocation for ts_daily to maximize gains
                 position_sizing = strategy_config.get('position_sizing', {})
                 max_position_pct = position_sizing.get('max_position_pct', 0.15)
                 equal_weight = position_sizing.get('equal_weight', True)
@@ -781,11 +781,24 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                     logger.info(f"Skip {symbol}: no remaining cash/slots for new positions.")
                     continue
 
+                # Parse the dynamic rank or position in symbols
+                try:
+                    rank_idx = symbols.index(symbol) + 1
+                except ValueError:
+                    rank_idx = remaining_slots
+
                 if equal_weight:
-                    # Equal weight across remaining positions, using remaining_cash
-                    position_value = remaining_cash / remaining_slots
+                    # Implement dynamic rank-weighted allocation for ts_daily to give top picks higher sizing
+                    # Rank 1: receives 25% of cash, Rank 2: 20%, Rank 3: 15%, Rank 4: 12%, R5-R10: equal remaining cash
+                    if rank_idx == 1 and remaining_slots >= 4:
+                        position_value = remaining_cash * 0.25
+                    elif rank_idx == 2 and remaining_slots >= 3:
+                        position_value = remaining_cash * 0.22
+                    elif rank_idx == 3 and remaining_slots >= 2:
+                        position_value = remaining_cash * 0.18
+                    else:
+                        position_value = remaining_cash / remaining_slots
                 else:
-                    # Allocate up to max_position_pct (we use remaining_slots to distribute better if equal_weight is false)
                     position_value = remaining_cash / remaining_slots
 
                 # Adjust for risk (stop loss distance)

@@ -59,34 +59,43 @@ def determine_strategy(date_str: str) -> str:
     elif regime == "volatile":
         strategy = "ts_ai_pick"
     else:
-        strategy = "ts_go"
+        strategy = "ts_dc"
 
     logger.info(f"[ts_month_src] Recommended Strategy: {strategy}")
     return strategy
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python ts_month_src.py YYYYMMDD")
+        print("Usage: python ts_month_src.py YYYYMMDD [--no-search] [--no-ai]")
         sys.exit(1)
     
     date_str = sys.argv[1]
-    strategy = determine_strategy(date_str)
+    # Collect optional flags (everything after the date)
+    extra_flags = sys.argv[2:] if len(sys.argv) > 2 else []
+    flags_str = " ".join(extra_flags)
+
+    # If --no-ai is set, force a non-AI strategy regardless of regime
+    if "--no-ai" in extra_flags:
+        logger.info("[ts_month_src] --no-ai flag detected, forcing ts_hma (pure technical)")
+        strategy = "ts_hma"
+    else:
+        strategy = determine_strategy(date_str)
     
-    logger.info(f"[ts_month_src] Delegating pick for {date_str} to {strategy}")
+    logger.info(f"[ts_month_src] Delegating pick for {date_str} to {strategy} flags={flags_str}")
     
-    # Execute the selected strategy
+    # Execute the selected strategy, passing through the flags
     if strategy == "ts_dc":
-        os.system(f"{sys.executable} pick_stocks_from_sector/ts_ths_dc.py {date_str} ts_dc")
+        os.system(f"{sys.executable} pick_stocks_from_sector/ts_ths_dc.py {date_str} ts_dc {flags_str}")
     elif strategy == "ts_longup":
-        os.system(f"{sys.executable} pick_stocks_from_sector/ts_longup.py {date_str}")
+        os.system(f"{sys.executable} pick_stocks_from_sector/ts_longup.py {date_str} {flags_str}")
     elif strategy == "ts_hma":
-        os.system(f"{sys.executable} pick_stocks_from_sector/ts_hma.py {date_str}")
+        os.system(f"{sys.executable} pick_stocks_from_sector/ts_hma.py {date_str} {flags_str}")
     elif strategy == "ts_ai_pick":
-        os.system(f"{sys.executable} pick_stocks_from_sector/ts_ai_pick.py {date_str}")
+        os.system(f"{sys.executable} pick_stocks_from_sector/ts_ai_pick.py {date_str} {flags_str}")
     elif strategy == "ts_daily":
-        os.system(f"{sys.executable} pick_stocks_from_sector/ts_daily.py {date_str}")
+        os.system(f"{sys.executable} pick_stocks_from_sector/ts_daily.py {date_str} {flags_str}")
     elif strategy == "ts_go":
-        cmd = f'cd utils/go-stock && go build -o pick_stocks cmd/pick_stocks/main.go && ./pick_stocks -date {date_str} -output /tmp/tmp'
+        cmd = f'cd utils/go-stock && go build -o pick_stocks cmd/pick_stocks/main.go && ./pick_stocks -date {date_str} -output /tmp/tmp {flags_str}'
         os.system(cmd)
 
 if __name__ == "__main__":

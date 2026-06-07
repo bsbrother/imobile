@@ -385,20 +385,19 @@ class TushareDataProvider(DataProvider):
 
         df = pd.DataFrame()
         try:
-            # Try Tushare first
-            df = self._ts_call(self.pro.index_daily, ts_code=index_code, start_date=start_date, end_date=end_date)
+            # Try Akshare first because Tushare often silently drops dates for free users
+            ak_provider = AkshareDataProvider()
+            df = ak_provider.get_index_data(index_code, start_date, end_date)
         except Exception as e:
-            logger.warning(f"Tushare index fetch failed: {e}. Trying Akshare fallback...")
+            logger.warning(f"Akshare index fetch failed: {e}. Trying Tushare fallback...")
             
-        if df.empty or len(df) < 60:
-            # Fallback to Akshare if Tushare failed or returned surprisingly few records
+        if df.empty or len(df) < 20:
             try:
-                ak_provider = AkshareDataProvider()
-                df_ak = ak_provider.get_index_data(index_code, start_date, end_date)
-                if not df_ak.empty and len(df_ak) > len(df):
-                    df = df_ak
+                df_ts = self._ts_call(self.pro.index_daily, ts_code=index_code, start_date=start_date, end_date=end_date)
+                if not df_ts.empty and len(df_ts) > len(df):
+                    df = df_ts
             except Exception as e:
-                logger.warning(f"Akshare index fetch failed: {e}")
+                logger.warning(f"Tushare index fetch failed: {e}")
 
         if df.empty:
             raise DataProviderError(f"No index data found for {index_code} in date range {start_date}-{end_date}")

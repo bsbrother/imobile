@@ -30,13 +30,13 @@
     "confidence_threshold": 0.6,
     "simple_market_thresholds": {
       "bull": 0.7,
-      "normal": 0.50,
+      "normal": 0.5,
       "volatile": 0.35,
-      "bear": 0.20
+      "bear": 0.2
     }
   },
   "stock_picker": {
-    "max_pick": 10,
+    "max_pick": 5,
     "remove_obvious_bad": {
       "close": ">= min_price, <= max_price",
       "circ_mv": ">= min_market_cap, <= max_market_cap",
@@ -81,8 +81,8 @@
         500
       ],
       "market_cap_range": [
-        5e8,
-        5e10
+        500000000.0,
+        50000000000.0
       ],
       "buy_signals": [
         "momentum_breakout",
@@ -93,8 +93,8 @@
         "stop_loss_3pct"
       ],
       "position_sizing": {
-        "max_position_pct": 0.15,
-        "equal_weight": true
+        "max_position_pct": 0.9,
+        "equal_weight": false
       }
     },
     "bull_market": {
@@ -110,8 +110,8 @@
         2000
       ],
       "market_cap_range": [
-        2e8,
-        5e12
+        200000000.0,
+        5000000000000.0
       ],
       "buy_signals": [
         "momentum_breakout",
@@ -122,7 +122,7 @@
         "stop_loss_5pct"
       ],
       "position_sizing": {
-        "max_position_pct": 0.25,
+        "max_position_pct": 0.9,
         "equal_weight": false
       }
     },
@@ -139,8 +139,8 @@
         400
       ],
       "market_cap_range": [
-        6e8,
-        4e10
+        600000000.0,
+        40000000000.0
       ],
       "buy_signals": [
         "oversold_bounce",
@@ -151,8 +151,8 @@
         "stop_loss_2pct"
       ],
       "position_sizing": {
-        "max_position_pct": 0.05,
-        "equal_weight": true
+        "max_position_pct": 0.9,
+        "equal_weight": false
       }
     },
     "volatile_market": {
@@ -168,8 +168,8 @@
         3000
       ],
       "market_cap_range": [
-        1e8,
-        9e12
+        100000000.0,
+        9000000000000.0
       ],
       "buy_signals": [
         "quick_momentum",
@@ -180,73 +180,73 @@
         "stop_loss_2pct"
       ],
       "position_sizing": {
-        "max_position_pct": 0.1,
-        "equal_weight": true
+        "max_position_pct": 0.9,
+        "equal_weight": false
       }
     }
   },
   "trading_rules": {
     "risk_reward_ratios": {
       "bull_market": {
-        "take_profit_pct": 0.30,
-        "stop_loss_pct": 0.08,
+        "take_profit_pct": 2.0,
+        "stop_loss_pct": 0.005,
         "trailing_stop_enabled": true,
         "max_hold_days": 15,
-        "min_hold_days": 3
+        "min_hold_days": 2
       },
       "normal_market": {
-        "take_profit_pct": 0.22,
-        "stop_loss_pct": 0.08,
+        "take_profit_pct": 2.0,
+        "stop_loss_pct": 0.005,
         "trailing_stop_enabled": true,
         "max_hold_days": 10,
         "min_hold_days": 2
       },
       "volatile_market": {
-        "take_profit_pct": 0.18,
-        "stop_loss_pct": 0.07,
+        "take_profit_pct": 2.0,
+        "stop_loss_pct": 0.005,
         "trailing_stop_enabled": true,
         "max_hold_days": 8,
         "min_hold_days": 1
       },
       "bear_market": {
-        "take_profit_pct": 0.12,
-        "stop_loss_pct": 0.05,
+        "take_profit_pct": 2.0,
+        "stop_loss_pct": 0.005,
         "trailing_stop_enabled": true,
         "max_hold_days": 5,
         "min_hold_days": 1
       }
     },
     "position_sizing": {
-      "max_positions": 6,
+      "max_positions": 20,
       "rank_weighted": true,
       "top_3_weight": 0.15,
-      "mid_4_weight": 0.10,
+      "mid_4_weight": 0.1,
       "bottom_weight": 0.0875
     },
     "late_trend_filter": {
       "bull_market": {
-        "ma_threshold": 1.60,
-        "short_gain_threshold": 0.60,
-        "mid_gain_threshold": 1.00,
+        "ma_threshold": 1.6,
+        "short_gain_threshold": 0.6,
+        "mid_gain_threshold": 1.0,
         "volume_multiplier": 5.0
       },
       "normal_market": {
-        "ma_threshold": 1.25,
-        "short_gain_threshold": 0.30,
-        "mid_gain_threshold": 0.50,
-        "volume_multiplier": 3.0
+        "ma_threshold": 1.6,
+        "short_gain_threshold": 0.6,
+        "mid_gain_threshold": 1.0,
+        "volume_multiplier": 5.0
       },
       "volatile_market": {
         "ma_threshold": 1.15,
-        "short_gain_threshold": 0.20,
+        "short_gain_threshold": 0.2,
         "mid_gain_threshold": 0.35,
         "volume_multiplier": 2.5
       },
       "bear_market": {
-        "ma_threshold": 1.10,
-        "short_gain_threshold": 0.15,
-        "mid_gain_threshold": 0.25,
-        "volume_multiplier": 2.0
+        "ma_threshold": 1.6,
+        "short_gain_threshold": 0.6,
+        "mid_gain_threshold": 1.0,
+        "volume_multiplier": 5.0
       }
     }
   },

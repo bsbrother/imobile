@@ -27,14 +27,14 @@ develop-eggs/
 *.db-journal
 *.db-wal
 *.db-shm
-data_cache/
-data/
+/data_cache/
+/data/
 
 # ── Backtest Outputs & Logs ────────────────────────────────
 *.log
-backtest/backtest_results/
-backups/
-logs/
+/backtest/backtest_results/
+/backups/
+/logs/
 
 # ── IDE & Editor ────────────────────────────────────────────
 .vscode/

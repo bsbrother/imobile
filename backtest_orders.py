@@ -19,7 +19,20 @@ pick_orders_trading()
     └── Calculate P&L
 
 Usage:
-python this_script [start_date end_date], date format: YYYYMMDD, default is today.
+python this_script [start_date end_date [src [user_id [backtest_search backtest_ai]]]]
+  start_date      -- Start date in YYYYMMDD format (default: today)
+  end_date        -- End date in YYYYMMDD format (default: today)
+  src             -- Strategy: ts_go, ts_month_src, ts_daily, ts_ai_pick, ts_auto, ts_longup, ts_hma, ts_dc, (default: ts_go)
+  user_id         -- User ID for trading account (default: 1)
+  backtest_search -- Enable search providers: true/false/1/0/yes/no (default: true)
+  backtest_ai     -- Enable AI analysis: true/false/1/0/yes/no (default: true)
+
+Examples:
+  python backtest_orders.py 20250101 20250331 ts_month_src
+  python backtest_orders.py 20250101 20250331 ts_month_src 1 true true
+  python backtest_orders.py 20250101 20250331 ts_ai_pick 1 true false
+  python backtest_orders.py 20250101 20250331 ts_daily 1 false true
+  python backtest_orders.py 20250101 20250331 ts_daily 1 false false
 
 TODO
 - Monitor execution performance
@@ -31,6 +44,11 @@ import json
 import pandas as pd
 from datetime import datetime
 import time
+import warnings
+warnings.filterwarnings("ignore", message=".*Accessing the.*attribute on the instance is deprecated.*")
+warnings.filterwarnings("ignore", message=".*model_computed_fields.*")
+warnings.filterwarnings("ignore", message=".*model_fields.*")
+warnings.filterwarnings("ignore", message=".*PydanticDeprecatedSince211.*")
 from typing import Dict, List, Any, Optional
 from loguru import logger
 from dotenv import load_dotenv
@@ -64,6 +82,9 @@ TAX = global_cm.get('portfolio_config.tax', 0.0005)  # 10W * 0.005% = 50 # Only 
 if not os.path.exists(REPORT_PATH):
     os.makedirs(REPORT_PATH)
 
+# Use virtualenv python for python-based strategies
+VENV_PYTHON = "/home/kasm-user/apps/imobile/.venv/bin/python"
+
 def pick_stocks_to_file(this_date: str, src: str = 'ts_go') -> str:
     """
     Pick stocks and save to a file for a specific date.
@@ -77,7 +98,7 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_go') -> str:
     strong_stocks = {}
     logger.info(f"Picking stocks for {this_date} ...")
     pick_output_file = os.path.join(REPORT_PATH, f'pick_stocks_{this_date}.json')
-    
+
     # Detect market regime
     regime_data = detect_market_regime(this_date)
     regime_name = regime_data['regime']
@@ -97,26 +118,48 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_go') -> str:
         logger.info(f"Auto-selected strategy {src} for regime {regime_name}")
 
     # hot sectors picker
-    # Pass regime info to picker if needed, or just let it pick based on sectors
-    # For now, we assume picker logic is independent or we will update it later.
-    if src == 'ts_combine':
-        result = os.system(f'python pick_stocks_from_sector/ts_combine.py {this_date}')
-    elif src == 'ts_month_src':
-        result = os.system(f'python pick_stocks_from_sector/ts_month_src.py {this_date}')
+    # Backtest AI mode: if backtest_ai=False, switch AI-dependent strategies
+    # to pure-technical alternatives (no LLM/search needed).
+    _ai_strategies = {'ts_ai_pick', 'ts_daily', 'ts_month_src'}
+    _noai_map = {
+        'ts_ai_pick': 'ts_longup',   # AI pick -> pure technical trend following
+        'ts_daily':   'ts_hma',       # AI daily -> HMA+SuperTrend technical
+        'ts_month_src': 'ts_hma',     # month_src delegates to ts_daily -> HMA fallback
+        'ts_auto':    'ts_hma',       # auto with regime -> HMA (pure technical)
+    }
+    if not backtest_ai and src in _noai_map:
+        new_src = _noai_map[src]
+        logger.info(f"backtest_ai=False: Switching strategy '{src}' -> '{new_src}' (no AI/search needed)")
+        src = new_src
+    elif not backtest_ai and src in _ai_strategies:
+        logger.info(f"backtest_ai=False: Strategy '{src}' requires AI, falling back to 'ts_longup'")
+        src = 'ts_longup'
+
+    VENV_PYTHON = "/home/kasm-user/apps/imobile/.venv/bin/python"
+    # Build optional flags for strategy scripts
+    _flags = []
+    if not backtest_search:
+        _flags.append("--no-search")
+    if not backtest_ai:
+        _flags.append("--no-ai")
+    _flags_str = " ".join(_flags)
+    if src == 'ts_month_src':
+        result = os.system(f'{VENV_PYTHON} pick_stocks_from_sector/ts_month_src.py {this_date} {_flags_str}')
     elif src == 'ts_longup':
-        result = os.system(f'python pick_stocks_from_sector/ts_longup.py {this_date}')
+        result = os.system(f'{VENV_PYTHON} pick_stocks_from_sector/ts_longup.py {this_date} {_flags_str}')
     elif src == 'ts_hma':
-        result = os.system(f'python pick_stocks_from_sector/ts_hma.py {this_date}')
+        result = os.system(f'{VENV_PYTHON} pick_stocks_from_sector/ts_hma.py {this_date} {_flags_str}')
     elif src == 'ts_ai_pick':
-        result = os.system(f'python pick_stocks_from_sector/ts_ai_pick.py {this_date}')
+        result = os.system(f'{VENV_PYTHON} pick_stocks_from_sector/ts_ai_pick.py {this_date} {_flags_str}')
+    elif src == 'ts_daily':
+        result = os.system(f'{VENV_PYTHON} pick_stocks_from_sector/ts_daily.py {this_date} {_flags_str}')
     elif src == 'ts_go':
         # Compile and run the Go stock picker
-        # Command: cd utils/go-stock; go build -o pick_stocks cmd/pick_stocks/main.go; ./pick_stocks {this_date}
-        cmd = f'cd utils/go-stock && go build -o pick_stocks cmd/pick_stocks/main.go && ./pick_stocks -date {this_date}'
+        cmd = f'cd utils/go-stock && go build -o pick_stocks cmd/pick_stocks/main.go && ./pick_stocks -date {this_date} {_flags_str}'
         logger.info(f"Running Go stock picker: {cmd}")
         result = os.system(cmd)
     else:
-        result = os.system(f'python pick_stocks_from_sector/ts_ths_dc.py {this_date} {src}')
+        result = os.system(f'{VENV_PYTHON} pick_stocks_from_sector/ts_ths_dc.py {this_date} {src} {_flags_str}')
     if result != 0:
         raise ValueError(f"Failed to pick strong stocks from hot sectors for {this_date} using {src}.")
     with open('/tmp/tmp', 'r') as f:
@@ -132,7 +175,8 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_go') -> str:
     with open(pick_output_file, 'w') as f:
         json.dump(data, f)
 
-    logger.info(f"Picked {MAX_POSITIONS} stocks, saved to {pick_output_file}")
+    actual_picked = len(data['selected_stocks'])
+    logger.info(f"Picked {actual_picked} stocks, saved to {pick_output_file}")
     return pick_output_file
 
 
@@ -153,11 +197,11 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
     this_date = os.path.basename(pick_input_file).split('_')[-1].replace('.json', '')
     smart_output_file = os.path.join(REPORT_PATH, f'smart_orders_{this_date}.json')
     logger.info(f"Creating smart orders from {pick_input_file}...")
-    
-    cmd = f'python -m backtest.cli analyze --stocks-file {pick_input_file} -o {smart_output_file}'
+
+    cmd = f'{VENV_PYTHON} -m backtest.cli analyze --stocks-file {pick_input_file} -o {smart_output_file}'
     if current_capital:
          cmd += f' --initial-cash {current_capital}'
-         
+
     result = os.system(cmd)
     if result != 0:
         raise ValueError(f"Failed to create smart orders from {pick_input_file}.")
@@ -167,7 +211,7 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
     no_buy_cancel_symbols = []
     with open(smart_output_file, 'r') as f:
         data = json.load(f)
-    
+
     # Get holding days from regime data if available, else default to 4
     regime_data = data.get('regime_data', {})
     holding_days = regime_data.get('max_hold_days', 4)
@@ -185,8 +229,8 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
                 # Relaxed: Allow buy orders to persist for 2 days to avoid churning.
                 last_updated = datetime.strptime(order[6], '%Y-%m-%d %H:%M:%S') if isinstance(order[6], str) else order[6]
                 days_since_update = (datetime.strptime(this_date, '%Y%m%d') - last_updated).days
-                
-                if this_date >= order[3] or days_since_update >= 2: 
+
+                if this_date >= order[3] or days_since_update >= 2:
                     no_buy_cancel_symbols.append(order[1])
                     cursor.execute("""
                         UPDATE smart_orders
@@ -256,7 +300,7 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
                     # If it's a simple "sell at market" or similar, we might want to just update valid_until
                     if '股价>=' in trigger_condition and '触发止盈' not in trigger_condition:
                          # Handle cases where it might be a simple limit sell or force sell from previous day
-                         pass 
+                         pass
                     else:
                          # raise ValueError(f"Invalid trigger_condition format for order id {id}: {trigger_condition}")
                          pass
@@ -275,11 +319,11 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
                 if '触发止盈' in trigger_condition and '触发止损' in trigger_condition:
                     profit_price = trigger_condition.split(',')[0].split('>=')[1].replace('元(触发止盈)', '')
                     lose_price = trigger_condition.split(',')[1].split('<=')[1].replace('元(触发止损)', '')
-                    
+
                     # Increase TP by 10% (let winners run more)
                     profit_price = round(float(profit_price) * 1.10, 2)
                     # Do NOT raise SL blindly to avoid noise-out. Keep original SL or raise very slightly.
-                    # lose_price = round(float(lose_price) * 1.02, 2) 
+                    # lose_price = round(float(lose_price) * 1.02, 2)
                     # For now, keep SL same to give room for volatility.
                     lose_price = float(lose_price)
 
@@ -287,7 +331,7 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
                     reason_of_ending = ''
                     # Check against NEW valid_until
                     current_valid_until = new_valid_until if new_valid_until > valid_until else valid_until
-                    
+
                     if this_date >= current_valid_until:
                         # - 智能订单:限价委托/市价委托, buy/sell default 限价委托:'即时买一价'
                         # TODO: maybe need to change buy_or_sell_price_type to '市价委托' here.
@@ -296,7 +340,7 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
                         trigger_condition = f'股价>={lose_price:.2f}元' # force sell now.
                     else:
                         trigger_condition = f'股价>={profit_price:.2f}元(触发止盈),股价<={lose_price:.2f}元(触发止损)'
-                    
+
                     cursor.execute("""
                         UPDATE smart_orders
                         SET trigger_condition=?, reason_of_ending=?, last_updated=?
@@ -304,7 +348,7 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
                     """, (trigger_condition, reason_of_ending, convert_to_datetime(this_date), id, user_id))
                     order['sell_take_profit_price'] = round(profit_price, 2)
                     order['sell_stop_loss_price'] = round(lose_price, 2)
-                
+
                 order['buy_quantity'] = buy_quantity # keep original buy quantity for it not sell filled yet.
 
             # find the order in data['smart_orders'] and update it.
@@ -324,13 +368,13 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
             with open(prev_smart_output_file, 'r') as f:
                 prev_data = json.load(f)
             data_keys = [ o['symbol'] for o in data['smart_orders']]
-            
+
             # Reconstruct left running orders safely
-            left_running_orders = [ o for o in prev_data.get('smart_orders', []) 
-                                    if o['symbol'] not in data_keys 
-                                    and o['symbol'] in running_orders 
+            left_running_orders = [ o for o in prev_data.get('smart_orders', [])
+                                    if o['symbol'] not in data_keys
+                                    and o['symbol'] in running_orders
                                     and o['symbol'] not in no_buy_cancel_symbols ]
-            
+
             for order in left_running_orders:
                 valid_until = running_orders[order['symbol']]['valid_until']
                 # the order is about to expire today, force sell at market price next day.
@@ -700,32 +744,32 @@ class OrderAnalyzer:
         can_sell_today = False
         if holding:
             holdings, available_shares, cost_basis, last_updated = holding
-            
+
             # Fetch TRUE purchase date from transactions table to calculate exact holding days
             purchase_date = None
             with DB.cursor() as cursor:
                 cursor.execute("""
-                    SELECT MAX(transaction_date) FROM transactions 
+                    SELECT MAX(transaction_date) FROM transactions
                     WHERE code=? AND user_id=? AND transaction_type='sell'
                 """, (symbol, self.user_id))
                 last_sell = cursor.fetchone()[0]
                 if last_sell:
                     cursor.execute("""
-                        SELECT MIN(transaction_date) FROM transactions 
+                        SELECT MIN(transaction_date) FROM transactions
                         WHERE code=? AND user_id=? AND transaction_type='buy' AND transaction_date > ?
                     """, (symbol, self.user_id, last_sell))
                 else:
                     cursor.execute("""
-                        SELECT MIN(transaction_date) FROM transactions 
+                        SELECT MIN(transaction_date) FROM transactions
                         WHERE code=? AND user_id=? AND transaction_type='buy'
                     """, (symbol, self.user_id))
                 p_date = cursor.fetchone()[0]
                 if p_date:
                     purchase_date = convert_trade_date(p_date)
-                    
+
             if not purchase_date:
                 purchase_date = convert_trade_date(last_updated)
-                
+
             can_sell_today = available_shares > 0 and purchase_date < date
             if can_sell_today:
                 # REAL-WORLD FIX: Cannot sell if stock is locked at limit down all day
@@ -797,7 +841,7 @@ class OrderAnalyzer:
                             'executed': False,
                             'reason': 'Sell order execution failed'
                         }
-                
+
                 # Calculate holding days once for use in multiple checks
                 # get_trading_days_between returns a list of dates, so take len()
                 holding_days_val = len(calendar.get_trading_days_between(purchase_date, date))
@@ -807,13 +851,13 @@ class OrderAnalyzer:
                 if holding_days_val == 2:
                     current_gap_pct = ((open_price - prev_close) / prev_close) * 100
                     current_close_pct = ((close_price - prev_close) / prev_close) * 100
-                    
+
                     # 1. Gap Down Cut: Open < -4%
                     if current_gap_pct < -4.0:
                         logger.info(f"Early Weakness Cut (Gap Down) triggered for {symbol}: Gap {current_gap_pct:.2f}%")
                         sell_price = open_price # Sell at Open
                         reason = 'early_cut_gap'
-                        
+
                         success = execute_sell_order(
                             self.user_id, symbol, name, sell_price,
                             min(available_shares, quantity), date,
@@ -847,13 +891,13 @@ class OrderAnalyzer:
                                     'turnover_rate': float(market_data.get('turnover_rate', 0))
                                 }
                             }
-                    
+
                     # 2. Intraday Drop Cut: Close < -5%
                     if current_close_pct < -5.0:
                         logger.info(f"Early Weakness Cut (Big Drop) triggered for {symbol}: Close {current_close_pct:.2f}%")
                         sell_price = close_price # Sell at Close
                         reason = 'early_cut_drop'
-                        
+
                         success = execute_sell_order(
                             self.user_id, symbol, name, sell_price,
                             min(available_shares, quantity), date,
@@ -895,7 +939,7 @@ class OrderAnalyzer:
                     logger.info(f"Strict Max-Hold Close triggered for {symbol}: held {holding_days_val} days")
                     sell_price = close_price
                     reason = 'strict_max_hold_close'
-                    
+
                     success = execute_sell_order(
                         self.user_id, symbol, name, sell_price,
                         min(available_shares, quantity), date,
@@ -939,7 +983,7 @@ class OrderAnalyzer:
                     logger.info(f"Stagnation Cut triggered for {symbol}: held {holding_days_val} days, return {current_return_pct:.2f}%")
                     sell_price = close_price
                     reason = 'stagnation_cut'
-                    
+
                     success = execute_sell_order(
                         self.user_id, symbol, name, sell_price,
                         min(available_shares, quantity), date,
@@ -973,14 +1017,14 @@ class OrderAnalyzer:
                                 'turnover_rate': float(market_data.get('turnover_rate', 0))
                             }
                         }
-                
+
                 # Holding continues - Update Trailing Stop
                 new_stop_loss, reason = calculate_trailing_stop(
                     entry_price=cost_basis,
                     current_price=high_price,
                     initial_stop_loss=stop_loss
                 )
-                
+
                 if new_stop_loss > stop_loss:
                     # Update smart order with new stop loss
                     with DB.cursor() as cursor:
@@ -1062,21 +1106,21 @@ class OrderAnalyzer:
         # This prevents wide stops when filling way above limit price (e.g. gap up)
         sl_pct = self.strategy_config.get('stop_loss_pct', 9.0)
         tp_pct = self.strategy_config.get('profit_target_pct', 18.0)
-        
+
         # Adjust for market regime if available
         # Note: In real live trading this implies checking regime again, but here we use config defaults
-        # if regime was bull, config might be different. 
+        # if regime was bull, config might be different.
         # For simplicity, we stick to the percentages stored in order if possible, or recalculate.
         # Ideally, we should use the percentages implied by the original order, but recalculated on new base.
-        
+
         # Calculate implied percentages from original order
         orig_sl_pct = (order['buy_price'] - order['sell_stop_loss_price']) / order['buy_price'] * 100
         orig_tp_pct = (order['sell_take_profit_price'] - order['buy_price']) / order['buy_price'] * 100
-        
+
         # Use limit percentages if reasonable, otherwise default
         final_sl_pct = orig_sl_pct if 3 < orig_sl_pct < 15 else sl_pct
         final_tp_pct = orig_tp_pct if 5 < orig_tp_pct < 30 else tp_pct
-        
+
         new_take_profit = round(buy_fill_price * (1 + final_tp_pct/100), 2)
         new_stop_loss = round(buy_fill_price * (1 - final_sl_pct/100), 2)
 
@@ -1169,7 +1213,7 @@ class OrderAnalyzer:
         # When date execute finish, read sell actions from transactions table by date, then remove them from this date smart output file.
         smart_output_file = os.path.join(REPORT_PATH, f'smart_orders_{date}.json')
         if not os.path.exists(smart_output_file):
-            raise ValueError(f"Smart orders file for {date} not found: {smart_output_file}")    
+            raise ValueError(f"Smart orders file for {date} not found: {smart_output_file}")
         data = {}
         with open(smart_output_file, 'r') as f:
             data = json.load(f)
@@ -1224,7 +1268,7 @@ class OrderAnalyzer:
                     md = data_provider.get_stock_data(sym, date, date)
                     if not md.empty:
                         total_unrealized_pnl += (float(md.iloc[-1]['close']) * holdings) - cost
-            
+
             true_total_portfolio_value = current_portfolio_nav + total_unrealized_pnl
 
             f.write("## Portfolio Summary\n\n")
@@ -1345,21 +1389,21 @@ class OrderAnalyzer:
 
                 for row in cursor.fetchall():
                     symbol = row[0]
-                    
+
                     purchase_date = None
                     cursor.execute("""
-                        SELECT MAX(transaction_date) FROM transactions 
+                        SELECT MAX(transaction_date) FROM transactions
                         WHERE code=? AND user_id=? AND transaction_type='sell'
                     """, (symbol, self.user_id))
                     last_sell = cursor.fetchone()[0]
                     if last_sell:
                         cursor.execute("""
-                            SELECT MIN(transaction_date) FROM transactions 
+                            SELECT MIN(transaction_date) FROM transactions
                             WHERE code=? AND user_id=? AND transaction_type='buy' AND transaction_date > ?
                         """, (symbol, self.user_id, last_sell))
                     else:
                         cursor.execute("""
-                            SELECT MIN(transaction_date) FROM transactions 
+                            SELECT MIN(transaction_date) FROM transactions
                             WHERE code=? AND user_id=? AND transaction_type='buy'
                         """, (symbol, self.user_id))
                     p_date = cursor.fetchone()[0]
@@ -1367,7 +1411,11 @@ class OrderAnalyzer:
                         purchase_date = convert_trade_date(p_date)
                     if not purchase_date:
                         purchase_date = convert_trade_date(row[6])
-                        
+
+                    # Shield: Ensure purchase_date is never after the reporting date (e.g. during date-rescaling anomalies)
+                    if purchase_date and purchase_date > date:
+                        purchase_date = start_date
+
                     holdings[symbol] = {
                         'name': row[1],
                         'quantity': row[2],
@@ -1412,7 +1460,7 @@ class OrderAnalyzer:
                     # Prioritize notes as holding_stocks might be updated (re-entry) or deleted
                     transaction_pnl = 0.0
                     pnl_found = False
-                    
+
                     if 'P&L:' in notes:
                         try:
                             pnl_str = notes.split('P&L: ¥')[1].split(' ')[0]
@@ -1420,7 +1468,7 @@ class OrderAnalyzer:
                             pnl_found = True
                         except Exception as e:
                             logger.warning(f"Could not parse P&L from notes for {symbol}: {e}")
-                    
+
                     if not pnl_found:
                         # Fallback to cost basis from holding_stocks (RISKY if re-entered)
                         cursor.execute("""
@@ -1527,7 +1575,7 @@ class OrderAnalyzer:
         df_portfolio['date'] = pd.to_datetime(df_portfolio['date'])
         df_portfolio.set_index('date', inplace=True)
         df_portfolio['return'] = df_portfolio['portfolio_value'].pct_change().fillna(0)
-        
+
         # Calculate Strategy Return
         final_day = timeline[-1]
         total_return_pct = (final_day['cumulative_total_pnl'] / INITIAL_CASH * 100) if INITIAL_CASH > 0 else 0
@@ -1539,9 +1587,9 @@ class OrderAnalyzer:
             'CSI 300': '000300.SH',
             'CSI 500': '000905.SH',
         }
-        
+
         benchmark_results = {}
-        
+
         for name, code in benchmarks.items():
             try:
                 df_index = data_provider.get_index_data(code, start_date, end_date)
@@ -1549,13 +1597,13 @@ class OrderAnalyzer:
                     df_index['trade_date'] = pd.to_datetime(df_index['trade_date'])
                     df_index.set_index('trade_date', inplace=True)
                     df_index['return'] = df_index['close'].pct_change().fillna(0)
-                    
+
                     # Align dates
                     common_dates = df_portfolio.index.intersection(df_index.index)
                     if len(common_dates) > 1:
                         port_returns = df_portfolio.loc[common_dates, 'return']
                         bench_returns = df_index.loc[common_dates, 'return']
-                        
+
                         # Calculate Metrics
                         close_end = pd.to_numeric(df_index.loc[common_dates[-1], 'close'])
                         if 'pre_close' in df_index.columns and pd.to_numeric(df_index.loc[common_dates[0], 'pre_close']) > 0:
@@ -1564,16 +1612,16 @@ class OrderAnalyzer:
                             close_start = pd.to_numeric(df_index.loc[common_dates[0], 'close'])
                         bench_total_return = (float(close_end) / float(close_start)) - 1
                         excess_return = strat_ret - bench_total_return
-                        
+
                         covariance = float(pd.to_numeric(port_returns.cov(bench_returns)))
                         variance = float(pd.to_numeric(bench_returns.var()))
                         beta = covariance / variance if variance != 0 else 0
-                        
+
                         # Alpha (simple approximation: R_p - Beta * R_b)
                         alpha = float(pd.to_numeric(port_returns.mean())) - beta * float(pd.to_numeric(bench_returns.mean()))
-                        
+
                         correlation = float(pd.to_numeric(port_returns.corr(bench_returns)))
-                        
+
                         benchmark_results[name] = {
                             'return': bench_total_return,
                             'excess': excess_return,
@@ -1590,11 +1638,11 @@ class OrderAnalyzer:
         print("="*80)
         print(f"{'Metric':<20} {'Strategy':<15} {'SSE Composite':<15} {'CSI 300':<15} {'CSI 500':<15}")
         print("-" * 80)
-        
+
         sse = benchmark_results.get('SSE Composite', {})
         csi300 = benchmark_results.get('CSI 300', {})
         csi500 = benchmark_results.get('CSI 500', {})
-        
+
         print(f"{'Total Return':<20} {strat_ret:>14.2%} {sse.get('return', 0):>14.2%} {csi300.get('return', 0):>14.2%} {csi500.get('return', 0):>14.2%}")
         print(f"{'Excess Return':<20} {'-':>15} {sse.get('excess', 0):>14.2%} {csi300.get('excess', 0):>14.2%} {csi500.get('excess', 0):>14.2%}")
         print(f"{'Beta':<20} {'-':>15} {sse.get('beta', 0):>14.4f} {csi300.get('beta', 0):>14.4f} {csi500.get('beta', 0):>14.4f}")
@@ -1647,11 +1695,11 @@ class OrderAnalyzer:
                 f.write("## 🏆 Benchmark Comparison\n\n")
                 f.write("| Metric | Strategy | SSE Composite | CSI 300 |\n")
                 f.write("|--------|----------|---------------|---------|\n")
-                
+
                 sse = benchmark_results.get('SSE Composite', {})
                 csi = benchmark_results.get('CSI 300', {})
                 strat_ret = total_return_pct / 100
-                
+
                 f.write(f"| **Total Return** | {strat_ret:.2%} | {sse.get('return', 0):.2%} | {csi.get('return', 0):.2%} |\n")
                 f.write(f"| **Excess Return** | - | {sse.get('excess', 0):.2%} | {csi.get('excess', 0):.2%} |\n")
                 f.write(f"| **Beta** | - | {sse.get('beta', 0):.4f} | {csi.get('beta', 0):.4f} |\n")
@@ -1748,7 +1796,136 @@ class OrderAnalyzer:
             f.write("  - 🔴 Expired: Has exceeded max holding period\n")
 
 
-def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=None, user_id: int = 1, src: str = 'ts_go', resume: bool = False):
+def ensure_searxng_container_running():
+    """
+    Check if the self-hosted SearXNG service is currently reachable.
+    SearXNG may run in Docker or natively (pip install).  This function
+    first tries a quick HTTP health probe; if that fails, it falls back
+    to the Docker container check for legacy setups.
+    """
+    import os
+    import subprocess
+    import time
+    import urllib.request
+
+    # 1. Quick HTTP health probe — works for both Docker and native installs
+    base_urls = os.getenv("SEARXNG_BASE_URLS", "http://localhost:8080").split(",")
+    for url in base_urls:
+        url = url.strip().rstrip("/")
+        if not url:
+            continue
+        try:
+            req = urllib.request.Request(url, method="GET")
+            req.add_header("User-Agent", "imobile-healthcheck/1.0")
+            resp = urllib.request.urlopen(req, timeout=5)
+            resp.read(64)
+            logger.info(f"✅ SearXNG is REACHABLE at {url}")
+            return True
+        except Exception:
+            pass
+
+    # 2. Legacy Docker container check (only if HTTP probe failed)
+    try:
+        status = subprocess.check_output(
+            ["docker", "inspect", "-f", "{{.State.Running}}", "searxng"],
+            stderr=subprocess.DEVNULL
+        ).decode().strip()
+        if status == "true":
+            logger.info("✅ SearXNG Docker container is RUNNING but HTTP probe failed — may need port mapping fix")
+            return True
+    except Exception:
+        pass
+
+    # 3. Attempt to spin up via Docker Compose as last resort
+    logger.warning("⚠️ SearXNG not reachable. Attempting Docker Compose startup...")
+    compose_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "utils", "searxng", "docker-compose.yml")
+    if os.path.exists(compose_file):
+        try:
+            subprocess.run(
+                ["docker", "compose", "-f", compose_file, "up", "-d"],
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            logger.info("🚀 Successfully launched SearXNG container! Waiting 3 seconds for warm-up...")
+            time.sleep(3.0)
+            return True
+        except Exception as e_docker:
+            logger.warning(f"Failed to auto-start SearXNG container via Docker Compose: {e_docker}")
+    else:
+        logger.warning(f"SearXNG Docker Compose file not found at: {compose_file}")
+    return False
+
+
+def discover_working_search_providers():
+    """
+    Read the provider capability cache (created by tests/test_search_api.py)
+    and set WORKING_SEARCH_PROVIDERS to only include providers that are
+    backtest-capable (both can_search AND history_date_for_backtest are true).
+
+    Usage:
+        1. Run `python tests/test_search_api.py` before starting the backtest.
+           This creates/updates utils/search_providers_cache.json with the
+           actual capability of each provider.
+        2. At backtest start, this function reads that cache and restricts
+           SearchService to only use backtest-capable providers.
+    """
+    import json
+    import os
+    import subprocess
+    import sys
+
+    cache_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "utils", "search_providers_cache.json",
+    )
+
+    # If cache does not exist, run test_search_api.py to create it
+    if not os.path.exists(cache_path):
+        logger.warning("search_providers_cache.json not found — running test_search_api.py to create it...")
+        test_script = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "tests", "test_search_api.py",
+        )
+        if os.path.exists(test_script):
+            ret = subprocess.run(
+                [sys.executable, test_script],
+                timeout=300,
+            )
+            if ret.returncode != 0:
+                logger.error("test_search_api.py failed — search providers will not be filtered")
+                return
+        else:
+            logger.error(f"test_search_api.py not found at {test_script} — search providers will not be filtered")
+            return
+
+    # Read the cache
+    try:
+        with open(cache_path) as f:
+            cache = json.load(f)
+    except Exception as e:
+        logger.error(f"Failed to read provider cache: {e}")
+        return
+
+    # Only include providers that are backtest-capable (both flags true)
+    backtest_providers = [
+        name for name, caps in cache.items()
+        if caps.get("can_search") and caps.get("history_date_for_backtest")
+    ]
+
+    if backtest_providers:
+        provider_filter = ",".join(p.lower() for p in backtest_providers)
+        os.environ["WORKING_SEARCH_PROVIDERS"] = provider_filter
+        logger.info(f"✅ Search provider whitelist (backtest-capable): {backtest_providers}")
+        logger.info(f"   WORKING_SEARCH_PROVIDERS='{provider_filter}'")
+    else:
+        logger.warning(
+            "⚠️ No backtest-capable providers found in cache! "
+            "Run 'python tests/test_search_api.py' to update the cache."
+        )
+
+
+def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=None, user_id: int = 1, src: str = 'ts_go', resume: bool = False, backtest_search: bool = True, backtest_ai: bool = True):
     """
     Pick stocks, create smart orders and trading for the specified date range.
 
@@ -1756,9 +1933,20 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
     start_date -- The start date (format: YYYY-MM-DD), default is today.
     end_date -- The end date (format: YYYY-MM-DD), default is today.
     user_id -- The user ID for the trading account.
-    src -- The source of stocks, default is 'ts_go', or 'ts_ths', 'ts_dc', 'ts_combine'
+    src -- The source of stocks, default is 'ts_go', or 'ts_dc' etc.
     resume -- Skip dates that already have report_orders generated
+    backtest_search -- Enable search providers for news/sentiment (default True).
+                       If False, skip all search calls, AI gets no news context.
+    backtest_ai -- Enable AI analysis for stock picking (default True).
+                   If False, switch AI-dependent strategies to pure-technical alternatives.
     """
+    # Auto discover and white-list working search providers before beginning the backtest
+    if backtest_search:
+        discover_working_search_providers()
+    else:
+        logger.info("backtest_search=False: Skipping search provider discovery, all search disabled.")
+        os.environ["WORKING_SEARCH_PROVIDERS"] = ""  # empty = no search providers
+
     today = convert_trade_date(datetime.now().strftime('%Y-%m-%d'))
     if not start_date:
         start_date = end_date = today
@@ -1792,7 +1980,7 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
             # Calculate realized P&L from all sell transactions strictly BEFORE today
             # We want to use the capital that is available at start of day (or end of yesterday) for sizing today's orders
             cursor.execute("""
-                SELECT notes FROM transactions 
+                SELECT notes FROM transactions
                 WHERE user_id=? AND transaction_type='sell' AND transaction_date < ?
             """, (user_id, convert_to_datetime(this_date)))
             sells = cursor.fetchall()
@@ -1813,7 +2001,7 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
             res = cursor.fetchone()
             if res and res[0]:
                 current_holdings_cost = float(res[0])
-        
+
         current_portfolio_nav = INITIAL_CASH + cumulative_realized_pnl
         current_capital = current_portfolio_nav - current_holdings_cost
         logger.info(f"[{this_date}] Cumulative Realized P&L: ¥{cumulative_realized_pnl:,.2f}, Total Equity (Cash+Holdings): ¥{current_portfolio_nav:,.2f}, Avail Cash: ¥{current_capital:,.2f}")
@@ -1848,13 +2036,15 @@ if __name__ == '__main__':
     end_date = '2025-12-31'
     src = 'ts_go'
     resume = False
-    
+    backtest_search = True
+    backtest_ai = True
+
     if argv := sys.argv:
         # Check if 'resume' is in the arguments and remove it
         if 'resume' in argv:
             resume = True
             argv.remove('resume')
-            
+
         if len(argv) >= 2:
             start_date = argv[1]
         if len(argv) >= 3:
@@ -1863,28 +2053,57 @@ if __name__ == '__main__':
             src = argv[3]
         if len(argv) >= 5:
             user_id = int(argv[4])
-            
-    if src not in ['ts_ths', 'ts_dc', 'ts_combine', 'ts_go', 'ts_month_src']:
-        raise ValueError(f"Invalid source: {src}. Valid sources are 'ts_ths', 'ts_dc', 'ts_combine', 'ts_go', and 'ts_month_src'.")
-    
-    print(f"DEBUG: Running with start_date={start_date}, end_date={end_date}, src={src}, resume={resume}")
+        if len(argv) >= 6:
+            backtest_search = argv[5].lower() in ('true', '1', 'yes')
+        if len(argv) >= 7:
+            backtest_ai = argv[6].lower() in ('true', '1', 'yes')
+
+    # Expand valid sources to include ts_auto and the fallback strategies
+    _valid_sources = ['ts_dc', 'ts_go', 'ts_month_src', 'ts_daily',
+                      'ts_auto', 'ts_longup', 'ts_hma', 'ts_ai_pick']
+    if src not in _valid_sources:
+        raise ValueError(f"Invalid source: {src}. Valid sources are: {', '.join(_valid_sources)}")
+
+    print(f"DEBUG: Running with start_date={start_date}, end_date={end_date}, src={src}, resume={resume}, backtest_search={backtest_search}, backtest_ai={backtest_ai}")
     REPORT_PATH = os.path.join(REPORT_PATH, f'{start_date}_{end_date}_{src}')
     os.makedirs(REPORT_PATH, exist_ok=True)
-    
+
     # We must wipe the actual DB file being used by DBTEST (usually db/test_imobile.db)
     # since it's already instantiated at import time.
     from db.db import DBTEST_IMOBILE_FILE
-    
+
+    # Programmatic DB Clean Wipe and Reinitialization Guard
     if not resume:
-        os.system(f"""
-            rm -rf {REPORT_PATH}/*; rm -rf /tmp/tmp
-            rm -f {DBTEST_IMOBILE_FILE}; sqlite3 {DBTEST_IMOBILE_FILE} < db/imobile.sql;
-        """)
+        import os
+        logger.info(f"Clean backtest initiated. Programmatically wiping old reports and re-initializing database: {DBTEST_IMOBILE_FILE}")
+
+        # Remove old reports in REPORT_PATH
+        if os.path.exists(REPORT_PATH):
+            for file in os.listdir(REPORT_PATH):
+                file_path = os.path.join(REPORT_PATH, file)
+                try:
+                    if os.path.isfile(file_path):
+                        os.unlink(file_path)
+                except Exception as e_del:
+                    logger.debug(f"Failed to delete {file_path}: {e_del}")
+
+        # Remove any SQLite WAL/journal files
+        for ext in ['', '-wal', '-shm']:
+            db_file = f"{DBTEST_IMOBILE_FILE}{ext}"
+            if os.path.exists(db_file):
+                try:
+                    os.unlink(db_file)
+                except Exception as e_del:
+                    logger.debug(f"Failed to delete {db_file}: {e_del}")
+
+        # Re-initialize empty SQLite database from schema
+        os.system(f"sqlite3 {DBTEST_IMOBILE_FILE} < db/imobile.sql")
+        logger.info("Successfully re-initialized empty backtesting database.")
     else:
         logger.info(f"Resuming backtest. Existing files in {REPORT_PATH} and database {DBTEST_IMOBILE_FILE} will be preserved.")
 
     try:
-        pick_orders_trading(start_date=start_date, end_date=end_date, user_id=user_id, src=src, resume=resume)
+        pick_orders_trading(start_date=start_date, end_date=end_date, user_id=user_id, src=src, resume=resume, backtest_search=backtest_search, backtest_ai=backtest_ai)
     except Exception as e:
         import traceback
         traceback.print_exc()

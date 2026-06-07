@@ -1,10 +1,10 @@
 """
-AI Stock Picker using Gemini API, Tushare data, and News integration.
+AI Stock Picker using FreeRide (OpenRouter), Tushare data, and News integration.
 
 This module implements an AI-powered stock picker (ts_ai) that:
 1. Fetches stock candidates using Tushare API
 2. Gathers news context using Tavily/SerpAPI
-3. Uses Gemini AI to analyze and score each stock
+3. Uses FreeRide AI (via OpenRouter) to analyze and score each stock
 4. Outputs top picks in the standard format for backtest_orders.py
 
 Usage:
@@ -39,10 +39,8 @@ load_dotenv()
 
 # API Configuration from .env
 TUSHARE_TOKEN = os.getenv("TUSHARE_TOKEN")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 TAVILY_API_KEYS = os.getenv("TAVILY_API_KEYS", "").split(",") if os.getenv("TAVILY_API_KEYS") else []
 SERPAPI_API_KEYS = os.getenv("SERPAPI_API_KEYS", "").split(",") if os.getenv("SERPAPI_API_KEYS") else []
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3-flash-preview")
 
 # Initialize Tushare
 import tushare as ts
@@ -198,7 +196,8 @@ class NewsService:
         query = f"{stock_name} {stock_code.split('.')[0]} 股票 {date_str} 最新消息"
 
         # Try Tavily first (unless exhausted)
-        if self._tavily_client and not self._tavily_exhausted:            try:
+        if self._tavily_client and not self._tavily_exhausted:
+            try:
                 response = self._tavily_client.search(
                     query=query,
                     search_depth="basic",
@@ -303,72 +302,74 @@ class AIAnalysisCache:
 
 
 class GeminiStockAnalyzer:
-    """Gemini AI analyzer for stock picking with caching for deterministic results."""
-    
-    def __init__(self):
+    """FreeRide AI analyzer for stock picking with caching for deterministic results.
+
+    Uses the FreeRide gateway (OpenAI-compatible) via OpenRouter.
+    Default model: openrouter/owl-alpha
+    Override via constructor or env var FREERIDE_MODEL / AI_MODEL.
+    """
+
+    DEFAULT_MODEL = "openrouter/owl-alpha"
+
+    def __init__(self, model_name: str | None = None):
+        self._client = None
         self._model = None
         self._cache = AIAnalysisCache()
+        self._model_name = model_name or os.getenv("FREERIDE_MODEL") or os.getenv("AI_MODEL", self.DEFAULT_MODEL)
         self._init_model()
-    
+
     def _init_model(self):
-        """Initialize Gemini model with temperature=0 for deterministic output."""
-        if not GEMINI_API_KEY:
-            logger.error("No Gemini API key configured")
-            return
-            
+        """Initialize FreeRide (OpenAI-compatible) client with temperature=0 for deterministic output."""
         try:
-            from google import genai
-            from google.genai import types
-            
-            self._client = genai.Client(api_key=GEMINI_API_KEY)
-            self._model_name = GEMINI_MODEL
-            logger.info(f"Gemini model initialized (deterministic): {GEMINI_MODEL}")
+            from openai import OpenAI as OpenAIClient
+            self._client = OpenAIClient(
+                base_url="http://127.0.0.1:11343/v1",
+                api_key="dummy",  # FreeRide gateway doesn't require a real key
+            )
+            logger.info(f"FreeRide model initialized for ts_ai (deterministic): {self._model_name}")
         except ImportError:
-            logger.error("google-genai package not installed")
+            logger.error("openai package not installed — pip install openai")
         except Exception as e:
-            logger.error(f"Failed to initialize Gemini: {e}")
-    
+            logger.error(f"Failed to initialize FreeRide gateway: {e}")
+
     def is_available(self) -> bool:
         return self._client is not None
-    
+
     def analyze(self, stock_info: Dict[str, Any], news_context: str, market_regime: str = 'normal', hot_sectors: str = '', target_date: str = '') -> Dict[str, Any]:
         """
-        Analyze a stock using Gemini AI with caching for deterministic results.
-        
+        Analyze a stock using FreeRide AI with caching for deterministic results.
+
         Returns:
             Dict with 'score' (0-100), 'recommendation' (买入/观望/卖出), 'summary'
         """
         ts_code = stock_info.get('ts_code', '')
-        
+
         # Check cache first for deterministic results
         cached = self._cache.get(ts_code, target_date, market_regime)
         if cached:
             logger.info(f"Using cached AI analysis for {ts_code}")
             return cached
-        
+
         if not self.is_available():
             return {"score": 50, "recommendation": "观望", "summary": "AI分析不可用"}
-        
+
         prompt = self._build_prompt(stock_info, news_context, market_regime, hot_sectors)
-        
+
         try:
-            from google.genai import types
-            response = self._client.models.generate_content(
+            response = self._client.chat.completions.create(
                 model=self._model_name,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    temperature=0.0,
-                    max_output_tokens=64000,
-                )
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.0,
+                max_tokens=1024,
             )
-            result = self._parse_response(response.text)
-            
+            result = self._parse_response(response.choices[0].message.content)
+
             # Cache the result for future runs
             self._cache.set(ts_code, target_date, market_regime, result)
-            
+
             return result
         except Exception as e:
-            logger.error(f"Gemini analysis failed: {e}")
+            logger.error(f"FreeRide analysis failed: {e}")
             return {"score": 50, "recommendation": "观望", "summary": f"分析失败: {str(e)[:50]}"}
     
     def _build_prompt(self, stock_info: Dict[str, Any], news_context: str, market_regime: str = 'normal', hot_sectors: str = '') -> str:
@@ -605,19 +606,21 @@ def get_stock_candidates(target_date: str, lookahead: bool = False, market_regim
 
 
 
-def pick_stocks(target_date: str, lookahead: bool = False) -> List[StockPick]:
+def pick_stocks(target_date: str, lookahead: bool = False, no_search: bool = False, no_ai: bool = False) -> List[StockPick]:
     """
     Main stock picking logic using AI analysis.
     
     Args:
         target_date: Target trading date (YYYYMMDD)
         lookahead: Whether to use lookahead data
+        no_search: Skip search/news gathering, AI gets no news context
+        no_ai: Skip AI analysis entirely, use technical scoring only
         
     Returns:
         List of StockPick objects
     """
     logger.info(f"=== AI Stock Picker (ts_ai) ===")
-    logger.info(f"Target date: {target_date}, Lookahead: {lookahead}")
+    logger.info(f"Target date: {target_date}, Lookahead: {lookahead}, no_search: {no_search}, no_ai: {no_ai}")
     
     # Detect market regime
     regime_data = detect_market_regime(target_date)
@@ -631,6 +634,24 @@ def pick_stocks(target_date: str, lookahead: bool = False) -> List[StockPick]:
         return []
     
     # === Late-trend filter moved to backtest_orders.py centrally ===
+    
+    # If --no-ai: skip AI entirely, use pure technical scoring
+    if no_ai:
+        logger.info("--no-ai: Using technical scoring only (no LLM, no search)")
+        picks = []
+        for i, c in enumerate(candidates[:MAX_PICKS]):
+            # Pure technical score: momentum + volume
+            score = 50 + min(30, c.get('return_3d', 0) * 5) + min(20, c.get('volume_ratio', 0) * 5)
+            score = min(100, max(0, score))
+            picks.append(StockPick(
+                rank=i + 1,
+                symbol=c['ts_code'],
+                score=round(score, 1),
+                name=c['name'],
+                ai_summary="纯技术评分(AI禁用)"
+            ))
+        logger.info(f"--no-ai: Selected {len(picks)} stocks via technical scoring")
+        return picks
     
     # Initialize services
     news_service = NewsService()
@@ -679,8 +700,13 @@ def pick_stocks(target_date: str, lookahead: bool = False) -> List[StockPick]:
         # Slow path: need to fetch news and call AI
         logger.info(f"Analyzing {stock['name']} ({ts_code})...")
         
-        # Fetch news with date context for historical accuracy
-        news_context = news_service.search(stock['name'], ts_code, target_date)
+        # Fetch news with date context for historical accuracy (skip if --no-search)
+        news_context = ""
+        if no_search:
+            logger.info(f"--no-search: Skipping news fetch for {ts_code}")
+            news_context = "搜索已禁用"
+        else:
+            news_context = news_service.search(stock['name'], ts_code, target_date)
         
         # AI analysis with regime and hot sector context
         analysis = analyzer.analyze(stock, news_context, market_regime, hot_sectors_context, target_date)
@@ -734,6 +760,8 @@ def main():
     parser = argparse.ArgumentParser(description='AI Stock Picker (ts_ai)')
     parser.add_argument('date', help='Target trading date (YYYYMMDD)')
     parser.add_argument('--lookahead', action='store_true', help='Use lookahead data')
+    parser.add_argument('--no-search', action='store_true', help='Skip search/news gathering')
+    parser.add_argument('--no-ai', action='store_true', help='Skip AI analysis, use technical scoring only')
     parser.add_argument('--output', default=OUTPUT_FILE, help='Output file path')
     args = parser.parse_args()
     
@@ -748,7 +776,7 @@ def main():
         sys.exit(1)
     
     # Pick stocks
-    picks = pick_stocks(args.date, args.lookahead)
+    picks = pick_stocks(args.date, args.lookahead, no_search=args.no_search, no_ai=args.no_ai)
     
     # Format output
     output = {

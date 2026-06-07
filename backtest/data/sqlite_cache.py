@@ -179,12 +179,14 @@ class SQLiteDataCache:
                             df = pickle.loads(data_blob)
                             daily_dfs.append(df)
 
-                # Return combined data if we have records
-                if daily_dfs:
+                # Verify we have all required trading days
+                if daily_dfs and len(daily_dfs) >= len(trade_dates) * 0.90:  # Allow 10% margin for missing APIs/holidays
                     combined_df = dfs_concat(daily_dfs, ignore_index=True)
                     combined_df = combined_df.sort_values('trade_date').reset_index(drop=True)
                     logger.debug(f"Built from daily cache: {key} ({len(daily_dfs)} days)")
                     return combined_df
+                elif daily_dfs:
+                    logger.debug(f"Partial cache hit for {key} (found {len(daily_dfs)}, expected {len(trade_dates)}). Forcing cache miss.")
 
             logger.debug(f"Cache miss: {key}")
             return None

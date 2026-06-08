@@ -41,6 +41,7 @@ TODO
 import os
 import sys
 import json
+import argparse
 import pandas as pd
 from datetime import datetime
 import time
@@ -2031,40 +2032,52 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
 
 
 if __name__ == '__main__':
-    user_id = 1
-    start_date = '2025-12-01'
-    end_date = '2025-12-31'
-    src = 'ts_go'
-    resume = False
-    backtest_search = True
-    backtest_ai = True
-
-    if argv := sys.argv:
-        # Check if 'resume' is in the arguments and remove it
-        if 'resume' in argv:
-            resume = True
-            argv.remove('resume')
-
-        if len(argv) >= 2:
-            start_date = argv[1]
-        if len(argv) >= 3:
-            end_date = argv[2]
-        if len(argv) >= 4:
-            src = argv[3]
-        if len(argv) >= 5:
-            user_id = int(argv[4])
-        if len(argv) >= 6:
-            backtest_search = argv[5].lower() in ('true', '1', 'yes')
-        if len(argv) >= 7:
-            backtest_ai = argv[6].lower() in ('true', '1', 'yes')
-
-    # Expand valid sources to include ts_auto and the fallback strategies
     _valid_sources = ['ts_dc', 'ts_go', 'ts_month_src', 'ts_daily',
                       'ts_auto', 'ts_longup', 'ts_hma', 'ts_ai_pick']
-    if src not in _valid_sources:
-        raise ValueError(f"Invalid source: {src}. Valid sources are: {', '.join(_valid_sources)}")
 
-    print(f"DEBUG: Running with start_date={start_date}, end_date={end_date}, src={src}, resume={resume}, backtest_search={backtest_search}, backtest_ai={backtest_ai}")
+    parser = argparse.ArgumentParser(
+        description='Backtest Trading Script — A-Shares T+1 backtesting engine.\n'
+                    'Picks stocks from hot sectors, creates/adjusts smart orders,\n'
+                    'executes buy/sell triggers, and generates per-day + period reports.',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python backtest_orders.py 20250101 20250331 ts_month_src
+  python backtest_orders.py 20250101 20250331 ts_ai_pick --no-ai
+  python backtest_orders.py 20250101 20250331 ts_daily --no-search
+  python backtest_orders.py 20250101 20250331 ts_go --resume
+  python backtest_orders.py 20250101 20250331 ts_month_src --user-id 2
+        """
+    )
+
+    parser.add_argument('start_date',
+                        help='Start date in YYYYMMDD format')
+    parser.add_argument('end_date',
+                        help='End date in YYYYMMDD format')
+    parser.add_argument('src', nargs='?', default='ts_go',
+                        choices=_valid_sources,
+                        help='Strategy source (default: ts_go)')
+    parser.add_argument('--user-id', type=int, default=1,
+                        help='User ID for trading account (default: 1)')
+    parser.add_argument('--search', action=argparse.BooleanOptionalAction, default=True,
+                        help='Enable search providers (default: True)')
+    parser.add_argument('--ai', action=argparse.BooleanOptionalAction, default=True,
+                        help='Enable AI analysis (default: True)')
+    parser.add_argument('--resume', action='store_true', default=False,
+                        help='Resume an interrupted backtest without wiping DB')
+
+    args = parser.parse_args()
+
+    start_date = args.start_date
+    end_date = args.end_date
+    src = args.src
+    user_id = args.user_id
+    backtest_search = args.search
+    backtest_ai = args.ai
+    resume = args.resume
+
+    print(f"DEBUG: Running with start_date={start_date}, end_date={end_date}, src={src}, "
+          f"resume={resume}, backtest_search={backtest_search}, backtest_ai={backtest_ai}")
     REPORT_PATH = os.path.join(REPORT_PATH, f'{start_date}_{end_date}_{src}')
     os.makedirs(REPORT_PATH, exist_ok=True)
 
@@ -2075,7 +2088,8 @@ if __name__ == '__main__':
     # Programmatic DB Clean Wipe and Reinitialization Guard
     if not resume:
         import os
-        logger.info(f"Clean backtest initiated. Programmatically wiping old reports and re-initializing database: {DBTEST_IMOBILE_FILE}")
+        logger.info(f"Clean backtest initiated. Programmatically wiping old reports and "
+                    f"re-initializing database: {DBTEST_IMOBILE_FILE}")
 
         # Remove old reports in REPORT_PATH
         if os.path.exists(REPORT_PATH):
@@ -2100,10 +2114,13 @@ if __name__ == '__main__':
         os.system(f"sqlite3 {DBTEST_IMOBILE_FILE} < db/imobile.sql")
         logger.info("Successfully re-initialized empty backtesting database.")
     else:
-        logger.info(f"Resuming backtest. Existing files in {REPORT_PATH} and database {DBTEST_IMOBILE_FILE} will be preserved.")
+        logger.info(f"Resuming backtest. Existing files in {REPORT_PATH} and database "
+                    f"{DBTEST_IMOBILE_FILE} will be preserved.")
 
     try:
-        pick_orders_trading(start_date=start_date, end_date=end_date, user_id=user_id, src=src, resume=resume, backtest_search=backtest_search, backtest_ai=backtest_ai)
+        pick_orders_trading(start_date=start_date, end_date=end_date, user_id=user_id,
+                            src=src, resume=resume, backtest_search=backtest_search,
+                            backtest_ai=backtest_ai)
     except Exception as e:
         import traceback
         traceback.print_exc()

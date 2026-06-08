@@ -9,10 +9,10 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Tuple, Optional
 from loguru import logger
 
-from droidrun import (
-    AdbTools,
-    DroidAgent, DroidrunConfig,
-    AgentConfig, CodeActConfig, DeviceConfig, LoggingConfig, TracingConfig
+from mobilerun import (
+    AndroidDriver,
+    MobileAgent, MobileConfig,
+    AgentConfig, ExecutorConfig, LoggingConfig, TracingConfig
 )
 from llama_index.llms.google_genai import GoogleGenAI
 
@@ -32,7 +32,7 @@ GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 GEMINI_THINKING_BUDGET = os.getenv("GEMINI_THINKING_BUDGET", "-1")
 if not GOOGLE_API_KEY:
-    raise ValueError("❌ GOOGLE_API_KEY not set. Skipping DroidAgent test.")
+    raise ValueError("❌ GOOGLE_API_KEY not set. Skipping MobileAgent test.")
 GUOTAI_PACKAGE_NAME = os.getenv('GUOTAI_PACKAGE_NAME')
 GUOTAI_PASSWORD = os.getenv('GUOTAI_PASSWORD')
 if not GUOTAI_PACKAGE_NAME or not GUOTAI_PASSWORD:
@@ -50,7 +50,7 @@ def close_app(app_package_name: str = GUOTAI_PACKAGE_NAME):
     time.sleep(3)
 
 
-async def open_app(tools: AdbTools, app_package_name: str = GUOTAI_PACKAGE_NAME):
+async def open_app(tools: AndroidDriver, app_package_name: str = GUOTAI_PACKAGE_NAME):
     """Open the specified app on the connected device.
 
     # Check app main activity:
@@ -71,7 +71,7 @@ async def open_app(tools: AdbTools, app_package_name: str = GUOTAI_PACKAGE_NAME)
     time.sleep(5)  # Wait for app to open
 
 
-async def pre_requirements(app_package_name: str = GUOTAI_PACKAGE_NAME) -> tuple[AdbTools, GoogleGenAI, DroidrunConfig]:
+async def pre_requirements(app_package_name: str = GUOTAI_PACKAGE_NAME) -> tuple[AndroidDriver, GoogleGenAI, MobileConfig]:
     """Check device connectivity and app existence."""
 
     llm = create_gemini_with_thinking(
@@ -97,12 +97,12 @@ async def pre_requirements(app_package_name: str = GUOTAI_PACKAGE_NAME) -> tuple
 
     # https://docs.droidrun.ai/sdk/configuration
     # Flow: Goal → Planning → Execution → Reflection → Re-planning (if needed) → Result, 50+ steps. need vision=True and gemini-2.5-flash or gpt-4o.
-    config = DroidrunConfig(
+    config = MobileConfig(
         agent=AgentConfig(
             max_steps=60,
             reasoning=True,
             after_sleep_action=1.5,
-            codeact=CodeActConfig(vision=True, safe_execution=True)
+            executor=ExecutorConfig(vision=True)
         ),
         #device=DeviceConfig(
         #    serial="127.0.0.1:6555",
@@ -175,18 +175,18 @@ def replay_page(description: List[str] = ['行情', '我的持仓']):
     logger.info("✅ Replay completed successfully")
 
 
-def get_agent(config: DroidrunConfig | None = None, llm: GoogleGenAI | None = None, tools: AdbTools | None = None, goal: str | None = None) -> DroidAgent:
+def get_agent(config: MobileConfig | None = None, llm: GoogleGenAI | None = None, tools: AndroidDriver | None = None, goal: str | None = None) -> MobileAgent:
     """
-    Create a DroidAgent instance with the specified goal, LLM, and AdbTools.
+    Create a MobileAgent instance with the specified goal, LLM, and AndroidDriver.
 
     Args:
-        config: DroidrunConfig instance
+        config: MobileConfig instance
         llm: GoogleGenAI instance
-        tools: AdbTools instance
+        tools: AndroidDriver instance
         goal: Goal for the agent
 
     Returns:
-        DroidAgent instance
+        MobileAgent instance
     """
 
     if not goal:
@@ -194,20 +194,20 @@ def get_agent(config: DroidrunConfig | None = None, llm: GoogleGenAI | None = No
     if not llm:
         raise ValueError("❌ LLM not provided. Please provide a GoogleGenAI instance.")
     if not tools:
-        raise ValueError("❌ AdbTools not provided. Please connect a device via ADB.")
+        raise ValueError("❌ AndroidDriver not provided. Please connect a device via ADB.")
 
-    agent = DroidAgent(
+    agent = MobileAgent(
         goal=goal,
         config=config,
-        llms=llm,
-        tools=tools,
+        llms={"default": llm},
+        driver=tools,
         timeout=10000,
     )
 
     return agent
 
 
-def get_format_output(tools: AdbTools, output:str, start_str:str = 'csv_format_name,', data_name:str = 'which data') -> str:
+def get_format_output(tools: AndroidDriver, output:str, start_str:str = 'csv_format_name,', data_name:str = 'which data') -> str:
     """
     Get CSV format string from doridrun output to extract relevant data.
 
@@ -236,7 +236,7 @@ def get_format_output(tools: AdbTools, output:str, start_str:str = 'csv_format_n
     return output
 
 
-async def get_order_from_app_smart_order_page(config: DroidrunConfig, llm: GoogleGenAI, tools: AdbTools) -> str:
+async def get_order_from_app_smart_order_page(config: MobileConfig, llm: GoogleGenAI, tools: AndroidDriver) -> str:
     """
     Get real-time smart order data from mobile guotai app smart order page.
 
@@ -270,7 +270,7 @@ async def get_order_from_app_smart_order_page(config: DroidrunConfig, llm: Googl
     return output
 
 
-async def get_index_stock_from_app_quote_page(config: DroidrunConfig, llm: GoogleGenAI, tools: AdbTools) -> str:
+async def get_index_stock_from_app_quote_page(config: MobileConfig, llm: GoogleGenAI, tools: AndroidDriver) -> str:
     """
     Get real-time index and stock data from mobile guotai app quote page.
 
@@ -300,7 +300,7 @@ async def get_index_stock_from_app_quote_page(config: DroidrunConfig, llm: Googl
     return output
 
 
-async def get_summary_position_from_app_position_page(config: DroidrunConfig, llm: GoogleGenAI, tools: AdbTools) -> str:
+async def get_summary_position_from_app_position_page(config: MobileConfig, llm: GoogleGenAI, tools: AndroidDriver) -> str:
     """
     Get real-time summary and position data from mobile guotai app position page.
 

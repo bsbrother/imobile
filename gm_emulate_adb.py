@@ -5,7 +5,7 @@ import subprocess
 import asyncio
 import dotenv
 
-from droidrun import AdbTools
+from mobilerun import AndroidDriver
 
 # Add the parent directory to Python path so we can import from utils
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -32,15 +32,15 @@ def get_device_serials():
             devices.append(serial)
     return devices
 
-async def get_device_connectivity() -> AdbTools:
-    """if the device is connected and the DroidRun Portal is working, return the AdbTools instance.
+async def get_device_connectivity() -> AndroidDriver:
+    """if the device is connected and the DroidRun Portal is working, return the AndroidDriver instance.
     Raises an error if no device is connected or if the accessibility service is not enabled.
     """
     devices = get_device_serials()
     if not devices:
         raise RuntimeError("No connected Android devices found. See README.md for setup instructions.")
     try:
-        tools = AdbTools(serial=devices[0])
+        tools = AndroidDriver(serial=devices[0])
         # Test get_state to check accessibility service
         state = await tools.get_state()
         # State is a tuple: (description_str, unknown_str, ui_elements_list, metadata_dict)
@@ -66,7 +66,7 @@ async def get_device_connectivity() -> AdbTools:
         print("="*60)
         raise RuntimeError(f"❌ Failed to get device state: {e}")
 
-async def check_app_exist(tools: AdbTools, app_name: str | None = None):
+async def check_app_exist(tools: AndroidDriver, app_name: str | None = None):
     """
     Check if the app is installed on the device.
 

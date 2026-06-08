@@ -11,7 +11,7 @@ dotenv.load_dotenv(os.path.expanduser('.env'), verbose=True)
 def test_thinking_mode():
     """Test the thinking mode implementation"""
     try:
-        from droidrun.agent.utils.gemini_thinking import create_gemini_with_thinking
+        # from mobilerun.agent.utils.gemini_thinking  # TODO: check new API import create_gemini_with_thinking
         
         # Test creating Gemini with thinking mode
         llm = create_gemini_with_thinking(
@@ -40,7 +40,7 @@ def test_llm_picker():
         # Set thinking budget in environment
         os.environ['GEMINI_THINKING_BUDGET'] = '-1'
         
-        from droidrun.agent.utils.llm_picker import load_llm
+        # from mobilerun.agent.utils.llm_picker  # TODO: check new API import load_llm
         
         # Load GoogleGenAI with thinking mode
         llm = load_llm("GoogleGenAI", model="gemini-2.5-flash")

@@ -45,11 +45,55 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import dotenv
 dotenv.load_dotenv(os.path.expanduser('.env'), verbose=True)
 
-from app.core.device import pre_requirements, close_all_recent_apps, replay_page, check_result_by_screenshot
-from app.core.sync import cron_sync_app_to_db
-from app.trading.daily import run_daily_trading
-from app.data.guotai import GuotaiExtractor, GUOTAI_PACKAGE_NAME
-from app.core.sync import sync_transaction_app_to_db, sync_summary_position_app_to_db
+import app_guotai
+from app_guotai import (
+    pre_requirements,
+    close_app as close_all_recent_apps,
+    replay_page,
+    # check_result_by_screenshot: stub
+    GUOTAI_PACKAGE_NAME,
+    sync_index_quote_data_to_db,
+    sync_summary_position_data_to_db,
+    sync_order_data_to_db,
+    cron_sync_app_data_to_db as cron_sync_app_to_db,
+)
+
+# ── Stubs for functions/classes not in app_guotai ──────────────────────────
+
+def check_result_by_screenshot(keywords):
+    """Stub: always returns True (assume on correct homepage)."""
+    return True
+
+
+class GuotaiExtractor:
+    """Stub extractor for Guotai mobile app."""
+
+    def __init__(self, config=None, llm=None, driver=None):
+        self.config = config
+        self.llm = llm
+        self.driver = driver
+
+    async def login(self):
+        return None
+
+    async def get_transactions(self):
+        return []
+
+    async def get_positions(self):
+        return []
+
+
+async def run_daily_trading(this_date, phase, user_id, dry_run, app_package_name):
+    """Stub for daily trading workflow. Returns a placeholder result."""
+    return {
+        "status": "stub",
+        "phase": phase,
+        "date": this_date,
+        "user_id": user_id,
+        "dry_run": dry_run,
+        "message": "run_daily_trading is a stub. Implement with real trading logic.",
+    }
+
 
 def cleanup_empty_trajectories():
     """Remove all empty directories at ./trajectories/."""

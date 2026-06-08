@@ -7,8 +7,8 @@ import dotenv
 # Add the parent directory to Python path so we can import from utils
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from droidrun import DroidAgent, AdbTools
-from droidrun.tools import Tools
+from mobilerun import MobileAgent as DroidRunnerAgent, AndroidDriver as DroidRunnerAdbTools
+# from mobilerun.tools import Tools  # TODO: check new API
 from utils.gemini_thinking import create_gemini_with_thinking
 
 # Load environment variables

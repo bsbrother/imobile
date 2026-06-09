@@ -329,36 +329,67 @@ class DailyAnalysisCache:
 
 
 class GeminiDailyAnalyzer:
-    """FreeRide AI analyzer for daily stock picking logic.
+    """OpenRouter AI analyzer for daily stock picking with model rotation on rate limits.
 
-    Uses the FreeRide gateway (OpenAI-compatible) to analyze stocks.
-    Default model: openrouter/nvidia/nemotron-3-super-120b-a12b:free
-    Override via constructor or env var FREERIDE_MODEL.
+    Uses the OpenRouter API (OpenAI-compatible) directly.
+    Automatically rotates through quality models ordered by score when 429/401 occurs.
+    Override via env var FREERIDE_QUALITY_MODELS (comma-separated) or FREERIDE_MODEL (single).
     """
 
-    DEFAULT_MODEL = "openrouter/nvidia/nemotron-3-super-120b-a12b:free"
+    QUALITY_MODELS = [
+        "nvidia/nemotron-3-super-120b-a12b:free",     # score 0.906
+        "nvidia/nemotron-3-ultra-550b-a55b:free",
+        "openrouter/owl-alpha",
+        "qwen/qwen3-next-80b-a3b-instruct:free",
+        "moonshotai/kimi-k2.6:free",
+        "google/gemma-4-31b-it:free",
+    ]
 
     def __init__(self, model_name: str | None = None):
         self._client = None
         self._cache = DailyAnalysisCache()
-        self._model_name = model_name or os.getenv("FREERIDE_MODEL", self.DEFAULT_MODEL)
+        _custom = os.getenv("FREERIDE_QUALITY_MODELS", "")
+        if _custom:
+            self._model_list = [m.strip() for m in _custom.split(",") if m.strip()]
+        elif model_name:
+            self._model_list = [model_name]
+        else:
+            _single = os.getenv("FREERIDE_MODEL", "")
+            if _single:
+                self._model_list = [_single]
+            else:
+                self._model_list = list(self.QUALITY_MODELS)
         self._init_model()
 
     def _init_model(self):
-        # Use FreeRide gateway at localhost:11343
+        # Use OpenRouter API directly (OpenAI-compatible)
         try:
+            _api_key = os.getenv("OPENROUTER_API_KEY")
+            if not _api_key:
+                logger.error("OPENROUTER_API_KEY not set in environment")
+                return
             self._client = OpenAI(
-                base_url="http://127.0.0.1:11343/v1",
-                api_key="dummy",  # FreeRide gateway doesn't require a real key
+                base_url="https://openrouter.ai/api/v1",
+                api_key=_api_key,
             )
-            logger.info(f"FreeRide model initialized for ts_daily: {self._model_name}")
+            logger.info(f"OpenRouter client initialized for ts_daily with {len(self._model_list)} models: {self._model_list[:3]}...")
         except ImportError:
             logger.error("openai package not installed")
         except Exception as e:
-            logger.error(f"Failed to initialize FreeRide gateway: {e}")
+            logger.error(f"Failed to initialize OpenRouter client: {e}")
 
     def is_available(self) -> bool:
         return self._client is not None
+
+    def _try_completion(self, model: str, prompt: str) -> str:
+        """Try a single completion, raising on rate-limit/auth errors for rotation."""
+        response = self._client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0,
+            max_tokens=1024,
+        )
+        return response.choices[0].message.content
 
     def analyze(self, stock_info: Dict[str, Any], news_context: str, market_regime: str = 'normal', hot_sectors: str = '', market_dashboard: str = '', target_date: str = '') -> Dict[str, Any]:
         ts_code = stock_info.get('ts_code', '')
@@ -373,19 +404,29 @@ class GeminiDailyAnalyzer:
         
         prompt = self._build_prompt(stock_info, news_context, market_regime, hot_sectors, market_dashboard, target_date)
         
-        try:
-            response = self._client.chat.completions.create(
-                model=self._model_name,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.0,
-                max_tokens=1024,
-            )
-            result = self._parse_response(response.choices[0].message.content)
-            self._cache.set(ts_code, target_date, market_regime, result)
-            return result
-        except Exception as e:
-            logger.error(f"FreeRide analysis failed: {e}")
-            return {"score": 50, "recommendation": "观望", "summary": f"分析失败: {str(e)[:50]}", "tp_pct": 0.10, "sl_pct": 0.05}
+        last_error = None
+        for model in self._model_list:
+            try:
+                content = self._try_completion(model, prompt)
+                result = self._parse_response(content)
+                self._cache.set(ts_code, target_date, market_regime, result)
+                logger.info(f"ts_daily analysis for {ts_code} succeeded with model {model}")
+                return result
+            except Exception as e:
+                err_str = str(e).lower()
+                is_rate_limit = any(kw in err_str for kw in ("429", "rate", "quota", "limit", "exhausted"))
+                is_auth = any(kw in err_str for kw in ("401", "unauthorized", "auth", "invalid"))
+                if is_rate_limit or is_auth:
+                    logger.warning(f"Model {model} rate-limited/auth-failed, rotating. Error: {str(e)[:100]}")
+                    last_error = e
+                    continue
+                else:
+                    logger.error(f"Model {model} failed with non-retryable error: {e}")
+                    last_error = e
+                    break
+
+        logger.error(f"All {len(self._model_list)} models exhausted. Last error: {last_error}")
+        return {"score": 50, "recommendation": "观望", "summary": f"模型全部限流: {str(last_error)[:50] if last_error else '未知'}", "tp_pct": 0.10, "sl_pct": 0.05}
 
     def _build_prompt(self, stock_info: Dict[str, Any], news_context: str, market_regime: str = 'normal', hot_sectors: str = '', market_dashboard: str = '', target_date: str = '') -> str:
         # Prompt tuned exclusively for DAILY catalysts

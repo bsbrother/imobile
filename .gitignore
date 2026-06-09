@@ -30,6 +30,7 @@ develop-eggs/
 data_cache/
 data/
 backups/
+db/go_daily_cache/
 
 # ── Backtest Outputs & Logs ────────────────────────────────
 *.log

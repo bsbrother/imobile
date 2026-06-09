@@ -35,6 +35,11 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", default="DEBUG")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", default=None)
 TUSHARE_TOKEN = os.getenv("TUSHARE_TOKEN", default=None)
 
+# AI provider selection
+AI_PROVIDER = os.getenv("AI_PROVIDER", "openrouter").lower()
+if AI_PROVIDER == "google" and not GOOGLE_API_KEY:
+    raise ValueError("Error: GOOGLE_API_KEY not found. Please set it in your .env file for Google AI provider.")
+
 # Paths / Files
 CONFIG_FILE = os.getenv("CONFIG_FILE", default="/tmp/ibacktest.json")
 LOG_PATH = os.getenv("LOG_PATH", default="/tmp/ibacktest_logs")  # treat as directory
@@ -44,10 +49,6 @@ BASIC_INFO_PICKLE_FILE = os.path.expanduser(os.getenv("BASIC_INFO_PICKLE_FILE", 
 DB_CACHE_FILE = os.getenv("DB_CACHE_FILE", default="/tmp/ibacktest_cache.db")
 DB_CACHE_FILE = os.getenv("DB_CACHE_FILE", default="/tmp/ibacktest_cache.db")
 WORKING_PROXY_FILE = os.path.expanduser(os.getenv("WORKING_PROXY_FILE", default="/tmp/working_proxies.txt"))
-
-# AI provider
-if not GOOGLE_API_KEY:
-    raise ValueError("Error: GOOGLE_API_KEY not found. Please set it in your .env file.")
 
 # Logging setup using centralized configuration
 configure_logger(log_level=LOG_LEVEL, log_path=LOG_PATH)

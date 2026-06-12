@@ -22,7 +22,7 @@ Usage:
 python this_script [start_date end_date [src [user_id [backtest_search backtest_ai]]]]
   start_date      -- Start date in YYYYMMDD format (default: today)
   end_date        -- End date in YYYYMMDD format (default: today)
-  src             -- Strategy: ts_go, ts_month_src, ts_daily, ts_ai_pick, ts_longup, ts_hma, ts_dc, (default: ts_go)
+  src             -- Strategy: ts_7AZ, ts_month_src, ts_daily, ts_ai_pick, ts_longup, ts_hma, ts_dc, ts_go (default: ts_7AZ)
   user_id         -- User ID for trading account (default: 1)
   backtest_search -- Enable search providers: true/false/1/0/yes/no (default: true)
   backtest_ai     -- Enable AI analysis: true/false/1/0/yes/no (default: true)
@@ -86,7 +86,7 @@ if not os.path.exists(REPORT_PATH):
 # Use virtualenv python for python-based strategies
 VENV_PYTHON = "/home/kasm-user/apps/imobile/.venv/bin/python"
 
-def pick_stocks_to_file(this_date: str, src: str = 'ts_go') -> str:
+def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ') -> str:
     """
     Pick stocks and save to a file for a specific date.
 
@@ -1927,7 +1927,7 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
     start_date -- The start date (format: YYYY-MM-DD), default is today.
     end_date -- The end date (format: YYYY-MM-DD), default is today.
     user_id -- The user ID for the trading account.
-    src -- The source of stocks, default is 'ts_go', or 'ts_dc' etc.
+    src -- The source of stocks, default is 'ts_7AZ', or 'ts_dc' etc.
     resume -- Skip dates that already have report_orders generated
     backtest_search -- Enable search providers for news/sentiment (default True).
                        If False, skip all search calls, AI gets no news context.
@@ -2047,9 +2047,9 @@ Examples:
                         help='Start date in YYYYMMDD format')
     parser.add_argument('end_date',
                         help='End date in YYYYMMDD format')
-    parser.add_argument('src', nargs='?', default='ts_go',
+    parser.add_argument('src', nargs='?', default='ts_7AZ',
                         choices=_valid_sources,
-                        help='Strategy source (default: ts_go)')
+                        help='Strategy source (default: ts_7AZ)')
     parser.add_argument('--user-id', type=int, default=1,
                         help='User ID for trading account (default: 1)')
     parser.add_argument('--search', action=argparse.BooleanOptionalAction, default=True,

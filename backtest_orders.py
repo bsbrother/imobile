@@ -111,7 +111,7 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_go') -> str:
     _noai_map = {
         'ts_ai_pick': 'ts_longup',   # AI pick -> pure technical trend following
         'ts_daily':   'ts_hma',       # AI daily -> HMA+SuperTrend technical
-        'ts_month_src': 'ts_hma',     # month_src delegates to ts_daily -> HMA fallback
+        'ts_month_src': 'ts_7AZ',     # month_src delegates to ts_7AZ CANSLIM (pure technical)
     }
     if not backtest_ai and src in _noai_map:
         new_src = _noai_map[src]

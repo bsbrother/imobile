@@ -114,7 +114,7 @@ python backtest_orders.py <start_date> <end_date> <strategy> [user_id] [search] 
 | Volatile (vol>2.2%) | — | **ts_ai_pick** | Choppy — AI-driven fundamental picks |
 | Normal | — | **ts_dc** | Sideways — channel breakout value |
 
-Contrast with `ts_auto` which uses a 120-day MA60/MA120 macro view (slower, fewer regime flips).
+The meta-strategy `ts_month_src` decides which to use based on a 20-day MA10/volatility/trend view.
 
 ## Strategy Types
 

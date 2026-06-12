@@ -12,7 +12,7 @@
 - [ ] ts_dc, ts_go, ts_hma, ts_longup are pure technical — explore adding sentiment layer
 
 ### Strategy Improvements
-- [ ] ts_auto: 120-day MA60/MA120 macro regime, slower — compare vs ts_month_src 20-day
+- [x] ts_auto removed — ts_month_src superior (more granular, 20d window, momentum sub-conditions)
 - [ ] Backtest resume: fix REPORT_PATH changing when end_date changes (symlink or copy old reports)
 - [ ] Proper period report when resuming with extended end_date
 

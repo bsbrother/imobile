@@ -8,7 +8,7 @@ Key changes and milestones in iMobile development.
 - **ts_month_src optimization** — aggressive parameter tuning for >15% 3-month returns
   - Increased max_positions to 6, bull TP to 55%, loosened stagnation cuts
   - 20-day lookback with MA10 crossover (replaced 40-day lag)
-- **ts_auto strategy** — added 120-day MA60/MA120 macro regime detection
+- **ts_auto strategy** — removed (ts_month_src superior: 20d window, momentum sub-conditions, more granular)
 - **Backtest resume support** — skip already-processed dates, preserve DB state
 - **Monthly reporter** — `utils/result_ts_month_src.py` for per-month P&L analysis
 

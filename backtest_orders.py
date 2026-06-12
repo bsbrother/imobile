@@ -22,7 +22,7 @@ Usage:
 python this_script [start_date end_date [src [user_id [backtest_search backtest_ai]]]]
   start_date      -- Start date in YYYYMMDD format (default: today)
   end_date        -- End date in YYYYMMDD format (default: today)
-  src             -- Strategy: ts_go, ts_month_src, ts_daily, ts_ai_pick, ts_auto, ts_longup, ts_hma, ts_dc, (default: ts_go)
+  src             -- Strategy: ts_go, ts_month_src, ts_daily, ts_ai_pick, ts_longup, ts_hma, ts_dc, (default: ts_go)
   user_id         -- User ID for trading account (default: 1)
   backtest_search -- Enable search providers: true/false/1/0/yes/no (default: true)
   backtest_ai     -- Enable AI analysis: true/false/1/0/yes/no (default: true)
@@ -105,20 +105,6 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_go') -> str:
     regime_name = regime_data['regime']
     logger.info(f"Market Regime for {this_date}: {regime_name}")
 
-    if src == 'ts_auto':
-        # Select strategy based on regime (detect by 3-6 month before current trading date)
-        # Using 6 months (120 days) logic modified in market_regime.py
-        if regime_name == 'bull':
-            src = 'ts_longup'
-        elif regime_name == 'bear':
-            src = 'ts_hma'
-        elif regime_name == 'volatile':
-            src = 'ts_ai_pick'
-        else: # normal
-            src = 'ts_go'
-        logger.info(f"Auto-selected strategy {src} for regime {regime_name}")
-
-    # hot sectors picker
     # Backtest AI mode: if backtest_ai=False, switch AI-dependent strategies
     # to pure-technical alternatives (no LLM/search needed).
     _ai_strategies = {'ts_ai_pick', 'ts_daily', 'ts_month_src'}
@@ -126,7 +112,6 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_go') -> str:
         'ts_ai_pick': 'ts_longup',   # AI pick -> pure technical trend following
         'ts_daily':   'ts_hma',       # AI daily -> HMA+SuperTrend technical
         'ts_month_src': 'ts_hma',     # month_src delegates to ts_daily -> HMA fallback
-        'ts_auto':    'ts_hma',       # auto with regime -> HMA (pure technical)
     }
     if not backtest_ai and src in _noai_map:
         new_src = _noai_map[src]
@@ -2041,7 +2026,7 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
 
 if __name__ == '__main__':
     _valid_sources = ['ts_dc', 'ts_go', 'ts_month_src', 'ts_daily',
-                      'ts_auto', 'ts_longup', 'ts_hma', 'ts_ai_pick', 'ts_7AZ']
+                      'ts_longup', 'ts_hma', 'ts_ai_pick', 'ts_7AZ']
 
     parser = argparse.ArgumentParser(
         description='Backtest Trading Script — A-Shares T+1 backtesting engine.\n'

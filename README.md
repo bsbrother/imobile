@@ -38,7 +38,7 @@ python backtest_orders.py 20260101 20260605 ts_month_src 1 false true resume
 | Strategy | Type | Description |
 |----------|------|-------------|
 | `ts_month_src` | ✦ Meta | Auto-selects best sub-strategy based on 20-day regime |
-| `ts_auto` | ✦ Meta | Auto-selects based on 120-day MA60/MA120 macro regime |
+| `ts_7AZ` | Fundamental | CANSLIM 7-factor (C-A-N-S-L-I-M) quality screener |
 | `ts_daily` | AI | News-driven daily picks (LLM + web search) |
 | `ts_ai_pick` | AI | Full AI analysis with news/sentiment |
 | `ts_dc` | Tech | Hot-sector channel breakout |

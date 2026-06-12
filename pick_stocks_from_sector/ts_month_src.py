@@ -59,7 +59,7 @@ def determine_strategy(date_str: str) -> str:
     elif regime == "volatile":
         strategy = "ts_ai_pick"
     else:
-        strategy = "ts_dc"
+        strategy = "ts_7AZ"
 
     logger.info(f"[ts_month_src] Recommended Strategy: {strategy}")
     return strategy
@@ -97,6 +97,8 @@ def main():
     elif strategy == "ts_go":
         cmd = f'cd utils/go-stock && go build -o pick_stocks cmd/pick_stocks/main.go && ./pick_stocks -date {date_str} -output /tmp/tmp {flags_str}'
         os.system(cmd)
+    elif strategy == "ts_7AZ":
+        os.system(f"{sys.executable} pick_stocks_from_sector/ts_7AZ.py {date_str} ts_7AZ {flags_str}")
 
 if __name__ == "__main__":
     main()

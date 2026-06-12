@@ -159,11 +159,19 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_go') -> str:
         cmd = f'cd utils/go-stock && go build -o pick_stocks cmd/pick_stocks/main.go && ./pick_stocks -date {this_date} {_flags_str}'
         logger.info(f"Running Go stock picker: {cmd}")
         result = os.system(cmd)
+    elif src == 'ts_7AZ':
+        result = os.system(f'{VENV_PYTHON} pick_stocks_from_sector/ts_7AZ.py {this_date} ts_7AZ {_flags_str}')
     else:
         result = os.system(f'{VENV_PYTHON} pick_stocks_from_sector/ts_ths_dc.py {this_date} {src} {_flags_str}')
     if result != 0:
         raise ValueError(f"Failed to pick strong stocks from hot sectors for {this_date} using {src}.")
-    with open('/tmp/tmp', 'r') as f:
+    # Rename /tmp/tmp to per-date file to allow parallel backtests
+    tmp_file = f'/tmp/tmp_{src}_{this_date}_{os.getpid()}'
+    try:
+        os.rename('/tmp/tmp', tmp_file)
+    except OSError:
+        pass  # file may have been renamed by another process already
+    with open(tmp_file, 'r') as f:
         strong_stocks = json.load(f)
     data = {
         'pick_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
@@ -2033,7 +2041,7 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
 
 if __name__ == '__main__':
     _valid_sources = ['ts_dc', 'ts_go', 'ts_month_src', 'ts_daily',
-                      'ts_auto', 'ts_longup', 'ts_hma', 'ts_ai_pick']
+                      'ts_auto', 'ts_longup', 'ts_hma', 'ts_ai_pick', 'ts_7AZ']
 
     parser = argparse.ArgumentParser(
         description='Backtest Trading Script — A-Shares T+1 backtesting engine.\n'

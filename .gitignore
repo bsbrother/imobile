@@ -66,3 +66,13 @@ GIT.sh
 .mypy_cache/
 .ruff_cache/
 .webassets-cache
+
+# ── Workspace artifacts ─────────────────────────────────────
+docs/oxylabs/
+docs/skills/
+docs/wechat-articles/
+tests/.last_sogou.html
+tests/.proxy_repos/
+tests/test_free_residential_proxies.md
+tests/test_free_residential_proxies.py
+utils/wechat_article_by_title_proxy.py

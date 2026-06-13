@@ -3,6 +3,11 @@
 # Architecture: mono-repo with web app (Reflex), backtest engine,
 # mobile automation (DroidRun), and stock strategy modules.
 
+# Agent CLI
+.gemini/
+.github/
+.hermes/
+
 # ── Secrets & Environment ──────────────────────────────────
 .env
 .envrc

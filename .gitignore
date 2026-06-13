@@ -81,3 +81,4 @@ tests/.proxy_repos/
 tests/test_free_residential_proxies.md
 tests/test_free_residential_proxies.py
 utils/wechat_article_by_title_proxy.py
+shared/db/go_daily_cache/

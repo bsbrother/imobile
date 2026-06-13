@@ -2,7 +2,7 @@
 import reflex as rx
 from typing import List, Optional
 from pydantic import BaseModel, ConfigDict
-from imobile.utils.stock_info import add_suffix_to_stock_code
+from web.app.imobile.utils.stock_info import add_suffix_to_stock_code
 
 
 class MarketIndex(BaseModel):

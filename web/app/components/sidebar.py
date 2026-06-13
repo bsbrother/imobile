@@ -1,6 +1,6 @@
 """Sidebar component for portfolio page."""
 import reflex as rx
-from imobile.states.portfolio_state import PortfolioState
+from web.app.imobile.states.portfolio_state import PortfolioState
 
 
 def sidebar() -> rx.Component:

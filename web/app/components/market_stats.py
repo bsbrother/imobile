@@ -1,6 +1,6 @@
 """Market statistics component."""
 import reflex as rx
-from imobile.states.portfolio_state import PortfolioState
+from web.app.imobile.states.portfolio_state import PortfolioState
 
 
 def market_stats() -> rx.Component:

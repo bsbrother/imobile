@@ -90,7 +90,7 @@ print(f"Using FreeRide model: {VALIDATED_MODEL}")
 # ---------------------------------------------------------------------------
 # Imports that depend on validated model
 # ---------------------------------------------------------------------------
-from pick_stocks_from_sector.ts_daily import GeminiDailyAnalyzer, DailyAnalysisCache
+from backtest.strategies.ts_daily import GeminiDailyAnalyzer, DailyAnalysisCache
 
 
 class TestFreeRideIntegration(unittest.TestCase):

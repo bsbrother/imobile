@@ -8,7 +8,7 @@ This module implements an AI-powered stock picker (ts_ai) that:
 4. Outputs top picks in the standard format for backtest_orders.py
 
 Usage:
-    python pick_stocks_from_sector/ts_ai_pick.py <target_date> [--lookahead]
+    python backtest/strategies/ts_ai_pick.py <target_date> [--lookahead]
     
 Output:
     Writes JSON to /tmp/tmp with selected_stocks array
@@ -33,7 +33,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from backtest import data_provider
 from backtest.utils.trading_calendar import get_trading_days_before
 from backtest.utils.market_regime import detect_market_regime
-from pick_stocks_from_sector.ts_ths_dc import is_late_trend
+from backtest.strategies.ts_ths_dc import is_late_trend
 
 load_dotenv()
 
@@ -529,7 +529,7 @@ def get_stock_candidates(target_date: str, lookahead: bool = False, market_regim
         return []
     
     # Filter using unified pick_filter from config.json (shared with all strategies)
-    from pick_stocks_from_sector.ts_ths_dc import no_risky_stocks
+    from backtest.strategies.ts_ths_dc import no_risky_stocks
     risky_free_list = no_risky_stocks(stock_basic)
     stock_basic = stock_basic[stock_basic['ts_code'].isin(risky_free_list)].reset_index(drop=True)
     

@@ -2,8 +2,8 @@
 
 import reflex as rx
 from imobile import db  # Import db to register models
-from imobile.pages.portfolio import portfolio
-from imobile.pages.sector_history import sector_history
+from web.app.imobile.pages.portfolio import portfolio
+from web.app.imobile.pages.sector_history import sector_history
 
 
 class State(rx.State):

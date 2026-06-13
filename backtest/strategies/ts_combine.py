@@ -10,7 +10,7 @@ from datetime import datetime
 from loguru import logger
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from pick_stocks_from_sector.ts_ths_dc import pick_strong_stocks
+from backtest.strategies.ts_ths_dc import pick_strong_stocks
 from backtest.utils.trading_calendar import get_trading_days_before, get_trading_days_between
 from backtest.utils.util import convert_trade_date
 

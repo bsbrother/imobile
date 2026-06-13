@@ -9,7 +9,7 @@ This module implements an AI-powered stock picker (ts_daily) that:
 4. Outputs top picks in the standard format for backtest_orders.py
 
 Usage:
-    python pick_stocks_from_sector/ts_daily.py <target_date> [--lookahead]
+    python backtest/strategies/ts_daily.py <target_date> [--lookahead]
 """
 
 import os
@@ -507,7 +507,7 @@ def get_stock_candidates(target_date: str, lookahead: bool = False, market_regim
     if stock_basic.empty:
         return []
     
-    from pick_stocks_from_sector.ts_ths_dc import no_risky_stocks
+    from backtest.strategies.ts_ths_dc import no_risky_stocks
     risky_free_list = no_risky_stocks(stock_basic)
     stock_basic = stock_basic[stock_basic['ts_code'].isin(risky_free_list)].reset_index(drop=True)
     
@@ -828,7 +828,7 @@ def pick_stocks(target_date: str, lookahead: bool = False, no_search: bool = Fal
     
     logger.info(f"[Scoring System] Active Regime: {market_regime.upper()} | Minimum Score Threshold: {min_score}")
         
-    from pick_stocks_from_sector.ts_ths_dc import is_late_trend
+    from backtest.strategies.ts_ths_dc import is_late_trend
 
     buy_candidates = []
     for s in analyzed_stocks:

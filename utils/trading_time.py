@@ -5,7 +5,7 @@ import os
 import sys
 # Add the parent directory to Python path so we can import from utils
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from db.db import DB
+from shared.db.db import DB
 
 # Get market open time relate fields from app_config table in db/imobile.db .
 def get_market_open_times_refresh_interval():

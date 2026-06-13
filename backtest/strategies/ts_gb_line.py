@@ -58,7 +58,7 @@ def pick_gb_line_stocks(target_date: str, vol_multiplier: float = 1.5, lookback_
         raise ValueError("Failed to retrieve stock basic information")
     
     # Filter risky stocks
-    from pick_stocks_from_sector.ts_ths_dc import no_risky_stocks
+    from backtest.strategies.ts_ths_dc import no_risky_stocks
     safe_stocks = no_risky_stocks(stock_basic)
     logger.info(f"Target pool size: {len(safe_stocks)}")
     

@@ -14,7 +14,7 @@ if workspace_root not in sys.path:
 def test_imports():
     """Test that the modified ts_daily.py can be imported without errors."""
     try:
-        from pick_stocks_from_sector.ts_daily import GeminiDailyAnalyzer, DailyAnalysisCache
+        from backtest.strategies.ts_daily import GeminiDailyAnalyzer, DailyAnalysisCache
         print("✅ SUCCESS: ts_daily.py imports correctly")
         print("   - GeminiDailyAnalyzer class available")
         print("   - DailyAnalysisCache class available")
@@ -26,7 +26,7 @@ def test_imports():
 def test_freeride_configuration():
     """Test that the analyzer is configured for FreeRide."""
     try:
-        from pick_stocks_from_sector.ts_daily import GeminiDailyAnalyzer
+        from backtest.strategies.ts_daily import GeminiDailyAnalyzer
         analyzer = GeminiDailyAnalyzer()
         
         # Check model name
@@ -59,7 +59,7 @@ def test_freeride_configuration():
 def test_no_gemini_code():
     """Verify that Gemini-specific code has been removed."""
     try:
-        with open('./pick_stocks_from_sector/ts_daily.py', 'r') as f:
+        with open('./backtest/strategies/ts_daily.py', 'r') as f:
             content = f.read()
         
         # Check for Gemini imports
@@ -120,7 +120,7 @@ def main():
         print()
         print("Next steps:")
         print("1. Ensure FreeRide service is running on 127.0.0.1:11343")
-        print("2. Run: /usr/bin/python3 pick_stocks_from_sector/ts_daily.py <target_date>")
+        print("2. Run: /usr/bin/python3 backtest/strategies/ts_daily.py <target_date>")
         return True
     else:
         print("❌ SOME TESTS FAILED")

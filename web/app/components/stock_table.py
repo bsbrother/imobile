@@ -1,6 +1,6 @@
 """Stock table component."""
 import reflex as rx
-from imobile.states.portfolio_state import PortfolioState, Stock
+from web.app.imobile.states.portfolio_state import PortfolioState, Stock
 
 
 def stock_table() -> rx.Component:

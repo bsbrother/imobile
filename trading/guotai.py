@@ -21,7 +21,7 @@ from llama_index.llms.google_genai import GoogleGenAI
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from gm_emulate_adb import get_device_connectivity, check_app_exist
 from utils.gemini_thinking import create_gemini_with_thinking
-from db.db import DB
+from shared.db.db import DB
 from backtest.utils.trading_calendar import calendar
 from utils.trading_time import get_market_open_times_refresh_interval
 from backtest.utils.logging_config import configure_logger

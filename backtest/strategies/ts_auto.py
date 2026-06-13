@@ -77,20 +77,20 @@ def main():
     
     # Execute the selected strategy, passing through the flags
     if strategy == "ts_dc":
-        os.system(f"{sys.executable} pick_stocks_from_sector/ts_ths_dc.py {date_str} ts_dc {flags_str}")
+        os.system(f"{sys.executable} backtest/strategies/ts_ths_dc.py {date_str} ts_dc {flags_str}")
     elif strategy == "ts_longup":
-        os.system(f"{sys.executable} pick_stocks_from_sector/ts_longup.py {date_str} {flags_str}")
+        os.system(f"{sys.executable} backtest/strategies/ts_longup.py {date_str} {flags_str}")
     elif strategy == "ts_hma":
-        os.system(f"{sys.executable} pick_stocks_from_sector/ts_hma.py {date_str} {flags_str}")
+        os.system(f"{sys.executable} backtest/strategies/ts_hma.py {date_str} {flags_str}")
     elif strategy == "ts_ai_pick":
-        os.system(f"{sys.executable} pick_stocks_from_sector/ts_ai_pick.py {date_str} {flags_str}")
+        os.system(f"{sys.executable} backtest/strategies/ts_ai_pick.py {date_str} {flags_str}")
     elif strategy == "ts_daily":
-        os.system(f"{sys.executable} pick_stocks_from_sector/ts_daily.py {date_str} {flags_str}")
+        os.system(f"{sys.executable} backtest/strategies/ts_daily.py {date_str} {flags_str}")
     elif strategy == "ts_go":
         cmd = f'cd utils/go-stock && go build -o pick_stocks cmd/pick_stocks/main.go && ./pick_stocks -date {date_str} -output /tmp/tmp {flags_str}'
         os.system(cmd)
     elif strategy == "ts_7AZ":
-        os.system(f"{sys.executable} pick_stocks_from_sector/ts_7AZ.py {date_str} ts_7AZ {flags_str}")
+        os.system(f"{sys.executable} backtest/strategies/ts_7AZ.py {date_str} ts_7AZ {flags_str}")
 
 if __name__ == "__main__":
     main()

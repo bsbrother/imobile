@@ -28,11 +28,11 @@ python this_script [start_date end_date [src [user_id [backtest_search backtest_
   backtest_ai     -- Enable AI analysis: true/false/1/0/yes/no (default: true)
 
 Examples:
-  python backtest_orders.py 20250101 20250331
-  python backtest_orders.py 20250101 20250331 ts_auto
-  python backtest_orders.py 20250101 20250331 ts_auto 1 true true
-  python backtest_orders.py 20250101 20250331 ts_daily 1 false true
-  python backtest_orders.py 20250101 20250331 ts_daily 1 false false
+  python backtest/engine.py 20250101 20250331
+  python backtest/engine.py 20250101 20250331 ts_auto
+  python backtest/engine.py 20250101 20250331 ts_auto 1 true true
+  python backtest/engine.py 20250101 20250331 ts_daily 1 false true
+  python backtest/engine.py 20250101 20250331 ts_daily 1 false false
 
 TODO
 - Monitor execution performance
@@ -63,13 +63,13 @@ from backtest.utils.market_regime import detect_market_regime
 from backtest.utils.trailing_stop import calculate_trailing_stop
 # Add the parent directory to Python path so we can import from utils
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from db.db import DBTEST as DB
+from shared.db.db import DBTEST as DB
 
 load_dotenv()
 # 1. Load configures from .env, $BACKTEST_PATH/config.json, e.g. REPORT_PATH, initial cash, strategy parameters etc.
 CONFIG_FILE = os.getenv("CONFIG_FILE", default="/backtest/config.json")
 BACKTEST_PATH = os.getenv('BACKTEST_PATH', './backtest')
-REPORT_PATH = os.getenv('REPORT_DIR', os.path.join(BACKTEST_PATH, 'backtest_results'))
+REPORT_PATH = os.getenv('REPORT_DIR', os.path.join(BACKTEST_PATH, 'results'))
 LOG_LEVEL = os.getenv("LOG_LEVEL", default="INFO")
 LOG_PATH = os.getenv("LOG_PATH", default="./logs")
 configure_logger(log_level=LOG_LEVEL, log_path=LOG_PATH)
@@ -130,24 +130,24 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_auto') -> str:
         _flags.append("--no-ai")
     _flags_str = " ".join(_flags)
     if src == 'ts_auto':
-        result = os.system(f'{VENV_PYTHON} pick_stocks_from_sector/ts_auto.py {this_date} {_flags_str}')
+        result = os.system(f'{VENV_PYTHON} backtest/strategies/ts_auto.py {this_date} {_flags_str}')
     elif src == 'ts_longup':
-        result = os.system(f'{VENV_PYTHON} pick_stocks_from_sector/ts_longup.py {this_date} {_flags_str}')
+        result = os.system(f'{VENV_PYTHON} backtest/strategies/ts_longup.py {this_date} {_flags_str}')
     elif src == 'ts_hma':
-        result = os.system(f'{VENV_PYTHON} pick_stocks_from_sector/ts_hma.py {this_date} {_flags_str}')
+        result = os.system(f'{VENV_PYTHON} backtest/strategies/ts_hma.py {this_date} {_flags_str}')
     elif src == 'ts_ai_pick':
-        result = os.system(f'{VENV_PYTHON} pick_stocks_from_sector/ts_ai_pick.py {this_date} {_flags_str}')
+        result = os.system(f'{VENV_PYTHON} backtest/strategies/ts_ai_pick.py {this_date} {_flags_str}')
     elif src == 'ts_daily':
-        result = os.system(f'{VENV_PYTHON} pick_stocks_from_sector/ts_daily.py {this_date} {_flags_str}')
+        result = os.system(f'{VENV_PYTHON} backtest/strategies/ts_daily.py {this_date} {_flags_str}')
     elif src == 'ts_go':
         # Compile and run the Go stock picker
         cmd = f'cd utils/go-stock && go build -o pick_stocks cmd/pick_stocks/main.go && ./pick_stocks -date {this_date} {_flags_str}'
         logger.info(f"Running Go stock picker: {cmd}")
         result = os.system(cmd)
     elif src == 'ts_7AZ':
-        result = os.system(f'{VENV_PYTHON} pick_stocks_from_sector/ts_7AZ.py {this_date} ts_7AZ {_flags_str}')
+        result = os.system(f'{VENV_PYTHON} backtest/strategies/ts_7AZ.py {this_date} ts_7AZ {_flags_str}')
     else:
-        result = os.system(f'{VENV_PYTHON} pick_stocks_from_sector/ts_ths_dc.py {this_date} {src} {_flags_str}')
+        result = os.system(f'{VENV_PYTHON} backtest/strategies/ts_ths_dc.py {this_date} {src} {_flags_str}')
     if result != 0:
         raise ValueError(f"Failed to pick strong stocks from hot sectors for {this_date} using {src}.")
     # Rename /tmp/tmp to per-date file to allow parallel backtests
@@ -245,7 +245,7 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
         added_orders = adjusted_orders = prev_orders= 0
         logger.info(f"Current running orders: {len(running_orders)}/{MAX_POSITIONS}")
         for order in data['smart_orders']:
-            # Append to smart_orders table in db/imobile.db
+            # Append to smart_orders table in shared/db/imobile.db
             if order['symbol'] not in running_orders:
                 if added_orders < (MAX_POSITIONS - len(running_orders)):
                     order_number = f"ORD_{this_date}_{order['symbol']}_{user_id}"
@@ -2035,11 +2035,11 @@ if __name__ == '__main__':
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python backtest_orders.py 20250101 20250331 ts_auto
-  python backtest_orders.py 20250101 20250331 ts_ai_pick --no-ai
-  python backtest_orders.py 20250101 20250331 ts_daily --no-search
-  python backtest_orders.py 20250101 20250331 ts_go --resume
-  python backtest_orders.py 20250101 20250331 ts_auto --user-id 2
+  python backtest/engine.py 20250101 20250331 ts_auto
+  python backtest/engine.py 20250101 20250331 ts_ai_pick --no-ai
+  python backtest/engine.py 20250101 20250331 ts_daily --no-search
+  python backtest/engine.py 20250101 20250331 ts_go --resume
+  python backtest/engine.py 20250101 20250331 ts_auto --user-id 2
         """
     )
 
@@ -2076,7 +2076,7 @@ Examples:
 
     # We must wipe the actual DB file being used by DBTEST (usually db/test_imobile.db)
     # since it's already instantiated at import time.
-    from db.db import DBTEST_IMOBILE_FILE
+    from shared.db.db import DBTEST_IMOBILE_FILE
 
     # Programmatic DB Clean Wipe and Reinitialization Guard
     if not resume:
@@ -2104,7 +2104,7 @@ Examples:
                     logger.debug(f"Failed to delete {db_file}: {e_del}")
 
         # Re-initialize empty SQLite database from schema
-        os.system(f"sqlite3 {DBTEST_IMOBILE_FILE} < db/imobile.sql")
+        os.system(f"sqlite3 {DBTEST_IMOBILE_FILE} < shared/db/imobile.sql")
         logger.info("Successfully re-initialized empty backtesting database.")
     else:
         logger.info(f"Resuming backtest. Existing files in {REPORT_PATH} and database "

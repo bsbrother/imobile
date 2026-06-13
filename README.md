@@ -1,6 +1,12 @@
 # iMobile — A-Shares Automated Trading System
 
-Backtest engine, live trading orchestrator, mobile app data sync, and portfolio web UI for the Chinese A-Shares market.
+Three subsystems for Chinese A-Share market trading:
+
+| # | System | Entry | Description |
+|---|--------|-------|-------------|
+| 1 | **Backtest** | `backtest/engine.py` | Historical backtest with regime-aware strategy selection |
+| 2 | **Trading** | `trading/runner.py` | Live trading with smart orders + mobile ADB automation |
+| 3 | **Web** | `web/config.py` | Reflex portfolio dashboard |
 
 ## Quick Start
 
@@ -8,32 +14,27 @@ Backtest engine, live trading orchestrator, mobile app data sync, and portfolio 
 # Install dependencies
 pip install -r requirements.txt
 
-# Initialize database
-sqlite3 imobile.db < db/imobile.sql
+# Copy and configure environment
+cp .env.example .env
+# Edit .env with your Tushare token, OpenRouter keys, etc.
 
-# Run a backtest (3 months, regime-aware strategy selection)
-python backtest_orders.py 20250101 20250331 ts_auto
+# Run backtest (default: ts_auto meta-strategy)
+python backtest/engine.py 20250101 20250612
 
-# View monthly performance
-python utils/result_ts_auto.py
+# Run specific strategy
+python backtest/engine.py 20250101 20250612 ts_7AZ
 
-# Live trading (requires Android emulator + DroidRun)
-python app_trading.py 20260214 --phase pre-market
+# Live trading
+python trading/runner.py --phase pre-market
+
+# Analyze backtest results
+python utils/result_backtest.py backtest/results/20250101_20250612_ts_auto
+
+# Reflex web dashboard
+cd web && reflex run
 ```
 
-## Three Subsystems
-
-### 1. Backtest Engine (`backtest_orders.py`)
-
-Historical simulation with T+1 compliance, realistic execution, and multi-strategy support.
-
-```bash
-# Full backtest with resume support
-python backtest_orders.py 20260101 20260605 ts_auto 1 false true resume
-#                           start    end      strategy     user search ai  resume
-```
-
-**Key strategies:**
+## Strategies
 
 | Strategy | Type | Description |
 |----------|------|-------------|
@@ -46,60 +47,16 @@ python backtest_orders.py 20260101 20260605 ts_auto 1 false true resume
 | `ts_longup` | Tech | ADX trend-following |
 | `ts_go` | Tech | Go-based bulk technical screener |
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed strategy comparison and regime detection logic.
-
-### 2. Live Trading (`app_trading.py`)
-
-Daily trading workflow orchestrator:
-
-```bash
-python app_trading.py [date] --phase pre-market   # Pick stocks, create orders
-python app_trading.py [date] --phase market        # Execute orders during session
-python app_trading.py [date] --phase post-market   # Reports + mobile data sync
-python app_trading.py [date] --phase all           # Full day pipeline
-python app_trading.py --sync-only                  # Just sync mobile app data
-```
-
-### 3. Web Portfolio (`imobile/`)
-
-Reflex-based web UI for portfolio tracking:
-
-```bash
-reflex run          # Start dev server at http://localhost:3000
-```
-
 ## Project Structure
 
 ```
 imobile/
-├── backtest_orders.py      Main backtest entry point
-├── app_trading.py           Live trading orchestrator
-├── app_guotai.py            Mobile app automation (DroidRun + Gemini)
-├── ARCHITECTURE.md          Detailed architecture and workflow docs
-├── backtest/                Backtest framework (data, strategies, utils)
-├── pick_stocks_from_sector/ Stock selection strategies
-├── app/                     Live trading application modules
-├── imobile/                 Reflex web application
-├── utils/                   Shared utilities and submodules
-├── db/                      Database schema and migrations
-└── docs/                    Additional documentation
+├── backtest/          # Backtest engine + strategies
+├── trading/           # Live trading + mobile ADB
+├── web/               # Reflex web dashboard
+├── shared/            # Databases, data, caches
+├── utils/             # Shared utilities
+└── docs/              # Documentation
 ```
 
-## Configuration
-
-Edit `backtest/config.json` for risk parameters, position sizing, and regime-specific rules.
-
-## Requirements
-
-- Python 3.12+
-- SQLite
-- Tushare API (for A-Shares data)
-- Google Gemini API (for AI strategies and mobile automation)
-- Android emulator + ADB (for mobile automation)
-- DroidRun (for mobile app interaction)
-
-## Documentation
-
-- [ARCHITECTURE.md](ARCHITECTURE.md) — Full system architecture and workflow
-- [CHANGELOG.md](CHANGELOG.md) — Development history and changes
-- [docs/](docs/) — Strategy design notes, API docs, design documents
+See [ARCHITECTURE.md](ARCHITECTURE.md) for full documentation.

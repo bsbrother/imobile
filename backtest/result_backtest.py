@@ -8,11 +8,11 @@ Usage:
 Arguments:
   dir   Path to a backtest results directory
         or a parent directory containing multiple result subdirectories.
-        Default: backtest/backtest_results
+        Default: backtest/results
 
 Examples:
-  python utils/result_backtest.py
-  python utils/result_backtest.py backtest/backtest_results/20250101_20260612_ts_auto
+  python backtest/result_backtest.py
+  python backtest/result_backtest.py backtest/results/20250101_20260612_ts_auto
   python utils/result_backtest.py backups/2025_noai_search
 """
 import os
@@ -22,7 +22,7 @@ import glob
 import json
 from collections import defaultdict
 
-DEFAULT_RESULTS_DIR = 'backtest/backtest_results'
+DEFAULT_RESULTS_DIR = 'backtest/results'
 CONFIG_PATH = 'backtest/config.json'
 
 

@@ -34,7 +34,7 @@ imobile/
 │   ├── cbs_ewo/                  #   CBS/EWO analysis
 │   ├── cli.py                    #   CLI for pick/analyze/run commands
 │   ├── config.json               #   Risk/reward ratios, position sizing per regime
-│   └── results/ → backtest_results/   Backtest output
+│   ├── results/                   Backtest output
 │
 ├── trading/                      # [2] Live Trading System
 │   ├── runner.py                 #   Live trading orchestrator (was: app_trading.py)

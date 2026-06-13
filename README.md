@@ -28,7 +28,7 @@ python backtest/engine.py 20250101 20250612 ts_7AZ
 python trading/runner.py --phase pre-market
 
 # Analyze backtest results
-python utils/result_backtest.py backtest/results/20250101_20250612_ts_auto
+python backtest/result_backtest.py backtest/results/20250101_20250612_ts_auto
 
 # Reflex web dashboard
 cd web && reflex run

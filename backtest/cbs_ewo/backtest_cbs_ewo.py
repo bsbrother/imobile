@@ -32,7 +32,7 @@ load_dotenv()
 
 CONFIG_FILE = os.getenv("CONFIG_FILE", default="/backtest/config.json")
 BACKTEST_PATH = os.getenv("BACKTEST_PATH", "./backtest")
-REPORT_PATH = Path(os.getenv("REPORT_PATH", os.path.join(BACKTEST_PATH, "backtest_results")))
+REPORT_PATH = Path(os.getenv("REPORT_PATH", os.path.join(BACKTEST_PATH, "results")))
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 LOG_PATH = os.getenv("LOG_PATH", "./logs")
 configure_logger(log_level=LOG_LEVEL, log_path=LOG_PATH)

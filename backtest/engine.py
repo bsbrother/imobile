@@ -54,6 +54,8 @@ from typing import Dict, List, Any, Optional
 from loguru import logger
 from dotenv import load_dotenv
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from backtest import data_provider
 from backtest.utils.trading_calendar import calendar, convert_trade_date
 from backtest.utils.logging_config import configure_logger

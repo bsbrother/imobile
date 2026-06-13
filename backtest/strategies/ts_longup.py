@@ -31,7 +31,7 @@ from typing import Any, Optional
 from dotenv import load_dotenv
 from loguru import logger
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from backtest import data_provider
 from backtest.utils.trading_calendar import get_trading_days_before, convert_trade_date

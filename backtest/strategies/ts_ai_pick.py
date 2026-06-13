@@ -29,7 +29,7 @@ from dotenv import load_dotenv
 from loguru import logger
 
 # Add parent directory for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from backtest import data_provider
 from backtest.utils.trading_calendar import get_trading_days_before
 from backtest.utils.market_regime import detect_market_regime
@@ -52,7 +52,7 @@ MAX_PICKS = 15
 OUTPUT_FILE = None
 
 # Cache configuration
-CACHE_DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'db', 'ai_analysis_cache.db')
+CACHE_DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'db', 'ai_analysis_cache.db')
 
 
 def get_hot_sectors(target_date: str, top_n: int = 5) -> str:
@@ -171,7 +171,7 @@ class NewsService:
         try:
             import sys
             import os
-            utils_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'utils')
+            utils_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'utils')
             if utils_path not in sys.path:
                 sys.path.insert(0, utils_path)
 

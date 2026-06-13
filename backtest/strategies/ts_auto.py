@@ -3,7 +3,7 @@ import sys
 import pandas as pd
 from loguru import logger
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from backtest.utils.trading_calendar import get_trading_days_before
 from backtest import data_provider
 

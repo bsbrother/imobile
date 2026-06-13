@@ -27,7 +27,7 @@ from typing import Any
 import tushare as ts
 from dotenv import load_dotenv
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from backtest import data_provider
 from backtest.utils.trading_calendar import get_trading_days_before, get_trading_days_between
 from backtest.utils.util import convert_trade_date

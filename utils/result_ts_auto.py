@@ -3,7 +3,7 @@
 Backtest Monthly Results Analyzer
 
 Usage:
-  python utils/result_ts_month_src.py [dir]
+  python utils/result_ts_auto.py [dir]
 
 Arguments:
   dir   Path to a backtest results directory (e.g. backups/2025_noai_search)
@@ -11,9 +11,9 @@ Arguments:
         Default: backtest/backtest_results
 
 Examples:
-  python utils/result_ts_month_src.py
-  python utils/result_ts_month_src.py backups/2025_noai_search
-  python utils/result_ts_month_src.py backtest/backtest_results/20250101_20251231_ts_month_src
+  python utils/result_ts_auto.py
+  python utils/result_ts_auto.py backups/2025_noai_search
+  python utils/result_ts_auto.py backtest/backtest_results/20250101_20251231_ts_auto
 """
 import os
 import sys

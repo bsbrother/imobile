@@ -2,8 +2,8 @@ import glob
 import json
 import os
 
-dir_curr = 'backtest/backtest_results/20250101_20260430_ts_month_src'
-dir_back = 'backups/20250101_20260430_ts_month_src_01_return_22.12'
+dir_curr = 'backtest/backtest_results/20250101_20260430_ts_auto'
+dir_back = 'backups/20250101_20260430_ts_auto_01_return_22.12'
 
 def extract_details(d):
     summary = {}

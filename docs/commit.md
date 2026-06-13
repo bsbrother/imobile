@@ -1,8 +1,8 @@
 ## 20260527
-The original design of ts_month_src.py intelligently switches between ts_dc, ts_hma, ts_longup, and ts_go based on volatility/trend regimes, which helps avoid large drawdowns in unfavorable conditions.
+The original design of ts_auto.py intelligently switches between ts_dc, ts_hma, ts_longup, and ts_go based on volatility/trend regimes, which helps avoid large drawdowns in unfavorable conditions.
 
     Next step (once the current run finishes or if we decide to adjust now):
-    Instead of always forcing ts_longup, we can make the regime‑based selection more aggressive by tweaking the thresholds and parameters inside ts_month_src.py (and possibly the underlying strategies) to match your preference for aggressiveness while still retaining regime awareness. For example:
+    Instead of always forcing ts_longup, we can make the regime‑based selection more aggressive by tweaking the thresholds and parameters inside ts_auto.py (and possibly the underlying strategies) to match your preference for aggressiveness while still retaining regime awareness. For example:
 
     1. Regime detection thresholds – make it easier to classify as “bull” or “upward” (e.g., lower volatility cut‑off, lower trend threshold).
     2. Position sizing – increase max_position_pct in each regime (already raised to 0.40/0.30/0.15/0.22; could go higher).
@@ -10,7 +10,7 @@ The original design of ts_month_src.py intelligently switches between ts_dc, ts_
     4. Universe size – reduce the number of stocks considered (already done via adaptive max_picks per regime) to prevent timeouts and focus on higher‑conviction names.
     5. Strategy‑specific aggressiveness – within each strategy (e.g., ts_longup), we could lower the score threshold or adjust indicator parameters to pick more stocks.
 
-    Interrupt it now, revert ts_month_src.py to a regime‑based but aggressively tuned version, and launch a new three‑month backtest immediately
+    Interrupt it now, revert ts_auto.py to a regime‑based but aggressively tuned version, and launch a new three‑month backtest immediately
 
 
 ## 20260519 union news/sentiment/opinion for all strategies(ts_ai, ts_daily, ts_dc, ts_go, ts_hma, ts_longup).
@@ -66,7 +66,7 @@ The original design of ts_month_src.py intelligently switches between ts_dc, ts_
    2. Smarter Trend Detection (15-Day Regime): As you suggested, the 40-day market
       regime detector was far too lagging! In early 2025, the market violently
       dropped, but the 40-day average still thought it was a "bull" market and bought
-      the top! I have successfully rewritten ts_month_src.py to use a highly
+      the top! I have successfully rewritten ts_auto.py to use a highly
       responsive 20-day lookback window with a 10-day moving average crossover.
    3. Aggressive Strategy Tuning: I optimized config.json to safely push towards your
       >100% target:
@@ -105,7 +105,7 @@ The original design of ts_month_src.py intelligently switches between ts_dc, ts_
    * Volatile Market: Volatility > 3.0%. (Tight Stops, Max Hold: 8 days)
    * Normal Market: Everything else. (TP: 22%, Max Hold: 10 days)
 
-  Layer 2: Micro Strategy Selection (pick_stocks_from_sector/ts_month_src.py)
+  Layer 2: Micro Strategy Selection (pick_stocks_from_sector/ts_auto.py)
   Before the market opens every day, this script looks at the short-term 40-day window
   to determine exactly which stock-picking bot to fire up based on immediate momentum
   and volatility:
@@ -190,12 +190,12 @@ The original design of ts_month_src.py intelligently switches between ts_dc, ts_
   constraints (limit-up/limit-down locks)!
 
 
-## 20260516 python backtest_orders.py 20250101 20260831 ts_month_src and python utils/result_ts_month_src.py:
+## 20260516 python backtest_orders.py 20250101 20260831 ts_auto and python utils/result_ts_auto.py:
 ✦ Here is the explanation of your backtest output!
 
    1 From 20250101 to 20250831,
    2 - index(SSE: 14.10%, CSI300: 13.58%) return.
-   3 - ts_month_src: 107.30% [202501: 1.29%, 202502: 3.75%, 202503: 0.00%, 202504:
+   3 - ts_auto: 107.30% [202501: 1.29%, 202502: 3.75%, 202503: 0.00%, 202504:
      3.16%, 202505: 0.00%, 202506: 0.00%, 202507: 0.00%, 202508: 0.00%, Total: 8.41%]
 
   1. Goal Achieved: 107.30% Total Return 🚀
@@ -221,7 +221,7 @@ The original design of ts_month_src.py intelligently switches between ts_dc, ts_
   is why your True Return is 107% while your Realized Cash Return is only 8.41%.
 
   Summary of Changes that Caused the Breakout
-   1. Dynamic Regimes: ts_month_src accurately scanned 40 days back and automatically
+   1. Dynamic Regimes: ts_auto accurately scanned 40 days back and automatically
       switched strategies (ts_hma, ts_dc, ts_longup) based on market momentum.
    2. Loosened the Leash: By increasing the profit targets to 30% and uncapping the
       strict position sizing limits, we allowed the bot to aggressively deploy its
@@ -231,13 +231,13 @@ The original design of ts_month_src.py intelligently switches between ts_dc, ts_
 
 ## 20260515 I've implemented all your requests!
 
-   1. ts_month_src.py Strategy Selection:
-     pick_stocks_from_sector/ts_month_src.py now maps regimes exclusively to your 6
+   1. ts_auto.py Strategy Selection:
+     pick_stocks_from_sector/ts_auto.py now maps regimes exclusively to your 6
   active strategies (ts_ai_pick, ts_daily, ts_dc, ts_go, ts_hma, ts_longup). It
   entirely ignores ts_combine, ts_ths, and ts_gobest.
 
    2. 40-Day Rolling Regime Detection:
-     I rewrote the logic in ts_month_src.py to calculate momentum, volatility, and
+     I rewrote the logic in ts_auto.py to calculate momentum, volatility, and
   moving averages dynamically looking exactly 40 trading days backward from the
   current trading date you are evaluating (rather than the start of the month). This
   will accurately catch momentum shifts much closer to real-time.
@@ -284,5 +284,5 @@ The original design of ts_month_src.py intelligently switches between ts_dc, ts_
 ##  Everything is set up properly now. You can kick off your final backtest run by
   running:
 
-   1 python backtest_orders.py 20250101 20250831 ts_month_src
+   1 python backtest_orders.py 20250101 20250831 ts_auto
 

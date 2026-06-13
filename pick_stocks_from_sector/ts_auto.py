@@ -26,7 +26,7 @@ def determine_strategy(date_str: str) -> str:
     
     df = data_provider.get_index_data('000001.SH', start_date, end_date)
     if df is None or df.empty or len(df) < 5:
-        logger.warning(f"[ts_month_src] Not enough data, fallback to ts_7AZ")
+        logger.warning(f"[ts_auto] Not enough data, fallback to ts_7AZ")
         return "ts_7AZ"
     
     df = df.sort_values(by='trade_date')
@@ -40,7 +40,7 @@ def determine_strategy(date_str: str) -> str:
     trend_10d = (current_price - ma10) / ma10 * 100
     momentum = (current_price / close.iloc[0] - 1) * 100
 
-    logger.info(f"[ts_month_src] Moment: {momentum:.2f}% Vol: {volatility:.2f}% Trend10d: {trend_10d:.2f}%")
+    logger.info(f"[ts_auto] Moment: {momentum:.2f}% Vol: {volatility:.2f}% Trend10d: {trend_10d:.2f}%")
     
     # Default: ts_7AZ CANSLIM for everything (proven 185% return, 19/21 winning months)
     strategy = "ts_7AZ"
@@ -53,12 +53,12 @@ def determine_strategy(date_str: str) -> str:
         # Sharp bear with high volatility — ts_hma Hull MA reversal
         strategy = "ts_hma"
     
-    logger.info(f"[ts_month_src] Selected: {strategy} (momentum={momentum:.1f}%, vol={volatility:.1f}%)")
+    logger.info(f"[ts_auto] Selected: {strategy} (momentum={momentum:.1f}%, vol={volatility:.1f}%)")
     return strategy
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python ts_month_src.py YYYYMMDD [--no-search] [--no-ai]")
+        print("Usage: python ts_auto.py YYYYMMDD [--no-search] [--no-ai]")
         sys.exit(1)
     
     date_str = sys.argv[1]
@@ -68,12 +68,12 @@ def main():
 
     # If --no-ai is set, force ts_7AZ (pure CANSLIM, no LLM/search needed)
     if "--no-ai" in extra_flags:
-        logger.info("[ts_month_src] --no-ai flag detected, forcing ts_7AZ (pure technical)")
+        logger.info("[ts_auto] --no-ai flag detected, forcing ts_7AZ (pure technical)")
         strategy = "ts_7AZ"
     else:
         strategy = determine_strategy(date_str)
     
-    logger.info(f"[ts_month_src] Delegating pick for {date_str} to {strategy} flags={flags_str}")
+    logger.info(f"[ts_auto] Delegating pick for {date_str} to {strategy} flags={flags_str}")
     
     # Execute the selected strategy, passing through the flags
     if strategy == "ts_dc":

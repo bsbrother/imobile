@@ -11,7 +11,7 @@ Orchestrates base on short-term, hot sectors turn on A-Shares real-time market t
 Notes:
 - The trading date(last_updated) < 2026-02-24 in holding_stocks and smart_orders table in DB are all legacy(history) stocks. 
   They follow the strategy in pick_stocks_from_sector/ts_history.py.
-- From 2026-02-04, will be start new stocks use normal strategie ts_month_src(auto-select ts_ai, ts_dc, ts_go, ts_hma, ts_longup) to pick stocks. 
+- From 2026-02-04, will be start new stocks use normal strategie ts_auto(auto-select ts_ai, ts_dc, ts_go, ts_hma, ts_longup) to pick stocks. 
 - Current(last_updated < 2026-02-24) in holding_stocks are all legacy(history) stocks, 
   they follow the strategy in pick_stocks_from_sector/ts_history.py to trading(SELL).
 

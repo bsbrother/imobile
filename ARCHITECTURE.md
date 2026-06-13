@@ -28,7 +28,7 @@ imobile/
 │   └── cli.py                 #   CLI for pick/analyze/run commands
 │
 ├── pick_stocks_from_sector/   # Stock selection strategies
-│   ├── ts_month_src.py        #   ★ Meta-strategy: regime → delegates to best sub-strategy
+│   ├── ts_auto.py        #   ★ Meta-strategy: regime → delegates to best sub-strategy
 │   ├── ts_daily.py            #   News-driven daily picks (LLM + search)
 │   ├── ts_ai_pick.py           #   AI-driven stock selection
 │   ├── ts_dc.py / ts_ths_dc.py #   Hot-sector + channel breakout
@@ -53,7 +53,7 @@ imobile/
 │   ├── droidrun/              #   [submodule] Android automation SDK
 │   ├── go-stock/              #   Go-based technical screener (ts_go strategy)
 │   ├── FreeRide/              #   News/sentiment search integration
-│   ├── result_ts_month_src.py #   Monthly performance reporter
+│   ├── result_ts_auto.py #   Monthly performance reporter
 │   └── stock_news_public_opinion.py  # Search provider bridge
 │
 ├── db/                        # Database
@@ -82,7 +82,7 @@ python backtest_orders.py <start_date> <end_date> <strategy> [user_id] [search] 
     │                                              │
     │  1. pick_stocks_to_file(date, src)           │
     │     ├── detect_market_regime(date)           │  120-day MA60/MA120 crossover
-    │     ├── ts_month_src → determine_strategy()  │  20-day MA10 + momentum split
+    │     ├── ts_auto → determine_strategy()  │  20-day MA10 + momentum split
     │     ├── Delegate to sub-strategy script      │
     │     └── Write pick_stocks_YYYYMMDD.json      │
     │                                              │
@@ -101,9 +101,9 @@ python backtest_orders.py <start_date> <end_date> <strategy> [user_id] [search] 
     └──────────────────────────────────────────────┘
 ```
 
-## Strategy Selection: ts_month_src (Meta-Strategy)
+## Strategy Selection: ts_auto (Meta-Strategy)
 
-`ts_month_src` is the primary strategy. It detects short-term market regime (20 trading days) and delegates to the optimal sub-strategy:
+`ts_auto` is the primary strategy. It detects short-term market regime (20 trading days) and delegates to the optimal sub-strategy:
 
 | Regime | Momentum | Strategy | Rationale |
 |--------|----------|----------|-----------|
@@ -114,14 +114,14 @@ python backtest_orders.py <start_date> <end_date> <strategy> [user_id] [search] 
 | Volatile (vol>2.2%) | — | **ts_ai_pick** | Choppy — AI-driven fundamental picks |
 | Normal | — | **ts_dc** | Sideways — channel breakout value |
 
-The meta-strategy `ts_month_src` decides which to use based on a 20-day MA10/volatility/trend view.
+The meta-strategy `ts_auto` decides which to use based on a 20-day MA10/volatility/trend view.
 
 ## Strategy Types
 
 ### AI-Dependent (require LLM + search)
 - **ts_ai_pick** — Full AI analysis with news/sentiment
 - **ts_daily** — Daily news-driven picks using `daily_stock_analysis` submodule
-- **ts_month_src** — Meta-strategy that may delegate to AI strategies
+- **ts_auto** — Meta-strategy that may delegate to AI strategies
 
 ### Pure Technical (no LLM/search needed)
 - **ts_dc** — Hot sectors + money flow + limit-up analysis

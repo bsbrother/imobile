@@ -12,10 +12,10 @@ pip install -r requirements.txt
 sqlite3 imobile.db < db/imobile.sql
 
 # Run a backtest (3 months, regime-aware strategy selection)
-python backtest_orders.py 20250101 20250331 ts_month_src
+python backtest_orders.py 20250101 20250331 ts_auto
 
 # View monthly performance
-python utils/result_ts_month_src.py
+python utils/result_ts_auto.py
 
 # Live trading (requires Android emulator + DroidRun)
 python app_trading.py 20260214 --phase pre-market
@@ -29,7 +29,7 @@ Historical simulation with T+1 compliance, realistic execution, and multi-strate
 
 ```bash
 # Full backtest with resume support
-python backtest_orders.py 20260101 20260605 ts_month_src 1 false true resume
+python backtest_orders.py 20260101 20260605 ts_auto 1 false true resume
 #                           start    end      strategy     user search ai  resume
 ```
 
@@ -37,7 +37,7 @@ python backtest_orders.py 20260101 20260605 ts_month_src 1 false true resume
 
 | Strategy | Type | Description |
 |----------|------|-------------|
-| `ts_month_src` | ✦ Meta | Auto-selects best sub-strategy based on 20-day regime |
+| `ts_auto` | ✦ Meta | Auto-selects best sub-strategy based on 20-day regime |
 | `ts_7AZ` | Fundamental | CANSLIM 7-factor (C-A-N-S-L-I-M) quality screener |
 | `ts_daily` | AI | News-driven daily picks (LLM + web search) |
 | `ts_ai_pick` | AI | Full AI analysis with news/sentiment |

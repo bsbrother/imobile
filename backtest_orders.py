@@ -22,14 +22,14 @@ Usage:
 python this_script [start_date end_date [src [user_id [backtest_search backtest_ai]]]]
   start_date      -- Start date in YYYYMMDD format (default: today)
   end_date        -- End date in YYYYMMDD format (default: today)
-  src             -- Strategy: ts_7AZ, ts_month_src, ts_daily, ts_ai_pick, ts_longup, ts_hma, ts_dc, ts_go (default: ts_7AZ)
+  src             -- Strategy: ts_7AZ, ts_auto, ts_daily, ts_ai_pick, ts_longup, ts_hma, ts_dc, ts_go (default: ts_7AZ)
   user_id         -- User ID for trading account (default: 1)
   backtest_search -- Enable search providers: true/false/1/0/yes/no (default: true)
   backtest_ai     -- Enable AI analysis: true/false/1/0/yes/no (default: true)
 
 Examples:
-  python backtest_orders.py 20250101 20250331 ts_month_src
-  python backtest_orders.py 20250101 20250331 ts_month_src 1 true true
+  python backtest_orders.py 20250101 20250331 ts_auto
+  python backtest_orders.py 20250101 20250331 ts_auto 1 true true
   python backtest_orders.py 20250101 20250331 ts_ai_pick 1 true false
   python backtest_orders.py 20250101 20250331 ts_daily 1 false true
   python backtest_orders.py 20250101 20250331 ts_daily 1 false false
@@ -107,11 +107,11 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ') -> str:
 
     # Backtest AI mode: if backtest_ai=False, switch AI-dependent strategies
     # to pure-technical alternatives (no LLM/search needed).
-    _ai_strategies = {'ts_ai_pick', 'ts_daily', 'ts_month_src'}
+    _ai_strategies = {'ts_ai_pick', 'ts_daily', 'ts_auto'}
     _noai_map = {
         'ts_ai_pick': 'ts_longup',   # AI pick -> pure technical trend following
         'ts_daily':   'ts_hma',       # AI daily -> HMA+SuperTrend technical
-        'ts_month_src': 'ts_7AZ',     # month_src delegates to ts_7AZ CANSLIM (pure technical)
+        'ts_auto': 'ts_7AZ',     # month_src delegates to ts_7AZ CANSLIM (pure technical)
     }
     if not backtest_ai and src in _noai_map:
         new_src = _noai_map[src]
@@ -129,8 +129,8 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ') -> str:
     if not backtest_ai:
         _flags.append("--no-ai")
     _flags_str = " ".join(_flags)
-    if src == 'ts_month_src':
-        result = os.system(f'{VENV_PYTHON} pick_stocks_from_sector/ts_month_src.py {this_date} {_flags_str}')
+    if src == 'ts_auto':
+        result = os.system(f'{VENV_PYTHON} pick_stocks_from_sector/ts_auto.py {this_date} {_flags_str}')
     elif src == 'ts_longup':
         result = os.system(f'{VENV_PYTHON} pick_stocks_from_sector/ts_longup.py {this_date} {_flags_str}')
     elif src == 'ts_hma':
@@ -2025,7 +2025,7 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
 
 
 if __name__ == '__main__':
-    _valid_sources = ['ts_dc', 'ts_go', 'ts_month_src', 'ts_daily',
+    _valid_sources = ['ts_dc', 'ts_go', 'ts_auto', 'ts_daily',
                       'ts_longup', 'ts_hma', 'ts_ai_pick', 'ts_7AZ']
 
     parser = argparse.ArgumentParser(
@@ -2035,11 +2035,11 @@ if __name__ == '__main__':
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python backtest_orders.py 20250101 20250331 ts_month_src
+  python backtest_orders.py 20250101 20250331 ts_auto
   python backtest_orders.py 20250101 20250331 ts_ai_pick --no-ai
   python backtest_orders.py 20250101 20250331 ts_daily --no-search
   python backtest_orders.py 20250101 20250331 ts_go --resume
-  python backtest_orders.py 20250101 20250331 ts_month_src --user-id 2
+  python backtest_orders.py 20250101 20250331 ts_auto --user-id 2
         """
     )
 

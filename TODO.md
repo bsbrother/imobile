@@ -2,7 +2,7 @@
 
 ## Active
 
-### ts_month_src Optimization
+### ts_auto Optimization
 - [ ] Achieve >15% total return over 3-month backtest (20250101–20250331)
 - [ ] Incorporate news/sentiment analysis via FreeRide for better stock selection
 - [ ] Iterative optimization: run backtest → check return → adjust thresholds → re-run
@@ -12,7 +12,7 @@
 - [ ] ts_dc, ts_go, ts_hma, ts_longup are pure technical — explore adding sentiment layer
 
 ### Strategy Improvements
-- [x] ts_auto removed — ts_month_src superior (more granular, 20d window, momentum sub-conditions)
+- [x] ts_auto removed — ts_auto superior (more granular, 20d window, momentum sub-conditions)
 - [ ] Backtest resume: fix REPORT_PATH changing when end_date changes (symlink or copy old reports)
 - [ ] Proper period report when resuming with extended end_date
 

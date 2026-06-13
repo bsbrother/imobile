@@ -1,6 +1,6 @@
 ## backtest
 
-Here is a comprehensive, deep-dive analysis of the **`backtest_orders.py`** and **`ts_month_src.py`** trading pipeline.
+Here is a comprehensive, deep-dive analysis of the **`backtest_orders.py`** and **`ts_auto.py`** trading pipeline.
 
 ---
 
@@ -9,7 +9,7 @@ The script `backtest_orders.py` drives an end-to-end backtesting engine designed
 
 ```
 [Start Backtest Date Loop]
-  ├── Step 1: Detect Market Regime & Pick Stocks (via ts_month_src.py)
+  ├── Step 1: Detect Market Regime & Pick Stocks (via ts_auto.py)
   ├── Step 1.5: Query Database (transactions & holding_stocks) for available Cash/NAV
   ├── Step 2: Create/Adjust Smart Orders (Entry, TP, SL, Sizing)
   ├── Step 3: Check execution with strict A-Share Compliance & generate Daily Report
@@ -20,8 +20,8 @@ The script `backtest_orders.py` drives an end-to-end backtesting engine designed
 
 ---
 
-### 2. Strategy Selection & Dynamic Regime Detection (`ts_month_src`)
-When configured with the `ts_month_src` strategy source, the system delegates stock selection to `pick_stocks_from_sector/ts_month_src.py`. This script dynamically analyzes market state using historical data from the **Shanghai Composite Index (`000001.SH`)** over a **20-trading-day (approx. 1 month) lookback window**:
+### 2. Strategy Selection & Dynamic Regime Detection (`ts_auto`)
+When configured with the `ts_auto` strategy source, the system delegates stock selection to `pick_stocks_from_sector/ts_auto.py`. This script dynamically analyzes market state using historical data from the **Shanghai Composite Index (`000001.SH`)** over a **20-trading-day (approx. 1 month) lookback window**:
 
 #### **Regime Detection Metrics**
 1. **Trend ($Trend_{10d}$)**: Distance from the 10-day Moving Average: $\frac{Price_{current} - MA_{10}}{MA_{10}} \times 100$.

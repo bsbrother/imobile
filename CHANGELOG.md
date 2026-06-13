@@ -5,12 +5,12 @@ Key changes and milestones in iMobile development.
 ## 2026-06
 
 ### Strategy & Backtesting
-- **ts_month_src optimization** — aggressive parameter tuning for >15% 3-month returns
+- **ts_auto optimization** — aggressive parameter tuning for >15% 3-month returns
   - Increased max_positions to 6, bull TP to 55%, loosened stagnation cuts
   - 20-day lookback with MA10 crossover (replaced 40-day lag)
-- **ts_auto strategy** — removed (ts_month_src superior: 20d window, momentum sub-conditions, more granular)
+- **ts_auto strategy** — removed (ts_auto superior: 20d window, momentum sub-conditions, more granular)
 - **Backtest resume support** — skip already-processed dates, preserve DB state
-- **Monthly reporter** — `utils/result_ts_month_src.py` for per-month P&L analysis
+- **Monthly reporter** — `utils/result_ts_auto.py` for per-month P&L analysis
 
 ### Data & Search
 - **Search provider cache** — pre-backtest search API validation, working provider whitelist
@@ -24,7 +24,7 @@ Key changes and milestones in iMobile development.
 ## 2026-05
 
 ### Strategy Selection
-- **ts_month_src**: regime → delegates to ts_ai_pick, ts_daily, ts_dc, ts_go, ts_hma, ts_longup
+- **ts_auto**: regime → delegates to ts_ai_pick, ts_daily, ts_dc, ts_go, ts_hma, ts_longup
 - **Dual-layer regime detection**: macro (120-day) + micro (20-day) for risk + strategy
 - **Star Board & ChiNext support**: 20% limit rules for 30xxxx and 688xxx stocks
 - **ts_daily**: leading breakout stocks from hot sectors with volume explosion filter
@@ -41,7 +41,7 @@ Key changes and milestones in iMobile development.
 
 ## 2026-02
 
-- **Live trading begins**: ts_month_src auto-select strategy for new positions
+- **Live trading begins**: ts_auto auto-select strategy for new positions
 - **Legacy stock handling**: ts_history.py for pre-2026-02-24 positions (sell-only)
 - **Mobile → DB sync**: app_guotai.py extracts real-time data from Guotai app
 

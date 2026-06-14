@@ -49,6 +49,8 @@ def create_free_llm(
         model=model,
         api_key=api_key,
         temperature=temperature,
+        max_tokens=8192,
+        context_window=1048576,
     )
 
 

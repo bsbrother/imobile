@@ -71,7 +71,7 @@ async def check_app_exist(tools: AndroidDriver, app_name: str | None = None):
     """
 
     try:
-        packages = await tools.list_packages(include_system_apps=False)
+        packages = await tools.list_packages(include_system=False)
         if app_name not in packages:
             raise
         print(f"✅ App '{app_name}' is installed on mobile.")

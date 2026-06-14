@@ -880,7 +880,17 @@ async def cron_sync_app_data_to_db(check_trading_day_and_time: bool = True) -> d
     need_index_quote = need_summary_position = need_smart_order = True
     times = 1
     close_app()
-    replay_page(description=['我的持仓',])
+    # Navigate to holdings page via live agent (skip droidrun macro replay)
+    logger.info("Opening app and navigating to 我的持仓...")
+    await open_app(tools)
+    await asyncio.sleep(3)
+    nav_agent = get_agent(
+        goal="在国泰海通君弘APP中，点击底部'交易'标签，然后找到并点击'我的持仓'",
+        config=config, llm=llm, tools=tools
+    )
+    await nav_agent.run()
+    await asyncio.sleep(2)
+    logger.info("Navigation complete, starting data extraction...")
     while (need_index_quote or need_summary_position or need_smart_order) and times <= 3:
         quote_data = position_data = order_data = None
 

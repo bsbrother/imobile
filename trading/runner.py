@@ -155,7 +155,7 @@ Examples:
 
     if args.sync_only:
         # Legacy behavior — just sync data using Guotai extractor
-        asyncio.run(cron_sync_app_to_db(extractor, check_trading_day_and_time=False))
+        asyncio.run(cron_sync_app_to_db(check_trading_day_and_time=False))
     else:
         # Determine trading date
         this_date = args.date

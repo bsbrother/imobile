@@ -1,17 +1,12 @@
 """
 Gemini Free API — llama_index GoogleGenAI wrapper for free tier models.
-Works with gemini-3.1-flash-lite-preview (GOOGLE_API_KEY from .env).
+All config from .env: GOOGLE_API_KEY, GEMINI_MODEL.
 
 Usage:
     from utils.gemini_free_api import create_free_llm
     llm = create_free_llm()
     # or for DroidRun MobileAgent:
     agent = MobileAgent(goal="...", llms=llm)
-
-Compared to gemini_thinking.py:
-    - No thinking_config (causes 405 on free tier)
-    - Uses gemini-3.1-flash-lite-preview default
-    - Minimal config: just model + temperature
 """
 
 import os
@@ -22,11 +17,6 @@ from llama_index.llms.google_genai import GoogleGenAI
 
 logger = logging.getLogger("droidrun")
 
-# ── Free Gemini model ──
-# gemini-3.1-flash-lite-preview: free tier, vision-enabled, llama_index compatible
-# gemini-2.5-flash:             free tier, proven stable (fallback)
-DEFAULT_MODEL = "gemini-3.1-flash-lite-preview"
-
 
 def create_free_llm(
     model: Optional[str] = None,
@@ -35,20 +25,25 @@ def create_free_llm(
 ) -> GoogleGenAI:
     """
     Create GoogleGenAI for free Gemini tier — minimal config, no thinking mode.
+    Reads GOOGLE_API_KEY and GEMINI_MODEL from .env if not passed explicitly.
 
     Args:
-        model: Gemini model (default: gemini-3.1-flash-lite-preview)
+        model: Gemini model (default: GEMINI_MODEL from .env)
         temperature: Generation temperature (default: 0.2)
-        api_key: Google API key (reads GOOGLE_API_KEY from .env if None)
+        api_key: Google API key (default: GOOGLE_API_KEY from .env)
 
     Returns:
         GoogleGenAI instance compatible with DroidRun MobileAgent
     """
     if model is None:
-        model = os.getenv("GEMINI_MODEL", DEFAULT_MODEL)
+        model = os.getenv("GEMINI_MODEL")
+        if not model:
+            raise ValueError("GEMINI_MODEL not set in .env")
 
     if api_key is None:
-        api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            raise ValueError("GOOGLE_API_KEY not set in .env")
 
     return GoogleGenAI(
         model=model,
@@ -74,10 +69,14 @@ def create_with_thinking(
         api_key: Google API key
     """
     if model is None:
-        model = os.getenv("GEMINI_MODEL", DEFAULT_MODEL)
+        model = os.getenv("GEMINI_MODEL")
+        if not model:
+            raise ValueError("GEMINI_MODEL not set in .env")
 
     if api_key is None:
-        api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            raise ValueError("GOOGLE_API_KEY not set in .env")
 
     try:
         from google.genai import types

@@ -16,18 +16,18 @@ Notes:
   they follow the strategy in backtest/strategies/ts_history.py to trading(SELL).
 
 Usage:
-    python app_trading.py                          # Auto-detect phase
-    python app_trading.py 20260214 --phase pre-market
-    python app_trading.py --dry-run                # No mobile app operations
-    python app_trading.py --sync-only              # Legacy: sync data only
+    python trading/runner.py                          # Auto-detect phase
+    python trading/runner.py 20260214 --phase pre-market
+    python trading/runner.py --dry-run                # No mobile app operations
+    python trading/runner.py --sync-only              # Legacy: sync data only
 
 Crontab examples:
     # Runs every 30 minutes on weekdays (Mon-Fri) during market hours
-    30 9   * * 1-5 cd $HOME/apps/imobile && source .venv/bin/activate && python app_trading.py >> /tmp/cron_trading.log 2>&1 &
-    0,30 10-11 * * 1-5 cd $HOME/apps/imobile && source .venv/bin/activate && python app_trading.py >> /tmp/cron_trading.log 2>&1 &
-    0,30 13-14 * * 1-5 cd $HOME/apps/imobile && source .venv/bin/activate && python app_trading.py >> /tmp/cron_trading.log 2>&1 &
-    0,30 15  * * 1-5 cd $HOME/apps/imobile && source .venv/bin/activate && python app_trading.py >> /tmp/cron_trading.log 2>&1 &
-    0    16  * * 1-5 cd $HOME/apps/imobile && source .venv/bin/activate && python app_trading.py >> /tmp/cron_trading.log 2>&1 &
+    30 9   * * 1-5 cd $HOME/apps/imobile && source .venv/bin/activate && python trading/runner.py >> /tmp/cron_trading.log 2>&1 &
+    0,30 10-11 * * 1-5 cd $HOME/apps/imobile && source .venv/bin/activate && python trading/runner.py >> /tmp/cron_trading.log 2>&1 &
+    0,30 13-14 * * 1-5 cd $HOME/apps/imobile && source .venv/bin/activate && python trading/runner.py >> /tmp/cron_trading.log 2>&1 &
+    0,30 15  * * 1-5 cd $HOME/apps/imobile && source .venv/bin/activate && python trading/runner.py >> /tmp/cron_trading.log 2>&1 &
+    0    16  * * 1-5 cd $HOME/apps/imobile && source .venv/bin/activate && python trading/runner.py >> /tmp/cron_trading.log 2>&1 &
 """
 
 import os
@@ -40,13 +40,13 @@ from datetime import datetime
 from backtest.utils.trading_calendar import calendar
 
 # Ensure project root is in path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import dotenv
 dotenv.load_dotenv(os.path.expanduser('.env'), verbose=True)
 
-import app_guotai
-from app_guotai import (
+import trading.guotai as app_guotai
+from trading.guotai import (
     pre_requirements,
     close_app as close_all_recent_apps,
     replay_page,
@@ -110,12 +110,12 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python app_trading.py                           # Auto-detect phase based on time
-  python app_trading.py 20260214                  # Specify date, auto phase
-  python app_trading.py 20260214 --phase pre-market  # Pre-market only
-  python app_trading.py --phase all               # Run all phases sequentially
-  python app_trading.py --dry-run                 # Log only, no mobile app
-  python app_trading.py --sync-only               # Legacy mode: sync data only
+  python trading/runner.py                           # Auto-detect phase based on time
+  python trading/runner.py 20260214                  # Specify date, auto phase
+  python trading/runner.py 20260214 --phase pre-market  # Pre-market only
+  python trading/runner.py --phase all               # Run all phases sequentially
+  python trading/runner.py --dry-run                 # Log only, no mobile app
+  python trading/runner.py --sync-only               # Legacy mode: sync data only
         """
     )
     parser.add_argument('date', nargs='?', default=None,

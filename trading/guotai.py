@@ -839,11 +839,11 @@ async def cron_sync_app_data_to_db(check_trading_day_and_time: bool = True) -> d
 
     $ crontab -l # m h  dom mon dow   command
     # Runs every 30 minutes on weekdays (Mon-Fri) between market open hours(9:30-11:30,13:00-15:00), 11:30-13:00 or after market close + 1 hour(16:00) not included.
-    30 9   * * 1-5 export PYENV_ROOT=$HOME/.pyenv/; export PATH=$PYENV_ROOT/bin:$PATH/; cd $HOME/apps/imobile; source venv/bin/activate; nohup $HOME/apps/imobile/app_guotai.py >> /tmp/cron_guotai_sync.log 2>&1 &
-    0,30 10-11 * * 1-5 export PYENV_ROOT=$HOME/.pyenv/; export PATH=$PYENV_ROOT/bin:$PATH/; cd $HOME/apps/imobile; source venv/bin/activate; nohup $HOME/apps/imobile/app_guotai.py >> /tmp/cron_guotai_sync.log 2>&1 &
-    0,30 13-14 * * 1-5 export PYENV_ROOT=$HOME/.pyenv/; export PATH=$PYENV_ROOT/bin:$PATH/; cd $HOME/apps/imobile; source venv/bin/activate; nohup $HOME/apps/imobile/app_guotai.py >> /tmp/cron_guotai_sync.log 2>&1 &
-    0,30 15  * * 1-5 export PYENV_ROOT=$HOME/.pyenv/; export PATH=$PYENV_ROOT/bin:$PATH/; cd $HOME/apps/imobile; source venv/bin/activate; nohup $HOME/apps/imobile/app_guotai.py >> /tmp/cron_guotai_sync.log 2>&1 &
-    0    16  * * 1-5 export PYENV_ROOT=$HOME/.pyenv/; export PATH=$PYENV_ROOT/bin:$PATH/; cd $HOME/apps/imobile; source venv/bin/activate; nohup $HOME/apps/imobile/app_guotai.py >> /tmp/cron_guotai_sync.log 2>&1 &
+    30 9   * * 1-5 export PYENV_ROOT=$HOME/.pyenv/; export PATH=$PYENV_ROOT/bin:$PATH/; cd $HOME/apps/imobile; source venv/bin/activate; nohup $HOME/apps/imobile/trading/guotai.py >> /tmp/cron_guotai_sync.log 2>&1 &
+    0,30 10-11 * * 1-5 export PYENV_ROOT=$HOME/.pyenv/; export PATH=$PYENV_ROOT/bin:$PATH/; cd $HOME/apps/imobile; source venv/bin/activate; nohup $HOME/apps/imobile/trading/guotai.py >> /tmp/cron_guotai_sync.log 2>&1 &
+    0,30 13-14 * * 1-5 export PYENV_ROOT=$HOME/.pyenv/; export PATH=$PYENV_ROOT/bin:$PATH/; cd $HOME/apps/imobile; source venv/bin/activate; nohup $HOME/apps/imobile/trading/guotai.py >> /tmp/cron_guotai_sync.log 2>&1 &
+    0,30 15  * * 1-5 export PYENV_ROOT=$HOME/.pyenv/; export PATH=$PYENV_ROOT/bin:$PATH/; cd $HOME/apps/imobile; source venv/bin/activate; nohup $HOME/apps/imobile/trading/guotai.py >> /tmp/cron_guotai_sync.log 2>&1 &
+    0    16  * * 1-5 export PYENV_ROOT=$HOME/.pyenv/; export PATH=$PYENV_ROOT/bin:$PATH/; cd $HOME/apps/imobile; source venv/bin/activate; nohup $HOME/apps/imobile/trading/guotai.py >> /tmp/cron_guotai_sync.log 2>&1 &
     """
     # TODO:
     # - Fixed principal(本金) = 300000, When withdraw or deposit, principal will change, need manual adjust.

@@ -1,9 +1,9 @@
 """Portfolio page - main view for stock portfolio tracking."""
 import reflex as rx
-from web.app.imobile.components.sidebar import sidebar
-from web.app.imobile.components.market_stats import market_stats
-from web.app.imobile.components.stock_table import stock_table
-from web.app.imobile.states.portfolio_state import PortfolioState
+from app.components.sidebar import sidebar
+from app.components.market_stats import market_stats
+from app.components.stock_table import stock_table
+from app.states.portfolio_state import PortfolioState
 
 
 def portfolio() -> rx.Component:

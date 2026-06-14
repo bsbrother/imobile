@@ -1,9 +1,9 @@
 """iMobile - Stock Portfolio Tracking Application."""
 
 import reflex as rx
-from imobile import db  # Import db to register models
-from web.app.imobile.pages.portfolio import portfolio
-from web.app.imobile.pages.sector_history import sector_history
+from app import db  # Import db to register models
+from app.pages.portfolio import portfolio
+from app.pages.sector_history import sector_history
 
 
 class State(rx.State):

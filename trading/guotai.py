@@ -20,7 +20,7 @@ from llama_index.llms.google_genai import GoogleGenAI
 # Add the parent directory to Python path so we can import from utils
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from gm_emulate_adb import get_device_connectivity, check_app_exist
-from utils.gemini_thinking import create_gemini_with_thinking
+from utils.gemini_free_api import create_free_llm, create_with_thinking
 from shared.db.db import DB
 from backtest.utils.trading_calendar import calendar
 from utils.trading_time import get_market_open_times_refresh_interval
@@ -81,15 +81,14 @@ async def open_app(tools: AndroidDriver, app_package_name: str = GUOTAI_PACKAGE_
 async def pre_requirements(app_package_name: str = GUOTAI_PACKAGE_NAME) -> tuple[AndroidDriver, GoogleGenAI, MobileConfig]:
     """Check device connectivity and app existence."""
 
-    llm = create_gemini_with_thinking(
+    llm = create_free_llm(
         api_key=GOOGLE_API_KEY,
         model=GEMINI_MODEL,
-        thinking_budget=int(GEMINI_THINKING_BUDGET),
         temperature=0.01
     )
     """
     # https://docs.droidrun.ai/v3/concepts/agent#planning-mode, reflection mode need vision=True, need gemini-2.5-flash or gpt-4o.
-    llm = create_gemini_with_thinking(
+    llm = create_free_llm(
         api_key=GOOGLE_API_KEY,
         model='gemini-2.5-flash',
         thinking_budget=0,

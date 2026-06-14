@@ -19,7 +19,7 @@ from llama_index.llms.google_genai import GoogleGenAI
 
 # Add the parent directory to Python path so we can import from utils
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from gm_emulate_adb import get_device_connectivity, check_app_exist
+from trading.adb import get_device_connectivity, check_app_exist
 from utils.gemini_free_api import create_free_llm, create_with_thinking
 from shared.db.db import DB
 from backtest.utils.trading_calendar import calendar

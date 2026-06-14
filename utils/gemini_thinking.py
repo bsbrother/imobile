@@ -26,31 +26,26 @@ def create_gemini_with_thinking(
     **kwargs
 ) -> GoogleGenAI:
     """
-    Create GoogleGenAI with native thinking mode support.
-    Default: gemini-3.1-flash-lite (free tier).
+    Create GoogleGenAI instance for DroidRun MobileAgent.
+    Default: gemini-2.5-flash (free tier, vision-enabled).
 
     Args:
         thinking_budget: Budget for thinking tokens (-1 = unlimited, 0 = disabled)
         model: Gemini model to use
-        api_key: Google API key (uses GEMINI_API_KEY env var if not provided)
+        api_key: Google API key (uses GOOGLE_API_KEY env var if not provided)
         **kwargs: Additional arguments passed to GoogleGenAI
 
     Returns:
-        Configured GoogleGenAI instance with thinking mode
+        Configured GoogleGenAI instance
     """
     if api_key is None:
-        api_key = os.getenv('GEMINI_API_KEY')
+        api_key = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
 
-    thinking_config = types.ThinkingConfig(thinking_budget=thinking_budget)
-
-    generation_config = types.GenerateContentConfig(
-        thinking_config=thinking_config
-    )
-
+    # Free tier model: gemini-3.1-flash-lite-preview supports llama_index GoogleGenAI
+    # The thinking_config causes 405 on free tier — skip it
     return GoogleGenAI(
         model=model,
         api_key=api_key,
-        generation_config=generation_config,
         **kwargs
     )
 

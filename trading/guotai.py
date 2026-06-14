@@ -28,9 +28,14 @@ from backtest.utils.logging_config import configure_logger
 
 # Load environment variables
 dotenv.load_dotenv(os.path.expanduser('.env'), verbose=True)
-GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+# ── Gemini API keys ──
+# Free tier: GEMINI_API_KEY (raw google.genai SDK only, no DroidRun agent)
+# Paid: GOOGLE_API_KEY (for llama_index GoogleGenAI + DroidRun vision agent)
+GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
+# gemini-2.5-flash: free tier, vision-enabled, proven stable
+# Paid models: gemini-2.5-pro, gpt-4o
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-GEMINI_THINKING_BUDGET = os.getenv("GEMINI_THINKING_BUDGET", "-1")
+GEMINI_THINKING_BUDGET = os.getenv("GEMINI_THINKING_BUDGET", "0")
 if not GOOGLE_API_KEY:
     raise ValueError("❌ GOOGLE_API_KEY not set. Skipping MobileAgent test.")
 GUOTAI_PACKAGE_NAME = os.getenv('GUOTAI_PACKAGE_NAME')

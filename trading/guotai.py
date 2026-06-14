@@ -20,6 +20,7 @@ from llama_index.llms.google_genai import GoogleGenAI
 # Add the parent directory to Python path so we can import from utils
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from trading.adb import get_device_connectivity, check_app_exist
+from trading.extractors import AppDataExtractor, ExtractPosition, ExtractQuote, ExtractTransaction, ExtractOrder
 from utils.gemini_free_api import create_free_llm, create_with_thinking
 from shared.db.db import DB
 from backtest.utils.trading_calendar import calendar
@@ -181,7 +182,7 @@ def replay_page(description: List[str] = ['行情', '我的持仓']):
     logger.info("✅ Replay completed successfully")
 
 
-def get_agent(config: MobileConfig | None = None, llm: GoogleGenAI | None = None, tools: AndroidDriver | None = None, goal: str | None = None) -> MobileAgent:
+def get_agent(config: MobileConfig | None = None, llm: GoogleGenAI | None = None, tools: AndroidDriver | None = None, goal: str | None = None, output_model=None) -> MobileAgent:
     """
     Create a MobileAgent instance with the specified goal, LLM, and AndroidDriver.
 
@@ -208,6 +209,7 @@ def get_agent(config: MobileConfig | None = None, llm: GoogleGenAI | None = None
         llms={"default": llm},
         driver=tools,
         timeout=10000,
+        output_model=output_model,
     )
 
     return agent
@@ -954,6 +956,113 @@ async def cron_sync_app_data_to_db(check_trading_day_and_time: bool = True) -> d
     }
     logger.info("Cron job to sync app data to database completed.\nResult: {}".format(result))
     return result
+
+
+# ══════════════════════════════════════════════════════════════════
+# GuotaiExtractor — broker app data extractor using MobileAgent
+# ══════════════════════════════════════════════════════════════════
+
+class GuotaiExtractor(AppDataExtractor):
+    """Guotai Junan (国泰海通君弘) broker app data extractor."""
+
+    def __init__(self, config=None, llm=None, driver=None):
+        super().__init__(
+            config=config,
+            llm=llm,
+            driver=driver,
+            app_package_name=GUOTAI_PACKAGE_NAME,
+            password=GUOTAI_PASSWORD,
+        )
+
+    def goto_homepage(self) -> None:
+        """Navigate to the app homepage using ADB + MobileAgent."""
+        close_app()
+        import asyncio
+        asyncio.run(open_app(self.driver))
+        time.sleep(3)
+        logger.info("✅ On homepage")
+
+    async def login(self) -> None:
+        """Login to trading account via MobileAgent vision navigation."""
+        logger.info("Logging into Guotai trading account...")
+        self.config.agent.max_steps = 15
+        goal = (
+            "在国泰海通君弘APP中，点击底部'我的'标签，"
+            "然后点击'登录/注册'或'立即登录'，"
+            "在交易账号登录页面，点击'账号登录'，"
+            "输入交易账号和密码后点击登录。"
+            "如果已登录则直接返回。"
+        )
+        agent = get_agent(config=self.config, llm=self.llm, tools=self.driver, goal=goal)
+        result = await agent.run()
+        if not result.success:
+            raise ValueError(f"❌ Login failed: {result.reason}")
+        logger.info("✅ Login successful")
+
+    async def get_transactions(self) -> ExtractTransaction:
+        """Extract transaction history from app."""
+        self.config.agent.max_steps = 40
+        self.config.agent.reasoning = False
+        goal = (
+            "在当前页面，点击底部'交易'标签，然后找到并点击'历史成交'。"
+            "提取所有交易记录（向上滚动加载更多），每条包含："
+            "名称、成交时间、成交价、成交量、买卖类型、成交金额。"
+            "完成后返回。"
+        )
+        agent = get_agent(
+            config=self.config, llm=self.llm, tools=self.driver,
+            goal=goal, output_model=ExtractTransaction
+        )
+        result = await agent.run()
+        for _ in range(3):
+            os.system('adb shell input keyevent KEYCODE_BACK')
+            time.sleep(0.5)
+        if not result.success:
+            raise ValueError(f"❌ Get transactions failed: {result.reason}")
+        return result.structured_output
+
+    async def get_positions(self) -> ExtractPosition:
+        """Extract holdings/summary from position page."""
+        self.config.agent.max_steps = 40
+        self.config.agent.reasoning = False
+        goal = (
+            "在当前页面，点击底部'交易'标签，然后点击'持仓'。"
+            "提取账户概览（浮动盈亏、总资产、总市值、仓位、可用、可取）"
+            "和所有持仓明细（名称、市值、持仓量、可用量、现价、成本、浮动盈亏、盈亏比例），"
+            "向上滚动直到'查看已清仓股票'出现。"
+        )
+        agent = get_agent(
+            config=self.config, llm=self.llm, tools=self.driver,
+            goal=goal, output_model=ExtractPosition
+        )
+        result = await agent.run()
+        for _ in range(2):
+            os.system('adb shell input keyevent KEYCODE_BACK')
+            time.sleep(0.5)
+        if not result.success:
+            raise ValueError(f"❌ Get positions failed: {result.reason}")
+        return result.structured_output
+
+    async def get_quotes(self) -> ExtractQuote:
+        """Extract market indices and stock quotes."""
+        self.config.agent.max_steps = 40
+        self.config.agent.reasoning = False
+        goal = (
+            "在当前页面，点击底部'行情'标签，然后点击'我的持仓'，再点击'同步'。"
+            "提取所有指数（指数名、点数、涨跌幅）"
+            "和所有自选股（名称、代码、最新价、涨跌幅、涨跌额），"
+            "向上滚动加载更多直到没有新数据。"
+        )
+        agent = get_agent(
+            config=self.config, llm=self.llm, tools=self.driver,
+            goal=goal, output_model=ExtractQuote
+        )
+        result = await agent.run()
+        os.system('adb shell input keyevent KEYCODE_BACK')
+        time.sleep(0.5)
+        if not result.success:
+            raise ValueError(f"❌ Get quotes failed: {result.reason}")
+        return result.structured_output
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@ Test: gemini-3.1-flash-lite-preview via llama_index GoogleGenAI.
 Uses exact same imports as gemini_free_api.py and DroidRun MobileAgent.
 
 Expected: 405 Method Not Allowed on client.models.get(model=...)
-This is a llama_index library issue, not our code.
+On google ai studio ->create new project ->create new API (iset norestrict)
 """
 import os
 import asyncio
@@ -45,3 +45,13 @@ if __name__ == "__main__":
     test_google_genai_init()
     # MobileAgent test skipped unless device connected
     asyncio.run(test_mobile_agent())
+
+
+    """
+    # CLI
+    export GOOGLE_API_KEY=your-api-key-here
+    mobilerun run "Your task here" \
+      --provider GoogleGenAI \
+      --model gemini-3.1-flash-lite-preview
+    #
+    """

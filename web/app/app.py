@@ -4,6 +4,7 @@ import reflex as rx
 from app import db  # Import db to register models
 from app.pages.portfolio import portfolio
 from app.pages.sector_history import sector_history
+import reflex as rx
 
 
 class State(rx.State):
@@ -43,14 +44,7 @@ def index() -> rx.Component:
 
 
 # Create the app
-app = rx.App(
-    theme=rx.theme(
-        appearance="dark",
-        has_background=True,
-        radius="large",
-        accent_color="blue",
-    ),
-)
+app = rx.App()
 
 # Add pages
 app.add_page(index, route="/", title="iMobile - 首页")

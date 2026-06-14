@@ -26,8 +26,8 @@ from backtest.utils.trading_calendar import calendar
 from utils.trading_time import get_market_open_times_refresh_interval
 from backtest.utils.logging_config import configure_logger
 
-# Load environment variables
-dotenv.load_dotenv(os.path.expanduser('.env'), verbose=True)
+# Load environment variables (shell env takes priority over .env)
+dotenv.load_dotenv(os.path.expanduser('.env'), override=False, verbose=False)
 # ── Gemini API keys ──
 # https://aistudio.google.com/app/apikey
 # GOOGLE_API_KEY: for llama_index GoogleGenAI + DroidRun vision agent

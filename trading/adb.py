@@ -41,20 +41,13 @@ async def get_device_connectivity() -> AndroidDriver:
         raise RuntimeError("No connected Android devices found. See README.md for setup instructions.")
     try:
         tools = AndroidDriver(serial=devices[0])
-        # Test get_state to check accessibility service
-        state = await tools.get_state()
-        # State is a tuple: (description_str, unknown_str, ui_elements_list, metadata_dict)
-        if isinstance(state, tuple) and len(state) >= 4 and isinstance(state[2], list):
-            print("✅ Device state retrieved successfully - accessibility service is working")
-            # Optional: log current app
-            if isinstance(state[3], dict) and 'currentApp' in state[3]:
-                print(f"   Current App: {state[3]['currentApp']}")
+        # Test screenshot to check device connectivity (get_state removed in mobilerun 0.6.x)
+        screenshot = await tools.screenshot()
+        if screenshot:
+            print("✅ Device screenshot retrieved successfully - connection is working")
             return tools
         else:
-            print(f"⚠️  Device state returned unexpected format.")
-            print(f"State type: {type(state)}")
-            print(f"State content: {state}")
-            raise RuntimeError("Device state returned but invalid format")
+            raise RuntimeError("Device screenshot returned empty")
     except Exception as e:
         print("\n" + "="*60)
         print("SETUP REQUIRED:")

@@ -34,12 +34,12 @@ develop-eggs/
 *.db-shm
 data_cache/
 data/
-backups/
+backtest/results_backups/
 db/go_daily_cache/
 
 # ── Backtest Outputs & Logs ────────────────────────────────
 *.log
-/backtest/backtest_results/
+/backtest/results/
 /logs/
 
 # ── IDE & Editor ────────────────────────────────────────────

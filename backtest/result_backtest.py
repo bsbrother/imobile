@@ -105,20 +105,38 @@ def parse_index_comparison(report_file):
     with open(report_file, 'r') as f:
         content = f.read()
 
+    # Try 4-column format first (SSE + CSI300 + CSI500)
     # | **Total Return** | 185.58% | 21.58% | 24.33% | -0.31% |
-    pattern = re.compile(
+    pattern4 = re.compile(
         r'\|\s*\*\*Total Return\*\*\s*\|\s*([^|\n]+)\|\s*([^|\n]+)\|\s*([^|\n]+)\|\s*([^|\n]+)\|'
     )
-    m = pattern.search(content)
-    if not m:
-        return None
-
-    return {
-        'strategy': m.group(1).strip(),
-        'sse': m.group(2).strip(),
-        'csi300': m.group(3).strip(),
-        'csi500': m.group(4).strip(),
-    }
+    # Fallback to 3-column format (SSE + CSI300 only)
+    # | **Total Return** | 185.58% | 21.58% | 24.33% |
+    pattern3 = re.compile(
+        r'\|\s*\*\*Total Return\*\*\s*\|\s*([^|\n]+)\|\s*([^|\n]+)\|\s*([^|\n]+)\|'
+    )
+    
+    # Try 4-column first
+    m = pattern4.search(content)
+    if m:
+        return {
+            'strategy': m.group(1).strip(),
+            'sse': m.group(2).strip(),
+            'csi300': m.group(3).strip(),
+            'csi500': m.group(4).strip(),
+        }
+    
+    # Fallback to 3-column
+    m = pattern3.search(content)
+    if m:
+        return {
+            'strategy': m.group(1).strip(),
+            'sse': m.group(2).strip(),
+            'csi300': m.group(3).strip(),
+            'csi500': 'N/A',
+        }
+    
+    return None
 
 
 def main():

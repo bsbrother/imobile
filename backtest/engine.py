@@ -1689,18 +1689,19 @@ class OrderAnalyzer:
 
             if benchmark_results:
                 f.write("## 🏆 Benchmark Comparison\n\n")
-                f.write("| Metric | Strategy | SSE Composite | CSI 300 |\n")
-                f.write("|--------|----------|---------------|---------|\n")
+                f.write("| Metric | Strategy | SSE Composite | CSI 300 | CSI 500 |\n")
+                f.write("|--------|----------|---------------|---------|--------|\n")
 
                 sse = benchmark_results.get('SSE Composite', {})
                 csi = benchmark_results.get('CSI 300', {})
+                csi500 = benchmark_results.get('CSI 500', {})
                 strat_ret = total_return_pct / 100
 
-                f.write(f"| **Total Return** | {strat_ret:.2%} | {sse.get('return', 0):.2%} | {csi.get('return', 0):.2%} |\n")
-                f.write(f"| **Excess Return** | - | {sse.get('excess', 0):.2%} | {csi.get('excess', 0):.2%} |\n")
-                f.write(f"| **Beta** | - | {sse.get('beta', 0):.4f} | {csi.get('beta', 0):.4f} |\n")
-                f.write(f"| **Alpha** | - | {sse.get('alpha', 0):.4f} | {csi.get('alpha', 0):.4f} |\n")
-                f.write(f"| **Correlation** | - | {sse.get('correlation', 0):.4f} | {csi.get('correlation', 0):.4f} |\n\n")
+                f.write(f"| **Total Return** | {strat_ret:.2%} | {sse.get('return', 0):.2%} | {csi.get('return', 0):.2%} | {csi500.get('return', 0):.2%} |\n")
+                f.write(f"| **Excess Return** | - | {sse.get('excess', 0):.2%} | {csi.get('excess', 0):.2%} | {csi500.get('excess', 0):.2%} |\n")
+                f.write(f"| **Beta** | - | {sse.get('beta', 0):.4f} | {csi.get('beta', 0):.4f} | {csi500.get('beta', 0):.4f} |\n")
+                f.write(f"| **Alpha** | - | {sse.get('alpha', 0):.4f} | {csi.get('alpha', 0):.4f} | {csi500.get('alpha', 0):.4f} |\n")
+                f.write(f"| **Correlation** | - | {sse.get('correlation', 0):.4f} | {csi.get('correlation', 0):.4f} | {csi500.get('correlation', 0):.4f} |\n\n")
 
             f.write("## 📈 Daily Performance Breakdown\n\n")
             f.write("| Date | Txns | Sells | Realized P&L | Unrealized P&L | Total P&L | Portfolio Value | Positions |\n")

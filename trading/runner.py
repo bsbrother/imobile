@@ -37,10 +37,11 @@ import asyncio
 import argparse
 import shutil
 from datetime import datetime
-from backtest.utils.trading_calendar import calendar
 
-# Ensure project root is in path
+# Ensure project root is in path (must come before any project imports)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from backtest.utils.trading_calendar import calendar
 
 import dotenv
 dotenv.load_dotenv(os.path.expanduser('.env'), verbose=True)

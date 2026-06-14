@@ -311,6 +311,9 @@ def pick_strong_stocks(start_date: str, end_date: str, src: str = 'ts_7AZ') -> p
         })
 
     output_file = '/tmp/tmp'
+    # If /tmp/tmp is a directory (pip residue), use alternative
+    if os.path.isdir(output_file):
+        output_file = '/tmp/ts_7AZ_tmp.json'
     with open(output_file, 'w') as f:
         json.dump({'selected_stocks': selected_stocks}, f)
 

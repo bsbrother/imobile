@@ -88,7 +88,7 @@ if not os.path.exists(REPORT_PATH):
 # Use virtualenv python for python-based strategies
 VENV_PYTHON = "/home/kasm-user/apps/imobile/.venv/bin/python"
 
-def pick_stocks_to_file(this_date: str, src: str = 'ts_auto') -> str:
+def pick_stocks_to_file(this_date: str, src: str = 'ts_auto', backtest_search: bool = True, backtest_ai: bool = True) -> str:
     """
     Pick stocks and save to a file for a specific date.
 
@@ -157,7 +157,12 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_auto') -> str:
     try:
         os.rename('/tmp/tmp', tmp_file)
     except OSError:
-        pass  # file may have been renamed by another process already
+        # ts_7AZ fallback path
+        fallback = '/tmp/ts_7AZ_tmp.json'
+        if os.path.exists(fallback):
+            os.rename(fallback, tmp_file)
+        else:
+            pass  # already renamed by another process
     with open(tmp_file, 'r') as f:
         strong_stocks = json.load(f)
     data = {
@@ -1968,7 +1973,7 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
             continue
 
         # Step 1: Pick stocks
-        pick_output_file = pick_stocks_to_file(this_date, src=src)
+        pick_output_file = pick_stocks_to_file(this_date, src=src, backtest_search=backtest_search, backtest_ai=backtest_ai)
 
         # Step 1.5: Calculate Cumulative Realized P&L and Current Capital
         cumulative_realized_pnl = 0.0

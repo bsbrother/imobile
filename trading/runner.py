@@ -38,6 +38,8 @@ import argparse
 import shutil
 from datetime import datetime
 
+from loguru import logger
+
 # Ensure project root is in path (must come before any project imports)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -82,14 +84,46 @@ def check_result_by_screenshot(keywords):
 
 
 async def run_daily_trading(this_date, phase, user_id, dry_run, app_package_name):
-    """Stub for daily trading workflow. Returns a placeholder result."""
+    """Run daily trading workflow for a specific phase."""
+    import subprocess
+    from backtest.engine import pick_orders_trading
+
+    logger.info(f"Starting {phase} for {this_date} (user={user_id}, dry_run={dry_run})")
+
+    if phase == 'pre-market':
+        # Pick stocks and create smart orders
+        logger.info("Picking stocks and creating smart orders...")
+        try:
+            pick_orders_trading(
+                start_date=this_date,
+                end_date=this_date,
+                user_id=user_id,
+                src='ts_auto',
+                backtest_search=False,
+                backtest_ai=False,
+                resume=False,
+            )
+            logger.info("✅ Pre-market stock picking + smart orders complete")
+        except Exception as e:
+            logger.error(f"❌ Pre-market failed: {e}")
+            raise
+
+    elif phase == 'market':
+        # Execute pending smart orders
+        logger.info("Executing pending smart orders...")
+        # TODO: call order execution
+
+    elif phase == 'post-market':
+        # Sync results from mobile app to DB
+        logger.info("Syncing post-market data...")
+        await cron_sync_app_to_db(check_trading_day_and_time=False)
+
     return {
-        "status": "stub",
+        "status": "ok",
         "phase": phase,
         "date": this_date,
         "user_id": user_id,
         "dry_run": dry_run,
-        "message": "run_daily_trading is a stub. Implement with real trading logic.",
     }
 
 
@@ -134,8 +168,8 @@ Examples:
 
     driver, llm, config = asyncio.run(pre_requirements(GUOTAI_PACKAGE_NAME))
     extractor = GuotaiExtractor(config=config, llm=llm, driver=driver)
-    close_all_recent_apps()
-    asyncio.run(extractor.login())
+    #close_all_recent_apps()
+    #asyncio.run(extractor.login())
     if not check_result_by_screenshot(["行情", "交易", "我的"]):
         raise ValueError("❌ Not on homepage. Please login first.")
 

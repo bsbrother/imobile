@@ -122,7 +122,7 @@ async def pre_requirements(app_package_name: str = GUOTAI_PACKAGE_NAME) -> tuple
             trajectory_gifs=False
         ),
         tracing=TracingConfig(enabled=False),
-    )                             
+    )
 
     return tools, llm, config
 
@@ -224,14 +224,20 @@ def get_format_output(tools: AndroidDriver, output:str, start_str:str = 'csv_for
     if not output:
         return output
     import unicodedata
-    # import pdb;pdb.set_trace()
+    #import pdb;pdb.set_trace()
     SPLIT_STR = ['data is:', 'data:', 'result:']
     for s in SPLIT_STR:
         if s in output:
             output = output.split(s)[-1].strip()
             break
+    if "ummary\n" in output:
+      output = output.split("ummary\n")[-1].strip()
     start_str = start_str.strip().lower()
     start = output.split(',', 1)[0].split(' ', 1)[-1].split('_', 1)[-1].strip().lower() + ','
+    # 2026.06.15 change to same as xx%.
+    import Levenshtein
+    if Levenshtein.distance(start_str, start) <= 3:
+        return output
     if not output.lower().startswith(start_str) and start != start_str:
         output_save = output
         # Regex to remove 'name,:' or 'Indices Data:' or 'Stocks Data:' lines.
@@ -990,7 +996,7 @@ class GuotaiExtractor(AppDataExtractor):
             "在国泰海通君弘APP中，点击底部'我的'标签，"
             "然后点击'登录/注册'或'立即登录'，"
             "在交易账号登录页面，点击'账号登录'，"
-            "输入交易账号和密码后点击登录。"
+            "输入密码: 817671, 后点击登录。"
             "如果已登录则直接返回。"
         )
         agent = get_agent(config=self.config, llm=self.llm, tools=self.driver, goal=goal)

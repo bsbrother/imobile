@@ -3,7 +3,7 @@
 Backtest Results Analyzer — monthly P&L breakdown + index comparison.
 
 Usage:
-  python utils/result_backtest.py [dir]
+  python backtest/result_backtest.py [dir]
 
 Arguments:
   dir   Path to a backtest results directory
@@ -13,7 +13,6 @@ Arguments:
 Examples:
   python backtest/result_backtest.py
   python backtest/result_backtest.py backtest/results/20250101_20260612_ts_auto
-  python utils/result_backtest.py backups/2025_noai_search
 """
 import os
 import sys
@@ -100,7 +99,7 @@ def calculate_monthly_end_stats(dir_path):
 
 def parse_index_comparison(report_file):
     """Parse benchmark comparison table from period report.
-    Returns dict with strategy/sse/csi300 returns or None."""
+    Returns dict with strategy/sse/csi300/csi500 returns or None."""
     if not os.path.exists(report_file):
         return None
     with open(report_file, 'r') as f:
@@ -108,7 +107,7 @@ def parse_index_comparison(report_file):
 
     # | **Total Return** | 185.58% | 21.58% | 24.33% | -0.31% |
     pattern = re.compile(
-        r'\|\s*\*\*Total Return\*\*\s*\|\s*([^|\n]+)\|\s*([^|\n]+)\|\s*([^|\n]+)\|'
+        r'\|\s*\*\*Total Return\*\*\s*\|\s*([^|\n]+)\|\s*([^|\n]+)\|\s*([^|\n]+)\|\s*([^|\n]+)\|'
     )
     m = pattern.search(content)
     if not m:
@@ -118,6 +117,7 @@ def parse_index_comparison(report_file):
         'strategy': m.group(1).strip(),
         'sse': m.group(2).strip(),
         'csi300': m.group(3).strip(),
+        'csi500': m.group(4).strip(),
     }
 
 
@@ -192,7 +192,7 @@ def main():
         print(f"\n{'='*70}")
         print(f"Backtest: {start_date} → {end_date}  |  Strategy: {method}")
         if index_data:
-            print(f"Index:  SSE {index_data['sse']}  |  CSI300 {index_data['csi300']}  |  Strategy {index_data['strategy']}")
+            print(f"Index:  SSE {index_data['sse']}  |  CSI300 {index_data['csi300']}  |  CSI500 {index_data['csi500']}  |  Strategy {index_data['strategy']}")
         print(f"{'='*70}")
 
         # ── Monthly breakdown ──
@@ -229,8 +229,15 @@ def main():
             if index_data:
                 strat_ret = parse_percentage(index_data['strategy'])
                 sse_ret = parse_percentage(index_data['sse'])
-                if strat_ret is not None and sse_ret is not None:
-                    print(f"  vs SSE:   +{strat_ret - sse_ret:.2f}% (strat {strat_ret:.2f}% - SSE {sse_ret:.2f}%)")
+                csi300_ret = parse_percentage(index_data['csi300'])
+                csi500_ret = parse_percentage(index_data['csi500'])
+                if strat_ret is not None:
+                    if sse_ret is not None:
+                        print(f"  vs SSE:    +{strat_ret - sse_ret:.2f}% (strat {strat_ret:.2f}% - SSE {sse_ret:.2f}%)")
+                    if csi300_ret is not None:
+                        print(f"  vs CSI300:  +{strat_ret - csi300_ret:.2f}% (strat {strat_ret:.2f}% - CSI300 {csi300_ret:.2f}%)")
+                    if csi500_ret is not None:
+                        print(f"  vs CSI500:  +{strat_ret - csi500_ret:.2f}% (strat {strat_ret:.2f}% - CSI500 {csi500_ret:.2f}%)")
 
 
 if __name__ == "__main__":

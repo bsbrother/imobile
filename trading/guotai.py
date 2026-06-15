@@ -129,57 +129,51 @@ async def pre_requirements(app_package_name: str = GUOTAI_PACKAGE_NAME) -> tuple
 
 def replay_page(description: List[str] = ['行情', '我的持仓']):
     """
-    Replay guotai app and navigate to the specified page by finding matching trajectory. default is my quote page.
+    Replay guotai app navigation using pre-recorded trajectory.
+    Falls back to live MobileAgent if no matching trajectory found.
 
-    Pre-requisites:
-    - droidrun "Open '国泰海通君弘', then tap '行情' on the bottom navigation bar, then tap '我的持仓'" --provider GoogleGenAI --model models/gemini-2.5-pro --temperature 0.1 --reasoning --save-trajectory step
-    - droidrun "Open '国泰海通君弘', then tap '交易' on the bottom navigation bar, then tap "创建订单', then tap '登录交易帐号,查看订单详情', then input password '817671', then tap '登录'" --provider GoogleGenAI --model models/gemini-2.5-pro --temperature 0.1 --reasoning --save-trajectory step
+    Pre-requisites (record new trajectory):
+      mobilerun run "Open '国泰海通君弘', then tap '行情', then tap '我的持仓'" \\
+        --provider GoogleGenAI --model gemini-3.1-flash-lite-preview \\
+        --save-trajectory step
 
     Args:
         description: List of keywords to match in trajectory description
-
-    Raises:
-        ValueError: If no matching trajectory is found or replay fails
     """
-    # Get list of available trajectories
+    TRAJ_DIR = 'trading/trajectory'
     try:
         result = subprocess.run(
-            'stty rows 24 columns 180; droidrun macro list',
-            capture_output=True,
-            text=True,
-            check=True,
-            shell=True
+            f'mobilerun macro list {TRAJ_DIR}',
+            capture_output=True, text=True, check=True, shell=True
         )
         output = result.stdout
-        # Parse the output to find matching trajectory, Handle multi-line descriptions in the table
         lines = output.split('\n')
         current_folder = full_description = ''
-
         for line in lines:
-            # Skip header and separator lines
             if '│' in line and not line.strip().startswith('┃') and not line.strip().startswith('┡'):
                 parts = [p.strip() for p in line.split('│') if p.strip()]
-                if len(parts) >= 1:
-                    # Check if first part is a folder name (contains only digits, underscores, and lowercase letters)
+                if len(parts) >= 2:
                     current_folder = parts[0]
                     if current_folder and '_' in current_folder and all(c.isdigit() or c == '_' or c.islower() for c in current_folder):
                         full_description = parts[1] if len(parts) > 1 else ''
                         if all(keyword in full_description for keyword in description):
-                            current_folder = f"trajectories/{current_folder}"
-                            logger.info(f"✅ Found matching trajectory: {current_folder}")
-                            logger.info(f"   Description: {full_description}")
+                            current_folder = f'{TRAJ_DIR}/{current_folder}'
+                            logger.info(f'✅ Found matching trajectory: {current_folder}')
                             break
-
-        if not current_folder or 'trajectories/' not in current_folder:
-            raise ValueError(f"⚠️  No trajectory found matching keywords: {description}")
+        if not current_folder or 'Error loading' in (full_description or ''):
+            logger.warning(f'No valid trajectory found for {description}, skipping replay')
+            return False
     except Exception as e:
-        raise ValueError(f"⚠️  Failed to replay {description}, ERROR: {e}")
+        logger.warning(f'Replay lookup failed: {e}, skipping')
+        return False
 
-    logger.info(f"🔄 Replaying trajectory {description} from {current_folder}...")
-    result = os.system(f"droidrun macro replay {current_folder} --delay 6")
+    logger.info(f'🔄 Replaying trajectory {description} from {current_folder}...')
+    result = os.system(f'mobilerun macro replay {current_folder} --delay 6')
     if result != 0:
-        raise ValueError(f"❌ Failed to replay {description}, exit code: {result}")
-    logger.info("✅ Replay completed successfully")
+        logger.warning(f'❌ Replay failed (exit {result}), falling back to live agent')
+        return False
+    logger.info('✅ Replay completed successfully')
+    return True
 
 
 def get_agent(config: MobileConfig | None = None, llm: GoogleGenAI | None = None, tools: AndroidDriver | None = None, goal: str | None = None, output_model=None) -> MobileAgent:

@@ -37,7 +37,6 @@ import asyncio
 import argparse
 import shutil
 from datetime import datetime
-
 from loguru import logger
 
 # Ensure project root is in path (must come before any project imports)
@@ -48,44 +47,21 @@ from backtest.utils.trading_calendar import calendar
 import dotenv
 dotenv.load_dotenv(os.path.expanduser('.env'), verbose=True)
 
-import trading.guotai as app_guotai
 from trading.guotai import (
-    pre_requirements,
-    close_app as close_all_recent_apps,
-    replay_page,
-    # check_result_by_screenshot: stub
     GUOTAI_PACKAGE_NAME,
-    sync_index_quote_data_to_db,
-    sync_summary_position_data_to_db,
-    sync_order_data_to_db,
-    cron_sync_app_data_to_db as cron_sync_app_to_db,
+    login,
+    cron_sync_app_to_db,
 )
-
-# ── GuotaiExtractor from trading/guotai ──────────────────────────────────
-from trading.guotai import GuotaiExtractor
-
-
-def check_result_by_screenshot(keywords):
-    """Check if expected UI elements are visible on screen."""
-    import subprocess
-    try:
-        result = subprocess.run(
-            ['adb', 'exec-out', 'screencap', '-p'],
-            capture_output=True, timeout=5
-        )
-        if result.returncode != 0:
-            logger.warning("Screenshot check failed — assuming OK")
-            return True
-        # Simple check: return True if keyword checks are not critical
-        return True
-    except Exception:
-        logger.warning("Screenshot check error — assuming OK")
-        return True
 
 
 async def run_daily_trading(this_date, phase, user_id, dry_run, app_package_name):
     """Run daily trading workflow for a specific phase."""
-    import subprocess
+    # Route daily trading output to backtest/results/daily/ to avoid
+    # polluting backtest result directories.
+    _daily_dir = os.path.join('backtest', 'results', 'daily')
+    os.makedirs(_daily_dir, exist_ok=True)
+    os.environ['REPORT_DIR'] = _daily_dir
+
     from backtest.engine import pick_orders_trading
 
     logger.info(f"Starting {phase} for {this_date} (user={user_id}, dry_run={dry_run})")
@@ -98,7 +74,7 @@ async def run_daily_trading(this_date, phase, user_id, dry_run, app_package_name
                 start_date=this_date,
                 end_date=this_date,
                 user_id=user_id,
-                src='ts_auto',
+                src='ts_7AZ',
                 backtest_search=False,
                 backtest_ai=False,
                 resume=False,
@@ -165,24 +141,8 @@ Examples:
 
     # Cleanup empty trajectory directories
     cleanup_empty_trajectories()
-
-    driver, llm, config = asyncio.run(pre_requirements(GUOTAI_PACKAGE_NAME))
-    extractor = GuotaiExtractor(config=config, llm=llm, driver=driver)
-    #close_all_recent_apps()
-    #asyncio.run(extractor.login())
-    if not check_result_by_screenshot(["行情", "交易", "我的"]):
-        raise ValueError("❌ Not on homepage. Please login first.")
-
-    # For temp tests.
-    from loguru import logger
-    #extractor.goto_homepage()
-    #transaction_data = asyncio.run(extractor.get_transactions())
-    #result_transaction = asyncio.run(sync_transaction_app_to_db(transaction_data, user_id=1))
-    #logger.info(f'sync_transactions_app_to_db done, result: {result_transaction}')
-    #position_data = asyncio.run(extractor.get_positions())
-    #result_position = asyncio.run(sync_summary_position_app_to_db(position_data, user_id=1))
-    #logger.info(f'sync_summary_position_app_to_db done, result: {result_position}')
-    #exit(0)
+    # Ensure app is Open to homepage and then logged in
+    login()
 
     if args.sync_only:
         # Legacy behavior — just sync data using Guotai extractor

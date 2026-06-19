@@ -1,143 +1,132 @@
 # iMobile Architecture
 
-> A-Shares automated trading system: backtesting, live trading, and reflex web dashboard.
+> A-Shares automated trading system: quantitative backtesting, live trading automation, and reflex web dashboard.
 
 ## Project Overview
 
-iMobile is organized into 3 subsystems:
+iMobile is organized into 3 interconnected subsystems:
 
-1. **Backtest** — `backtest/` — quantitative research engine
-2. **Trading** — `trading/` — live trading & mobile ADB automation
-3. **Web** — `web/` — Reflex portfolio dashboard
+1. **Backtest** — `backtest/` — quantitative research engine and order generator
+2. **Trading** — `trading/` — live trading orchestrator & mobile ADB automation agent
+3. **Web** — `web/` — Reflex-based real-time portfolio dashboard
 
-Shared resources live in `shared/`.
+Shared databases, caches, and utilities are located in the `shared/` and `utils/` directories.
+
+---
 
 ## Directory Map
 
-```
+```text
 imobile/
-├── backtest/                     # [1] Backtest Engine
-│   ├── engine.py                 #   Main entry point (was: backtest_orders.py)
-│   ├── strategies/               #   Stock selection strategies (was: pick_stocks_from_sector/)
-│   │   ├── ts_auto.py            #     ★ Meta-strategy: regime → delegates
-│   │   ├── ts_7AZ.py             #     CANSLIM 7-factor fundamental screener
-│   │   ├── ts_ths_dc.py          #     Hot-sector + channel breakout (ts_dc)
-│   │   ├── ts_daily.py           #     News-driven daily picks (LLM + search)
-│   │   ├── ts_ai_pick.py         #     AI-driven stock selection
-│   │   ├── ts_longup.py          #     Trend-following (ADX, slope analysis)
-│   │   ├── ts_hma.py             #     Hull Moving Average + SuperTrend
-│   │   └── ts_gb_line.py         #     Golden-cross / dead-cross line strategy
-│   ├── core/                     #   Order generator, position sizing
+├── backtest/                     # [1] Backtest & Order Engine
+│   ├── engine.py                 #   Main orchestrator: pick → orders → execute
+│   ├── strategies/               #   Stock selection logic (ts_auto, ts_7AZ, ts_dc, etc.)
+│   ├── core/                     #   A-Shares rule enforcement (T+1), order execution
 │   ├── data/                     #   Data providers (Tushare, Akshare, SQLite cache)
-│   ├── utils/                    #   Trading calendar, market regime detection
-│   ├── analysis/                 #   Post-backtest analysis tools
-│   ├── cbs_ewo/                  #   CBS/EWO analysis
-│   ├── cli.py                    #   CLI for pick/analyze/run commands
-│   ├── config.json               #   Risk/reward ratios, position sizing per regime
-│   ├── results/                   Backtest output
+│   ├── utils/                    #   Market regime detection, calendars
+│   ├── analysis/                 #   Post-backtest performance metrics & charts
+│   ├── config.json               #   Risk parameters, regime TP/SL thresholds
+│   └── results/                  #   Backtest reports (YYYYMMDD_YYYYMMDD_ts_XX/)
+│       └── daily/                #   Daily trading output (pick + smart orders)
 │
-├── trading/                      # [2] Live Trading System
-│   ├── runner.py                 #   Live trading orchestrator (was: app_trading.py)
-│   ├── guotai.py                 #   国泰君安 broker integration (was: app_guotai.py)
-│   ├── adb.py                    #   ADB phone emulation (was: gm_emulate_adb.py)
-│   └── trajectory/               #   DroidRun tap record replay
+├── trading/                      # [2] Live Trading & Automation
+│   ├── runner.py                 #   Live scheduler (pre-market, market, post-market)
+│   ├── guotai.py                 #   ADB + Gemini Vision automation for Guotai App
+│   ├── adb.py                    #   Android emulator bridge and commands
+│   └── db_sync.py                #   Syncs parsed mobile UI data into imobile.db
 │
 ├── web/                          # [3] Reflex Web Dashboard
-│   ├── config.py                 #   Reflex config (was: rxconfig.py)
-│   ├── app/                      #   Reflex app (was: imobile/)
-│   │   ├── imobile/              #     Main app module
-│   │   │   ├── pages/            #     Portfolio, stock analysis pages
-│   │   │   ├── components/       #     Reusable UI components
-│   │   │   ├── states/           #     Reflex state management
-│   │   │   └── utils/            #     Web helpers
-│   │   ├── api.py                #     API endpoints
-│   │   └── db.py                 #     Database models
-│   ├── assets/                   #   Web assets (charts, icons)
-│   ├── .web/                     #   Reflex build output
-│   └── migrations/               #   Alembic DB migrations (was: alembic/)
+│   ├── rxconfig.py               #   Reflex configuration and Tailwind/Radix plugins
+│   ├── app/                      #   Reflex Application
+│   │   ├── app.py                #     Route definitions
+│   │   ├── pages/                #     /portfolio, /sector-history
+│   │   ├── components/           #     UI Elements (stock_table, market_stats)
+│   │   ├── states/               #     WebSocket state management (PortfolioState)
+│   │   ├── api.py                #     FastAPI endpoints for serving dynamic reports
+│   │   └── db.py                 #     SQLModel schema matching imobile.db
+│   └── assets/                   #   Static assets and dynamically symlinked reports
 │
 ├── shared/                       # Shared Resources
-│   ├── db/                       #   Databases (imobile.db, caches)
-│   ├── data/                     #   Stock analysis data
-│   ├── data_cache/               #   Cached data files
-│   └── utils/                    #   Shared utilities (future)
+│   ├── db/                       #   imobile.db (Live state) and db_cache.db (Market Data)
+│   └── data/                     #   Saved strategy outputs
 │
-├── utils/                        # Shared Utilities (kept at root for import compat)
-│   ├── daily_stock_analysis/     #   LLM-powered stock analysis pipeline
-│   ├── searxng/                  #   Search engine integration
-│   ├── FreeRide/                 #   OpenRouter proxy
-│   ├── TradingAgents-CN/         #   Trading agents
-│   ├── result_backtest.py        #   Post-backtest monthly + index analyzer
-│   └── stock_news_public_opinion.py  # Search provider bridge
-│
-├── .env                          # Environment variables
-├── requirements.txt              # Python dependencies
-├── pytest.ini                    # Test config
-└── docs/                         # Documentation
+├── utils/                        # Cross-Module Utilities
+│   ├── daily_stock_analysis/     #   LLM-powered fundamental analysis
+│   ├── searxng/                  #   Local search integration
+│   └── result_backtest.py        #   Aggregated backtest monthly reporter
 ```
 
-## Core Workflow: Backtest Engine
+---
 
-```
-python backtest/engine.py <start> <end> <strategy> [--search] [--ai] [--resume]
+## High-Level Data Flow
 
-     ┌─────────────────────────────────────────────┐
-     │  For each trading day:                       │
-     │                                              │
-     │  1. pick_stocks_to_file(date, src)           │
-     │     ├── detect_market_regime(date)           │  120-day MA60/MA120
-     │     ├── ts_auto → determine_strategy()       │  20-day MA10 + momentum
-     │     ├── Delegate to sub-strategy script      │
-     │     └── Write pick_stocks_YYYYMMDD.json      │
-     │                                              │
-     │  2. create_smart_orders_from_picks()         │
-     │     ├── Technical analysis per stock         │
-     │     ├── Risk-adjusted position sizing        │
-     │     └── Write smart_orders_YYYYMMDD.json     │
-     │                                              │
-     │  3. execute → OrderAnalyzer                  │
-     │     ├── execute_buy_order()  → DB insert     │
-     │     ├── execute_sell_order() → DB insert     │
-     │     └── Write report_orders_YYYYMMDD.md      │
-     │                                              │
-     │  4. (period end) generate_period_report()    │
-     └──────────────────────────────────────────────┘
-```
+The three subsystems interact primarily through the shared SQLite database (`shared/db/imobile.db`) and file-based handoffs.
 
-## Strategy Selection: ts_auto (Meta-Strategy)
+```mermaid
+graph TD
+    subgraph "1. Backtest / Order Generation"
+        BE[engine.py] -->|1. Detect Regime & Run Strategy| ST[Strategies]
+        ST -->|2. Generate Buy/Sell Limits| SO(smart_orders.json)
+    end
 
-Default: **ts_7AZ** CANSLIM (proven 185% return, 19/21 winning months).
+    subgraph "2. Live Trading (crontab)"
+        TR[runner.py] -->|3. Read daily orders| SO
+        TR -->|4. Push execution intent| AA[Mobile ADB Agent]
+        AA -->|5. Vision / UI Parsing| Broker[(Guotai App)]
+        Broker -->|6. Actual Holdings / P&L| AA
+        AA -->|7. Update Live State| DB[(shared/db/imobile.db)]
+    end
 
-Edge cases:
-- Strong bull (mom > 4%, vol < 1.5%) → **ts_longup** trend-following
-- Sharp bear (mom < -8%, vol > 2.5%) → **ts_hma** Hull MA reversal
-
-## Live Trading: trading/runner.py
-
-```bash
-python trading/runner.py [date] --phase [pre-market|market|post-market|auto|all]
+    subgraph "3. Web Dashboard"
+        RX[Reflex App] -->|8. Read Real-time State| DB
+        RX -->|9. Render UI| User(Web Browser)
+    end
 ```
 
-Phases:
-- pre-market  → Pick stocks → create/adjust smart orders
-- market      → Monitor and execute orders
-- post-market → Generate daily report, sync mobile app data
+---
 
-## Mobile Automation: trading/guotai.py
+## Subsystem Deep Dives
 
-Uses DroidRun + Gemini to automate the Guotai stock trading app on Android:
+### 1. Backtest Engine (`backtest/`)
 
-```
-Device (Genymotion) → ADB → DroidRun Portal → Gemini Vision → data extraction
-                                                                   │
-                                       ┌───────────────────────────┘
-                                       ▼
-                             DB sync (indices, quotes, positions, P&L)
-```
+The backtest engine simulates A-Share market conditions perfectly (T+1, limits, fees) and also serves as the *Order Generator* for live trading.
 
-## Configuration
+**Core Workflow:**
+1. **Regime Detection:** `detect_market_regime()` uses 120-day MA60/MA120 to classify the market as Bull, Bear, Normal, or Volatile.
+2. **Strategy:** Default `ts_7AZ` runs CANSLIM 7-factor screening. `ts_auto` is available as a meta-strategy that delegates to sub-strategies.
+3. **Smart Orders:** `create_smart_orders_from_picks()` generates dynamic `buy_price`, `take_profit`, and `stop_loss` levels with regime-based ratios (TP: Bull 25%, Normal 15%, Volatile 10%, Bear 8%). SL uses narrow trailing buffer (Bull 5%, Normal 4%, Volatile 3%, Bear 2%) — resets to `current_price × (1 - buffer%)` on re-pick, creating a fail-fast dynamic that cuts losers early while avoiding noise on normal volatility.
+4. **Execution / Validation:** `TradeValidator` ensures no short selling and enforces T+1 settlement holding constraints.
 
-`backtest/config.json` controls risk parameters per regime:
+### 2. Live Trading Automation (`trading/`)
+
+Because automated API trading for retail A-Share accounts is heavily restricted, iMobile uses an intelligent **UI Automation Agent**.
+
+**Execution Phases (`runner.py`):**
+- `pre-market` (09:10): Calls `backtest/engine.py` to generate today's smart orders and writes to `suggestion_stocks` DB table.
+- `market` (09:30-15:00): Instructs the mobile agent to enter orders based on real-time price checks.
+- `post-market` (15:10): Agent performs a full UI traversal of the broker app to parse actual account balances, holdings, and P&L.
+
+**Mobile Agent (`guotai.py`):**
+- Uses `adb.py` to launch the Android emulator and tap coordinates.
+- Uses `Gemini Vision` (via `DroidRun`) to take screenshots, understand the app's current UI state, extract financial numbers via OCR, and recover from unexpected popups or app updates.
+
+### 3. Web Dashboard (`web/`)
+
+A presentation layer built with Reflex (Python to React compiler). It reads directly from the shared `imobile.db`.
+
+**State Management (`PortfolioState`):**
+- Queries the `summary_account` and `holding_stocks` tables using SQLAlchemy.
+- Updates the UI dynamically when the underlying database is modified by the trading agent.
+
+**Pages:**
+- `/portfolio`: Real-time tracking of the portfolio synced from the broker app.
+- `/sector-history`: Interactive analytical tool merging Tushare historical data and Dongfang Caifu (DC) real-time data to identify hot sector rotation. Uses Plotly for rendering interactive candlestick + MACD charts.
+
+---
+
+## Configuration & Parameters
+
+The central brain of the quantitative risk model lives in `backtest/config.json`. This config dictates behavior across all regimes.
 
 ```json
 {
@@ -155,8 +144,7 @@ Device (Genymotion) → ADB → DroidRun Portal → Gemini Vision → data extra
 
 ## Key Design Principles
 
-1. **T+1 Compliance** — All backtests enforce T+1 settlement
-2. **No Lookahead** — Strategies only use data available at market open
-3. **Realistic Execution** — Orders fill at open_price, limit-up/down locks modeled
-4. **20%/10% Limit Rules** — ChiNext/STAR use 20% limits; main board uses 10%
-5. **Fees Modeled** — Commission 0.00341% (min ¥5), stamp duty 0.05% on sells
+1. **T+1 Compliance** — Modeled correctly across both backtesting and live environments.
+2. **No Lookahead Bias** — Strategies are restricted from using current-day closing data to generate current-day open orders.
+3. **Resilient Automation** — The ADB agent relies on LLM vision rather than hardcoded coordinates for data extraction, making it robust against broker app UI changes.
+4. **Single Source of Truth** — `imobile.db` holds the definitive state of the live portfolio, bridging the Python backend and the Reflex frontend.

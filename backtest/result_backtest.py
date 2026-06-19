@@ -19,7 +19,6 @@ import sys
 import re
 import glob
 import json
-from collections import defaultdict
 
 DEFAULT_RESULTS_DIR = 'backtest/results'
 CONFIG_PATH = 'backtest/config.json'
@@ -169,6 +168,8 @@ def main():
         dirs_to_process.append(os.path.normpath(target_dir))
     else:
         for entry in os.listdir(target_dir):
+            if entry == 'daily':
+                continue  # daily trading output, not a backtest result
             full_path = os.path.join(target_dir, entry)
             if os.path.isdir(full_path) and dir_pattern.match(entry):
                 dirs_to_process.append(full_path)

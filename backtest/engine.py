@@ -88,7 +88,7 @@ if not os.path.exists(REPORT_PATH):
 # Use virtualenv python for python-based strategies
 VENV_PYTHON = "/home/kasm-user/apps/imobile/.venv/bin/python"
 
-def pick_stocks_to_file(this_date: str, src: str = 'ts_auto', backtest_search: bool = True, backtest_ai: bool = True) -> str:
+def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ', backtest_search: bool = True, backtest_ai: bool = True) -> str:
     """
     Pick stocks and save to a file for a specific date.
 
@@ -323,9 +323,7 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
 
                     # Increase TP by 10% (let winners run more)
                     profit_price = round(float(profit_price) * 1.10, 2)
-                    # Do NOT raise SL blindly to avoid noise-out. Keep original SL or raise very slightly.
-                    # lose_price = round(float(lose_price) * 1.02, 2)
-                    # For now, keep SL same to give room for volatility.
+                    # Do NOT raise SL blindly to avoid noise-out. Keep original SL.
                     lose_price = float(lose_price)
 
                     # the order is about to expire today, force sell at market price next day.
@@ -717,7 +715,7 @@ class OrderAnalyzer:
 
         symbol = order['symbol']
         name = order['name']
-        buy_price = order['buy_price']          # backtest/cli.py no-rsi-rule, set to open_price
+        order['buy_price']          # backtest/cli.py no-rsi-rule, set to open_price
         _current_price = order['current_price']  # prev_close_price
         take_profit = order['sell_take_profit_price']
         stop_loss = order['sell_stop_loss_price']
@@ -1927,7 +1925,7 @@ def discover_working_search_providers():
         )
 
 
-def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=None, user_id: int = 1, src: str = 'ts_go', resume: bool = False, backtest_search: bool = True, backtest_ai: bool = True):
+def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=None, user_id: int = 1, src: str = 'ts_7AZ', resume: bool = False, backtest_search: bool = True, backtest_ai: bool = True):
     """
     Pick stocks, create smart orders and trading for the specified date range.
 
@@ -1935,7 +1933,7 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
     start_date -- The start date (format: YYYY-MM-DD), default is today.
     end_date -- The end date (format: YYYY-MM-DD), default is today.
     user_id -- The user ID for the trading account.
-    src -- The source of stocks, default is 'ts_auto', or 'ts_7AZ' etc.
+    src -- The source of stocks, default is 'ts_7AZ', or 'ts_auto' etc.
     resume -- Skip dates that already have report_orders generated
     backtest_search -- Enable search providers for news/sentiment (default True).
                        If False, skip all search calls, AI gets no news context.
@@ -1993,7 +1991,7 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
                     try:
                         pnl_val = float(notes.split('P&L: ¥')[1].split(' ')[0])
                         cumulative_realized_pnl += pnl_val
-                    except:
+                    except Exception:
                         pass
 
             # Calculate cost of currently held stocks to determine available cash
@@ -2013,9 +2011,12 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
 
         # Step 3: Analyze orders and generate reports
         analyzer = OrderAnalyzer(smart_orders_file=smart_output_file, user_id=user_id)
-        # Step 3.1: Generate report for this_date
-        # We pass the same pre-market cumulative P&L. The report generator will add today's realized P&L to it.
-        analyzer.generate_daily_report(this_date, os.path.join(REPORT_PATH, f'report_orders_{this_date}.md'), cumulative_realized_pnl)
+        # Step 3.1: Generate daily execution report — only meaningful for past dates
+        # (requires actual OHLCV close prices; future dates have no data yet).
+        if this_date < today:
+            analyzer.generate_daily_report(this_date, os.path.join(REPORT_PATH, f'report_orders_{this_date}.md'), cumulative_realized_pnl)
+        else:
+            logger.info(f"[{this_date}] Future/today date — skipping daily report (no OHLCV data yet).")
 
         # Step 3.2: Adjust orders based on this_date close
         #analyzer.adjust_orders(this_date, os.path.join(REPORT_PATH, f'adjusted_orders_{this_date.replace("-", "")}.json'))
@@ -2026,8 +2027,12 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
     if not analyzer:
         logger.info("No orders were processed in the given date range.")
         return
-    # Step 4: Generate period report
-    analyzer.generate_period_report(start_date, end_date, os.path.join(REPORT_PATH, f'report_period_{start_date}_{end_date}.md'))
+    # Step 4: Generate period report — only meaningful for historical ranges
+    # (requires OHLCV + benchmark index data; skipped for future/single-day pre-market runs).
+    if end_date < today:
+        analyzer.generate_period_report(start_date, end_date, os.path.join(REPORT_PATH, f'report_period_{start_date}_{end_date}.md'))
+    else:
+        logger.info(f"Period report skipped: end_date {end_date} is today/future — no historical OHLCV or benchmark data available.")
 
     logger.info("All reports generated successfully!")
 
@@ -2055,9 +2060,9 @@ Examples:
                         help='Start date in YYYYMMDD format')
     parser.add_argument('end_date',
                         help='End date in YYYYMMDD format')
-    parser.add_argument('src', nargs='?', default='ts_auto',
+    parser.add_argument('src', nargs='?', default='ts_7AZ',
                         choices=_valid_sources,
-                        help='Strategy source (default: ts_auto)')
+                        help='Strategy source (default: ts_7AZ)')
     parser.add_argument('--user-id', type=int, default=1,
                         help='User ID for trading account (default: 1)')
     parser.add_argument('--search', action=argparse.BooleanOptionalAction, default=True,

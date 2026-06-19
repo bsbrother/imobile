@@ -6,11 +6,25 @@ from loguru import logger
 import sqlite3
 import time
 import pickle
+import zlib
 import fnmatch
 from typing import Optional, Dict, Any, List, Tuple
 import pandas as pd
 from datetime import datetime
 from tqdm import tqdm
+
+# Magic prefix to identify compressed blobs (backward-compatible with uncompressed)
+_ZLIB_MAGIC = b'ZL\1'
+
+def _compress_blob(data: bytes) -> bytes:
+    """Compress a pickle blob with zlib, prefixing a magic marker."""
+    return _ZLIB_MAGIC + zlib.compress(data, level=1)
+
+def _decompress_blob(data: bytes) -> bytes:
+    """Decompress a blob if it has the zlib magic prefix, else return as-is."""
+    if data.startswith(_ZLIB_MAGIC):
+        return zlib.decompress(data[len(_ZLIB_MAGIC):])
+    return data
 
 from ..utils.exceptions import DataProviderError
 from ..utils.util import convert_trade_date, dfs_concat
@@ -152,7 +166,7 @@ class SQLiteDataCache:
 
                     if result:
                         data_blob = result[0]
-                        df = pickle.loads(data_blob)
+                        df = pickle.loads(_decompress_blob(data_blob))
                         logger.debug(f"Daily cache hit: {key}")
                         return df
 
@@ -176,7 +190,7 @@ class SQLiteDataCache:
 
                         if result:
                             data_blob = result[0]
-                            df = pickle.loads(data_blob)
+                            df = pickle.loads(_decompress_blob(data_blob))
                             daily_dfs.append(df)
 
                 # Verify we have all required trading days
@@ -218,7 +232,7 @@ class SQLiteDataCache:
                     for _, row in data.iterrows():
                         trade_date = str(row['trade_date'])
                         row_df = pd.DataFrame([row])
-                        data_blob = pickle.dumps(row_df)
+                        data_blob = _compress_blob(pickle.dumps(row_df))
 
                         try:
                             # Check if record exists

@@ -696,8 +696,7 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
         for symbol in symbols:
             try:
                 logger.info(f"Analyzing {symbol}...")
-                target_data = data_provider.get_stock_data(symbol, target_trading_date, target_trading_date)
-                # Get historical data
+                # Get historical data (up to base_date — always available)
                 stock_data = data_provider.get_stock_data(symbol, start_date, end_date)
                 if stock_data.empty:
                     logger.warning(f"No data found for {symbol}, skipping")
@@ -742,25 +741,38 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                 buy_price = round(buy_price, 2)
 
                 # [MODIFIED] Regime-dependent entry strategy
-                # Bull Market: Aggressive entry (Buy at Open) to avoid missing out.
+                # Bull Market: Aggressive entry — order triggers near yesterday's close price
+                #   (market hasn't opened yet; the smart order fires when price >= trigger).
                 # Other Markets: Conservative entry (Buy at Limit/Support) to reduce risk.
                 regime = regime_data.get('regime', 'normal')
-                
+
                 if regime == 'bull':
-                    if not target_data.empty:
-                        buy_price = float(target_data['open'].iloc[-1])
-                    else:
-                        # If no target data (e.g. live trading), use close * 1.01 as proxy for open
-                        buy_price = close_price * 1.01
-                    
-                    # Optimize Entry: Buy at Open Price strictly as requested
-                    buy_price = round(buy_price, 2)
+                    # In pre-market mode OHLCV for the target date is not available yet.
+                    # Smart order trigger: 股价 <= buy_price(触发买入)
+                    # Problem: stock may gap up 3-8% at open → price never drops to close_price
+                    #          → order never fires.
+                    # Solution: set buy_price above close by an ATR-estimated gap, capped well
+                    #           below the daily limit-up to avoid chasing parabolic moves.
+                    #
+                    # ChiNext (300) / STAR (688): daily limit = ±20%, cap gap at 13%.
+                    # Main board everything else:  daily limit = ±10%, cap gap at 7%.
+                    is_wide_limit = symbol.startswith('3') or symbol.startswith('688')
+                    max_gap_pct   = 0.13 if is_wide_limit else 0.07
+                    min_gap_pct   = 0.02  # at least 2% above close so the trigger always fires
+
+                    # Use 0.5×ATR as the expected single-session gap move.
+                    atr_gap = latest_atr * 0.5
+                    gap_pct = atr_gap / close_price if close_price > 0 else min_gap_pct
+                    gap_pct = max(min_gap_pct, min(gap_pct, max_gap_pct))
+
+                    buy_price = round(close_price * (1 + gap_pct), 2)
+
                 else:
                     # Use the calculated buy_price (RSI/BB/Support based)
                     # Ensure it's not higher than yesterday's close in Bear market
                     if regime == 'bear':
                         buy_price = min(buy_price, close_price * 0.99)
-                    pass # Keep calculated buy_price from lines 723-731
+                    pass # Keep calculated buy_price from lines above
 
                 # Use pre-calculated regime ratios
                 # stop_loss_ratio and take_profit_ratio are already set outside the loop
@@ -774,7 +786,7 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                 # Calculate position size (buy quantity)
                 # Use dynamic rank-weighted portfolio allocation for ts_daily to maximize gains
                 position_sizing = strategy_config.get('position_sizing', {})
-                max_position_pct = position_sizing.get('max_position_pct', 0.15)
+                position_sizing.get('max_position_pct', 0.15)
                 equal_weight = position_sizing.get('equal_weight', True)
 
                 if remaining_slots <= 0 or remaining_cash <= 0:

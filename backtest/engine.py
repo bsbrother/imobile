@@ -323,8 +323,39 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
 
                     # Increase TP by 10% (let winners run more)
                     profit_price = round(float(profit_price) * 1.10, 2)
-                    # Do NOT raise SL blindly to avoid noise-out. Keep original SL.
-                    lose_price = float(lose_price)
+                    # Re-pick SL widening (gated by SL_WITH_RE_PICK env var)
+                    _sl_with_repick = os.getenv('SL_WITH_RE_PICK', 'true').lower() in ('true', '1', 'yes')
+                    if _sl_with_repick:
+                        # Each re-pick drops SL by SL_WIDEN_STEP of entry price (capped at 6%).
+                        # Re-picked = CANSLIM confirms quality → give more room.
+                        # Not re-picked = SL stays tight → cut fast.
+                        _entry_price = None
+                        cursor.execute(
+                            "SELECT cost_basis_diluted FROM holding_stocks WHERE code=? AND user_id=?",
+                            (order['symbol'], user_id)
+                        )
+                        _row = cursor.fetchone()
+                        if _row and _row[0]:
+                            _entry_price = float(_row[0])
+                        if _entry_price:
+                            _widen_step = float(os.getenv('SL_WIDEN_STEP', '0.005'))
+                            _widen_after = int(os.getenv('SL_WIDEN_AFTER', '0'))
+                            _max_sl_pct = 0.06   # cap at 6% below entry
+                            _init_sl_pct = regime_data.get('stop_loss_pct', 0.025)
+                            # Compute re-picks so far from SL drift
+                            _expected_init = _entry_price * (1 - _init_sl_pct)
+                            _re_picks = max(0, round((_expected_init - float(lose_price)) / (_entry_price * _widen_step)))
+                            if _re_picks >= _widen_after:
+                                _new_sl = float(lose_price) - _entry_price * _widen_step
+                                _min_sl = _entry_price * (1 - _max_sl_pct)
+                                lose_price = max(_new_sl, _min_sl)
+                            else:
+                                lose_price = float(lose_price)
+                        else:
+                            lose_price = float(lose_price)
+                    else:
+                        # SL frozen — keep original (no widening on re-pick)
+                        lose_price = float(lose_price)
 
                     # the order is about to expire today, force sell at market price next day.
                     reason_of_ending = ''

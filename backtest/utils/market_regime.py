@@ -86,7 +86,10 @@ def get_regime_config(regime: MarketRegime, config_manager) -> dict:
         regime: Market regime
         config_manager: ConfigManager instance
 
+    Environment overrides (set in .env for easy SL testing):
+        SL_BULL, SL_NORMAL, SL_VOLATILE, SL_BEAR
     """
+    import os as _os
     config_path = f'trading_rules.risk_reward_ratios.{regime}_market'
     config = config_manager.get(config_path, {})
 
@@ -99,6 +102,16 @@ def get_regime_config(regime: MarketRegime, config_manager) -> dict:
             'max_hold_days': 7,
             'min_hold_days': 2
         }
+
+    # Override stop_loss_pct from env var if set (for easy SL testing)
+    _sl_env = _os.getenv(f'SL_{regime.upper()}')
+    if _sl_env is not None:
+        try:
+            _sl_val = float(_sl_env)
+            logger.info(f"SL_{regime.upper()}={_sl_val:.1%} (from .env, overriding config)")
+            config['stop_loss_pct'] = _sl_val
+        except ValueError:
+            logger.warning(f"Invalid SL_{regime.upper()}={_sl_env}, using config value")
 
     # Add late_trend_filter config
     filter_path = f'trading_rules.late_trend_filter.{regime}_market'

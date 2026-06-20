@@ -189,28 +189,28 @@
     "risk_reward_ratios": {
       "bull_market": {
         "take_profit_pct": 2.0,
-        "stop_loss_pct": 0.005,
+        "stop_loss_pct": 0.03,
         "trailing_stop_enabled": true,
         "max_hold_days": 15,
         "min_hold_days": 2
       },
       "normal_market": {
         "take_profit_pct": 2.0,
-        "stop_loss_pct": 0.005,
+        "stop_loss_pct": 0.025,
         "trailing_stop_enabled": true,
         "max_hold_days": 10,
         "min_hold_days": 2
       },
       "volatile_market": {
         "take_profit_pct": 2.0,
-        "stop_loss_pct": 0.005,
+        "stop_loss_pct": 0.02,
         "trailing_stop_enabled": true,
         "max_hold_days": 8,
         "min_hold_days": 1
       },
       "bear_market": {
         "take_profit_pct": 2.0,
-        "stop_loss_pct": 0.005,
+        "stop_loss_pct": 0.015,
         "trailing_stop_enabled": true,
         "max_hold_days": 5,
         "min_hold_days": 1

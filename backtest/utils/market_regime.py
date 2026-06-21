@@ -113,6 +113,23 @@ def get_regime_config(regime: MarketRegime, config_manager) -> dict:
         except ValueError:
             logger.warning(f"Invalid SL_{regime.upper()}={_sl_env}, using config value")
 
+    # Disable SL entirely (only MAX_HOLD + TP exits)
+    if _os.getenv('SL_ENABLED', 'true').lower() in ('false', '0', 'no'):
+        config['stop_loss_pct'] = 0.99  # SL = 1% of buy price — never triggers
+        logger.info(f"SL_{regime.upper()}=DISABLED (SL_ENABLED=false, MAX_HOLD only)")
+
+    # Apply hold days multiplier from env
+    _hold_mult = _os.getenv('HOLD_DAYS_MULT')
+    if _hold_mult is not None:
+        try:
+            _mult = float(_hold_mult)
+            _orig = config.get('max_hold_days', 7)
+            config['max_hold_days'] = max(1, int(_orig * _mult))
+            if _mult != 1.0:
+                logger.info(f"HOLD_DAYS_MULT={_mult}: {regime} max_hold {_orig} → {config['max_hold_days']}d")
+        except ValueError:
+            pass
+
     # Add late_trend_filter config
     filter_path = f'trading_rules.late_trend_filter.{regime}_market'
     filter_config = config_manager.get(filter_path, {})

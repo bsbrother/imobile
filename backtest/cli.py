@@ -117,7 +117,7 @@ def create_parser() -> argparse.ArgumentParser:
         type=str,       # Benchmark Indexes: '000001.SH,...'
         help='Benchmarking options'
     )
-
+    
     # Config command
     config_parser = subparsers.add_parser('config', help='Manage configuration')
     config_subparsers = config_parser.add_subparsers(dest='config_action')
@@ -181,6 +181,7 @@ def create_parser() -> argparse.ArgumentParser:
         type=float,
         help='Override initial cash for position sizing (used for compounding)'
     )
+    analyze_parser.add_argument('--date', type=str, help='Target trading date (YYYY-MM-DD or YYYYMMDD)')
 
     subparsers.add_parser('version', help='Show version information')
 
@@ -589,7 +590,8 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                                        symbols: List[str] = [],
                                        config_path: Optional[str] = None,
                                        output_file: Optional[str] = None,
-                                       initial_cash: Optional[float] = None) -> Dict[str, Any]:
+                                       initial_cash: Optional[float] = None,
+                                       base_date: Optional[str] = None) -> Dict[str, Any]:
     """
     Analyze picked stocks and generate smart orders with entry/exit prices and quantities.
 
@@ -631,15 +633,26 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
 
         # Get stock symbols to analyze
         market_pattern = None
-        target_trading_date = datetime.now().strftime('%Y%m%d')
+        
+        if base_date:
+            current_date = convert_trade_date(base_date)
+        else:
+            current_date = convert_trade_date(datetime.now().strftime('%Y-%m-%d'))
+            
+        current_date_trading = get_trading_days_before(current_date, 1)
+        target_trading_date = get_trading_days_after(current_date_trading, 1)
         base_date = get_trading_days_before(target_trading_date, 1)
+        
+        logger.info(f"Target trading date for analysis: {target_trading_date}, Base date: {base_date}")
 
+        symbol_scores = {}  # default: no scores (for non-file symbol lists)
         if stocks_file:
             logger.info(f"Loading picked stocks from {stocks_file}")
             with open(stocks_file, 'r', encoding='utf-8') as f:
                 picked_data = json.load(f)
 
             symbols = [s['symbol'] for s in picked_data.get('selected_stocks', [])]
+            symbol_scores = {s['symbol']: s.get('score', 0) for s in picked_data.get('selected_stocks', [])}
             market_pattern = picked_data.get('market_pattern')
             base_date = picked_data.get('base_date')
             target_trading_date = picked_data.get('target_trading_date')
@@ -697,7 +710,7 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
             try:
                 logger.info(f"Analyzing {symbol}...")
                 # Get historical data (up to base_date — always available)
-                stock_data = data_provider.get_stock_data(symbol, start_date, end_date)
+                stock_data = data_provider.get_stock_data(symbol, start_date, base_date)
                 if stock_data.empty:
                     logger.warning(f"No data found for {symbol}, skipping")
                     continue
@@ -800,16 +813,25 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                     rank_idx = remaining_slots
 
                 if equal_weight:
-                    # Implement dynamic rank-weighted allocation for ts_daily to give top picks higher sizing
-                    # Rank 1: receives 25% of cash, Rank 2: 20%, Rank 3: 15%, Rank 4: 12%, R5-R10: equal remaining cash
-                    if rank_idx == 1 and remaining_slots >= 4:
-                        position_value = remaining_cash * 0.25
-                    elif rank_idx == 2 and remaining_slots >= 3:
-                        position_value = remaining_cash * 0.22
-                    elif rank_idx == 3 and remaining_slots >= 2:
-                        position_value = remaining_cash * 0.18
+                    # Score-weighted allocation: higher CANSLIM score → more capital
+                    _use_score_weight = os.getenv('POS_SCORE_WEIGHT', 'false').lower() in ('true', '1', 'yes')
+                    if _use_score_weight and symbol in symbol_scores:
+                        _score = symbol_scores.get(symbol, 4)
+                        _total_score = sum(symbol_scores.values())
+                        if _total_score > 0:
+                            position_value = remaining_cash * (_score / _total_score)
+                        else:
+                            position_value = remaining_cash / remaining_slots
                     else:
-                        position_value = remaining_cash / remaining_slots
+                        # Default rank-weighted: Rank 1=25%, Rank 2=20%, Rank 3=15%, rest equal
+                        if rank_idx == 1 and remaining_slots >= 4:
+                            position_value = remaining_cash * 0.25
+                        elif rank_idx == 2 and remaining_slots >= 3:
+                            position_value = remaining_cash * 0.22
+                        elif rank_idx == 3 and remaining_slots >= 2:
+                            position_value = remaining_cash * 0.18
+                        else:
+                            position_value = remaining_cash / remaining_slots
                 else:
                     position_value = remaining_cash / remaining_slots
 
@@ -982,7 +1004,8 @@ def main():
                 symbols=symbols_list,
                 config_path=args.config if hasattr(args, 'config') else None,
                 output_file=args.output if hasattr(args, 'output') else None,
-                initial_cash=args.initial_cash if hasattr(args, 'initial_cash') else None
+                initial_cash=args.initial_cash if hasattr(args, 'initial_cash') else None,
+                base_date=args.date if hasattr(args, 'date') else None
             )
 
         elif args.command == 'config':

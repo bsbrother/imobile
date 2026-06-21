@@ -165,6 +165,15 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ', backtest_search: bo
             pass  # already renamed by another process
     with open(tmp_file, 'r') as f:
         strong_stocks = json.load(f)
+    # Apply CANSLIM score filter from env (SCORE_MIN=5 keeps only top quality)
+    _score_min = int(os.getenv('SCORE_MIN', '0'))
+    if _score_min > 0:
+        _before = len(strong_stocks['selected_stocks'])
+        strong_stocks['selected_stocks'] = [
+            s for s in strong_stocks['selected_stocks']
+            if s.get('score', 0) >= _score_min
+        ]
+        logger.info(f"SCORE_MIN={_score_min}: filtered {_before} → {len(strong_stocks['selected_stocks'])} stocks")
     data = {
         'pick_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         'base_date': calendar.get_trading_days_before(this_date, 1),
@@ -181,7 +190,7 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ', backtest_search: bo
     return pick_output_file
 
 
-def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, current_capital: float = None) -> str:
+def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, current_capital: float = 0.0) -> str:
     """
     Create smart orders based on picked stocks for a specific date.
     # TODO:

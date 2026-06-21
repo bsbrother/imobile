@@ -35,8 +35,8 @@ async def test_mobile_agent():
     print("\n--- Test 2: MobileAgent ---")
     try:
         llm = GoogleGenAI(model=GEMINI_MODEL, api_key=GOOGLE_API_KEY, temperature=0.2)
-        agent = MobileAgent(goal="Tap OK button", llms=llm)
-        print(f"✅ MobileAgent created")
+        MobileAgent(goal="Tap OK button", llms=llm)
+        print("✅ MobileAgent created")
     except Exception as e:
         print(f"❌ {type(e).__name__}: {e}")
 

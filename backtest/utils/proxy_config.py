@@ -5,7 +5,6 @@ This module manages proxy configuration and integration with the data providers.
 """
 
 import os
-import json
 import time
 from typing import List, Dict, Optional
 from loguru import logger

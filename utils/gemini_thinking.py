@@ -8,7 +8,6 @@ import logging
 import os
 from typing import Optional
 
-from google.genai import types
 from llama_index.llms.google_genai import GoogleGenAI
 
 logger = logging.getLogger("droidrun")

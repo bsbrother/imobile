@@ -3,7 +3,6 @@
 """
 
 import os
-import sys
 import logging
 import warnings
 from pathlib import Path
@@ -16,7 +15,6 @@ os.environ['SEARXNG_DEBUG'] = '1'
 
 # from here on implement the checks of the installation
 
-import searx
 
 OLD_SETTING = '/etc/searx/settings.yml'
 

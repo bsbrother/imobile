@@ -10,7 +10,6 @@ import os
 import sys
 import unittest
 import time
-from datetime import datetime
 from unittest.mock import MagicMock
 import dotenv
 
@@ -33,9 +32,8 @@ if "newspaper" not in sys.modules:
     mock_np.Config = MagicMock()
     sys.modules["newspaper"] = mock_np
 
-from src.config import Config, get_config
+from src.config import Config
 from src.search_service import (
-    SearchService,
     AnspireSearchProvider,
     BochaSearchProvider,
     TinyFishSearchProvider,
@@ -59,7 +57,6 @@ def ensure_searxng_container_running():
     import os
     import time
     import urllib.request
-    import subprocess
 
     def _is_searxng_reachable():
         """Check if searxng HTTP server is responding."""
@@ -151,7 +148,7 @@ class TestSearchAPIProvidersReal(unittest.TestCase):
         print("\n" + "="*80)
         print(" RUNNING PROVIDER CAPABILITY TEST (historical date support) ")
         print("="*80)
-        provider_results = test_search_providers(
+        test_search_providers(
             test_stock_name="平安银行",
             test_stock_code="000001.SZ",
             test_date="",

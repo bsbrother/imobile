@@ -13,11 +13,9 @@ from urllib.parse import quote_plus
 from searx.utils import get_embeded_stream_url, html_to_text, gen_useragent, extr
 from searx.network import get  # see https://github.com/searxng/searxng/issues/762
 
-from searx.engines.duckduckgo import fetch_traits  # pylint: disable=unused-import
 from searx.engines.duckduckgo import get_ddg_lang, get_vqd, set_vqd
 
 if t.TYPE_CHECKING:
-    from searx.extended_types import SXNG_Response
     from searx.search.processors import OnlineParams
 
 # about

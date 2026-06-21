@@ -3,12 +3,11 @@ import adata
 import tushare as ts
 import pandas as pd
 import os
-from datetime import datetime, timedelta
-import plotly.express as px
+from datetime import datetime
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import ta
-from typing import List, Dict, Any
+from typing import List, Dict
 from dotenv import load_dotenv
 from pydantic import BaseModel
 

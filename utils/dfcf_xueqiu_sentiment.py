@@ -14,10 +14,8 @@ Usage:
 """
 
 import re
-import json
 import time
 import logging
-import hashlib
 from datetime import datetime, timedelta
 from typing import Optional
 from html import unescape
@@ -783,7 +781,7 @@ def search_stock_sentiment(code: str, date: str = None, max_pages: int = 3) -> d
     # CLS
     cls = CLSNewsScraper()
     stock_name = em.get_stock_name(code)
-    xq_code = normalize_to_cls(code)
+    normalize_to_cls(code)
     result['cls_news'] = cls.search_news(
         stock_name or code, date=date, max_pages=max_pages
     )

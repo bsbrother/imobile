@@ -308,7 +308,7 @@ class EnginesSetting(BooleanChoices):
         choices = {}
         for engine in engines:
             for category in engine.categories:
-                if not category in list(settings['categories_as_tabs'].keys()) + [DEFAULT_CATEGORY]:
+                if category not in list(settings['categories_as_tabs'].keys()) + [DEFAULT_CATEGORY]:
                     continue
                 choices['{}__{}'.format(engine.name, category)] = not engine.disabled
         super().__init__(default_value, choices)

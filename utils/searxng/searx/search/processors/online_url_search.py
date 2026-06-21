@@ -7,7 +7,6 @@ import re
 from .online import OnlineProcessor, OnlineParams
 
 if t.TYPE_CHECKING:
-    from .abstract import EngineProcessor
     from searx.search.models import SearchQuery
 
 

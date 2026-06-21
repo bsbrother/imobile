@@ -6,8 +6,10 @@ import dotenv
 import re
 import subprocess
 from datetime import datetime, timedelta
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Any
 from loguru import logger
+import unicodedata
+import Levenshtein
 
 from mobilerun import (
     AndroidDriver,
@@ -20,23 +22,23 @@ from llama_index.llms.google_genai import GoogleGenAI
 # Add the parent directory to Python path so we can import from utils
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from trading.adb import get_device_connectivity, check_app_exist
-from trading.extractors import AppDataExtractor, ExtractPosition, ExtractQuote, ExtractTransaction, ExtractOrder
-from utils.gemini_free_api import create_free_llm, create_with_thinking
+from utils.gemini_free_api import create_free_llm
 from shared.db.db import DB
 from backtest.utils.trading_calendar import calendar
 from utils.trading_time import get_market_open_times_refresh_interval
 from backtest.utils.logging_config import configure_logger
+from utils.ocr_screenshot import ocr_screenshot2file
+
+import logging
+logging.getLogger("google.genai._api_client").setLevel(logging.ERROR)
 
 # Load environment variables (shell env takes priority over .env)
 dotenv.load_dotenv(os.path.expanduser('.env'), override=False, verbose=False)
-# ── Gemini API keys ──
 # https://aistudio.google.com/app/apikey
-# GOOGLE_API_KEY: for llama_index GoogleGenAI + DroidRun vision agent
 # GEMINI_API_KEY:  for raw google.genai SDK (stock analysis)
+# GOOGLE_API_KEY: for llama_index GoogleGenAI + DroidRun vision agent
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
-# gemini-3.1-flash-lite-preview: NEW free tier, llama_index compatible, vision
-# gemini-2.5-flash: free tier, proven stable, vision-enabled
-# Paid models: gemini-2.5-pro, gpt-4o
+# gemini-3.1-flash-lite-preview: free tier, llama_index compatible, vision
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite-preview")
 GEMINI_THINKING_BUDGET = os.getenv("GEMINI_THINKING_BUDGET", "0")
 if not GOOGLE_API_KEY:
@@ -50,33 +52,109 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", default="DEBUG")
 LOG_PATH = os.getenv("LOG_PATH", default="/tmp/ibacktest_logs")
 configure_logger(log_level=LOG_LEVEL, log_path=LOG_PATH)
 
-def close_app(app_package_name: str = GUOTAI_PACKAGE_NAME):
+
+def verify_screen_contains(keywords: List[str], screenshot_path: str = '/tmp/screenshot.png',
+                                 ocr_output_path: str = '/tmp/screenshot.txt') -> bool:
+    """Check if expected UI elements(keywords) are visible on screen.
+
+    Takes a screenshot via ADB, runs PaddleOCR, then greps keywords from the
+    OCR output file.
+    """
+    logger.info(f'Checking screenshot for keywords: {keywords}')
+
+    # 1. Take screenshot via ADB
+    result = subprocess.run(
+        f"adb exec-out screencap -p > {screenshot_path}",
+        shell=True, capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        logger.warning(f"Screenshot capture failed: {result.stderr}")
+        return False
+
+    # 2. OCR with PaddleOCR (PaddleOCR prints each line to stdout)
+    ocr_screenshot2file(screenshot_path, ocr_output_path)
+
+    # 3. Check all keywords present in OCR output
+    with open(ocr_output_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+    missing = [k for k in keywords if k not in content]
+    if missing:
+        logger.warning(f"Screenshot check failed — missing keywords: {missing}")
+        return False
+    logger.info('Screenshot check passed — all keywords found.')
+    return True
+
+
+def close_app(app_package_name: str = GUOTAI_PACKAGE_NAME) -> None:
     """Force stop the specified app on the connected device. not keep running on background."""
 
     logger.info(f"Force stopping app {app_package_name}...")
-    os.system(f"adb shell am force-stop {app_package_name}")
-    time.sleep(3)
+    subprocess.run(f"adb shell am force-stop {app_package_name}", shell=True)
+    time.sleep(1)
+    logger.info(f"Force stop app {app_package_name} completed.")
 
 
-async def open_app(tools: AndroidDriver, app_package_name: str = GUOTAI_PACKAGE_NAME):
-    """Open the specified app on the connected device.
+def open_app(app_package_name: str = GUOTAI_PACKAGE_NAME) -> None:
+    """Open the specified app on the connected device. """
 
     # Check app main activity:
-    adb shell dumpsys package com.guotai.dazhihui | grep -A 5 "android.intent.action.MAIN"
-    # Restart app:
-    adb shell am start -S -n com.guotai.dazhihui/com.gtja.home.InitScreen
-
+    # adb shell dumpsys package 'com.guotai.dazhihui' | grep -A 5 "android.intent.action.MAIN"
     # List all processes and filter by package name
-    adb shell ps | grep guotai
-    # Or list all user apps
-    adb shell "ps -A | grep 'u0_a' | awk '{print \\$9}' | sort | uniq"
+    # adb shell ps | grep 'com.guotai.dazhihui'
+    # List all user apps
+    # adb shell "ps -A | grep 'u0_a' | awk '{print \\$9}' | sort | uniq"
     # Get process ID if running (returns empty if not running)
-    adb shell pidof com.guotai.dazhihui
-    """
+    result = subprocess.run(f"adb shell pidof {app_package_name}", shell=True, capture_output=True, text=True)
+    if result.returncode == 0:
+        logger.info(f"App {app_package_name} is already running.")
+    else:
+        logger.info(f"App {app_package_name} is not running, start now ...")
+        subprocess.run(f"adb shell am start -W -n {app_package_name}/com.gtja.home.InitScreen", shell=True)
+        time.sleep(5)
+        subprocess.run(f"adb shell pidof {app_package_name} && echo 'App is running' || echo 'App is NOT running'", shell=True)
 
-    logger.info(f"Opening app {app_package_name}...")
-    await tools.start_app(app_package_name)
-    time.sleep(5)  # Wait for app to open
+
+def restart_app(app_package_name: str = GUOTAI_PACKAGE_NAME) -> None:
+    """Restart app then at homepage, but need re-login. """
+
+    subprocess.run(f"adb shell am start -S -n {app_package_name}/com.gtja.home.InitScreen --activity-clear-task", shell=True)
+
+
+def goto_homepage(app_package_name: str = GUOTAI_PACKAGE_NAME) -> None:
+    """Goto the app's homepage(not home screen)."""
+
+    # close_app, open_app or restart_app will lose session/task, need re-login.
+    # Force clear entire task and restart activity (keeps app process/login).
+    subprocess.run(f"""
+        adb shell am start -n {app_package_name}/com.gtja.home.InitScreen --activity-clear-task \
+        && sleep 1 && \
+        adb shell monkey -p {app_package_name} -c android.intent.category.LAUNCHER 1 \
+        && sleep 3
+    """, shell=True)
+
+
+def login() -> None:
+    """login to trading account via MobileAgent vision navigation.
+
+    mobilerun run "Tap '立即登录', then tap '{GUOTAI_PASSWORD}' one by one, then tap '登录'" \
+        --provider GoogleGenAI \
+        --model gemini-3.1-flash-lite-preview \
+        --save-trajectory step
+    """
+    # Goto to app homepage then check login status, login if not logged in.
+    goto_homepage()
+    result = subprocess.run(
+        "adb exec-out screencap -p > /tmp/screenshot.png && tesseract /tmp/screenshot.png stdout -l chi_sim >/tmp/screenshot.txt && grep -qE '登录' /tmp/screenshot.txt",
+        shell=True
+    )
+    if result.returncode != 0:
+        logger.info("✅ Already logged in")
+        return
+
+    logger.info(f"Login Guotai trading account...")
+    replay_page(['立即登录'])
+    time.sleep(8)
+    logger.info("✅ Login successful")
 
 
 async def pre_requirements(app_package_name: str = GUOTAI_PACKAGE_NAME) -> tuple[AndroidDriver, GoogleGenAI, MobileConfig]:
@@ -125,15 +203,40 @@ async def pre_requirements(app_package_name: str = GUOTAI_PACKAGE_NAME) -> tuple
     )
 
     return tools, llm, config
+def _toggle_trajectory_password(folder: str, real_password: str, to_real: bool) -> None:
+    """Replace password placeholders with real value or vice versa in trajectory files."""
+    import glob
+    json_files = glob.glob(os.path.join(folder, "*.json"))
+    json_files += glob.glob(os.path.join(folder, "**/*.json"), recursive=True)
+
+    placeholder = "'{GUOTAI_PASSWORD}'"
+
+    for file_path in json_files:
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+
+            if to_real:
+                new_content = content.replace(placeholder, real_password)
+            else:
+                new_content = content.replace(real_password, placeholder)
+
+            if new_content != content:
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(new_content)
+                logger.info(f"Updated password placeholders in {os.path.basename(file_path)} (to_real={to_real})")
+        except Exception as e:
+            logger.error(f"Failed to update password in {file_path}: {e}")
 
 
-def replay_page(description: List[str] = ['行情', '我的持仓']):
+def replay_page(description: List[str] = ['行情', '我的持仓']) -> None:
     """
     Replay guotai app navigation using pre-recorded trajectory.
-    Falls back to live MobileAgent if no matching trajectory found.
+    if no matching trajectory found, raise ValueError.
 
     Pre-requisites (record new trajectory):
-      mobilerun run "Open '国泰海通君弘', then tap '行情', then tap '我的持仓'" \\
+      You must start app or goto app's homepage.
+      mobilerun run "Tap '行情', then tap '我的持仓'" \\
         --provider GoogleGenAI --model gemini-3.1-flash-lite-preview \\
         --save-trajectory step
 
@@ -148,32 +251,55 @@ def replay_page(description: List[str] = ['行情', '我的持仓']):
         )
         output = result.stdout
         lines = output.split('\n')
-        current_folder = full_description = ''
-        for line in lines:
-            if '│' in line and not line.strip().startswith('┃') and not line.strip().startswith('┡'):
-                parts = [p.strip() for p in line.split('│') if p.strip()]
-                if len(parts) >= 2:
-                    current_folder = parts[0]
-                    if current_folder and '_' in current_folder and all(c.isdigit() or c == '_' or c.islower() for c in current_folder):
-                        full_description = parts[1] if len(parts) > 1 else ''
-                        if all(keyword in full_description for keyword in description):
-                            current_folder = f'{TRAJ_DIR}/{current_folder}'
-                            logger.info(f'✅ Found matching trajectory: {current_folder}')
-                            break
-        if not current_folder or 'Error loading' in (full_description or ''):
-            logger.warning(f'No valid trajectory found for {description}, skipping replay')
-            return False
-    except Exception as e:
-        logger.warning(f'Replay lookup failed: {e}, skipping')
-        return False
 
-    logger.info(f'🔄 Replaying trajectory {description} from {current_folder}...')
-    result = os.system(f'mobilerun macro replay {current_folder} --delay 6')
-    if result != 0:
-        logger.warning(f'❌ Replay failed (exit {result}), falling back to live agent')
-        return False
+        trajectories = []
+        current_folder = ""
+        current_description = []
+
+        for line in lines:
+            if '│' in line and not line.strip().startswith('┃') and not line.strip().startswith('┡') and not line.strip().startswith('└'):
+                parts = [p.strip() for p in line.split('│')]
+                if len(parts) >= 4:
+                    folder_name = parts[1]
+                    desc_part = parts[2]
+                    if folder_name:
+                        if current_folder:
+                            trajectories.append((current_folder, ' '.join(current_description)))
+                        current_folder = folder_name
+                        current_description = [desc_part]
+                    else:
+                        if current_folder:
+                            current_description.append(desc_part)
+
+        if current_folder:
+            trajectories.append((current_folder, ' '.join(current_description)))
+
+        matched_folder = None
+        for folder, full_desc in trajectories:
+            if all(keyword in full_desc for keyword in description):
+                matched_folder = f'{TRAJ_DIR}/{folder}'
+                logger.info(f'✅ Found matching trajectory: {matched_folder}')
+                break
+
+        if not matched_folder or 'Error loading' in output:
+            raise ValueError(f'No valid trajectory found for {description}')
+
+    except Exception as e:
+        raise ValueError(f'Replay lookup failed: {e}')
+
+    logger.info(f'🔄 Replaying trajectory {description} from {matched_folder}...')
+
+    # Temporarily restore the real password
+    _toggle_trajectory_password(matched_folder, GUOTAI_PASSWORD, to_real=True)
+    try:
+        result = subprocess.run(f'mobilerun macro replay {matched_folder}', shell=True)
+        if result.returncode != 0:
+            raise ValueError(f'❌ Replay failed , check {matched_folder} is valid trajectory.')
+    finally:
+        # Always restore the secure placeholder
+        _toggle_trajectory_password(matched_folder, GUOTAI_PASSWORD, to_real=False)
+
     logger.info('✅ Replay completed successfully')
-    return True
 
 
 def get_agent(config: MobileConfig | None = None, llm: GoogleGenAI | None = None, tools: AndroidDriver | None = None, goal: str | None = None, output_model=None) -> MobileAgent:
@@ -217,30 +343,32 @@ def get_format_output(tools: AndroidDriver, output:str, start_str:str = 'csv_for
     """
     if not output:
         return output
-    import unicodedata
-    #import pdb;pdb.set_trace()
+    output = output.lower().strip()
     SPLIT_STR = ['data is:', 'data:', 'result:']
     for s in SPLIT_STR:
         if s in output:
             output = output.split(s)[-1].strip()
             break
-    if "ummary\n" in output:
-      output = output.split("ummary\n")[-1].strip()
     start_str = start_str.strip().lower()
     start = output.split(',', 1)[0].split(' ', 1)[-1].split('_', 1)[-1].strip().lower() + ','
-    # 2026.06.15 change to same as xx%.
-    import Levenshtein
+    # 2026.06.15 compare nearly same xx%.
     if Levenshtein.distance(start_str, start) <= 3:
         return output
-    if not output.lower().startswith(start_str) and start != start_str:
+    if not output.startswith(start_str) and start != start_str:
         output_save = output
         # Regex to remove 'name,:' or 'Indices Data:' or 'Stocks Data:' lines.
         output = re.sub(r'.*name,:\s*', '', output, flags=re.IGNORECASE)
+        output = re.sub(r'.*indices:\s*', '', output, flags=re.IGNORECASE)
+        output = re.sub(r'.*stocks:\s*', '', output, flags=re.IGNORECASE)
+        output = re.sub(r'.*summary:\s*', '', output, flags=re.IGNORECASE)
         output = re.sub(r'.*indices data:\s*', '', output, flags=re.IGNORECASE)
         output = re.sub(r'.*stocks data:\s*', '', output, flags=re.IGNORECASE)
+        output = re.sub(r'.*summary data:\s*', '', output, flags=re.IGNORECASE)
         start = output.split(',', 1)[0].split(' ', 1)[-1].split('_', 1)[-1].strip().lower() + ','
-        if not output.lower().startswith(start_str) and start != start_str:
-            raise ValueError(f"FORMAT ERROR: {data_name} not start with {start_str} and {start}:\n{output_save}")
+        if Levenshtein.distance(start_str, start) <= 3:
+            return output
+        if not output.startswith(start_str) and start != start_str:
+            raise ValueError(f"FORMAT ERROR: <{data_name}> should start with <{start_str}> ~= <{start}>:\n{output_save}")
     return output
 
 
@@ -261,10 +389,9 @@ async def get_order_from_app_smart_order_page(config: MobileConfig, llm: GoogleG
 
     Return: str
     """
+    goto_homepage()
     goal = """
-    If any dialog is visible, tap '取消' or '关闭' to dismiss it.
-    Tap BACK, then wait over 3 seconds until '交易' visible on the bottom navigation bar, then tap '交易',
-    then tap '创建订单', then wait over 3 seconds until '查看详情' visible, then tap '查看详情', then wait over 3 seconds until '已结束' visible, then tap '已结束'.
+    replay_page(['创建订单', '查看详情'])
     Extract all visible orders (name,code,trigger_condition,buy_or_sell_price_type,buy_or_sell_quantity,valid_until,order_number,reason_of_ending) from the list. Store the extracted orders in memory using remember().
     Continue scroll down the order list with resource id "com.guotai.dazhihui:id/table_view_body" to load more orders until '全部加载完成' visible.
     When the order list has been scrolled down, then extract all newly visible orders and append them to the 'Extracted Orders' in memory until '全部加载完成' visible.
@@ -292,12 +419,11 @@ async def get_index_stock_from_app_quote_page(config: MobileConfig, llm: GoogleG
     中科三环,000970,14.17,+1.21%,+0.17
     ... until the total count is 12.
     """
+    goto_homepage()
+    replay_page(['行情','我的持仓'])
     goal = """
-    If any dialog is visible, tap '取消' or '关闭' to dismiss it.
-    Tap '我的持仓' if '我的持仓' visible else tap BACK -> tap '行情' on the bottom navigation bar -> tap '我的持仓'.
     Extract the 3 indices (name, number, ratio) from the top of the screen and all visible stocks (name, code, latest price, increase percentage, increase amount) from the list. Store both sets of data in memory using remember().
-    Continue scroll down the stock list with resource id "com.guotai.dazhihui:id/table_view_body" to load more stocks until '查看持仓' visible.
-    When the stock list has been scrolled down, then extract all newly visible stocks and append them to the 'Extracted Stocks' in memory until '查看持仓' visible.
+    Continue scroll down to got more stocks in list, then extract all newly visible stocks and append them to the 'Extracted Stocks' in memory until no more new stocks.
     Format the last 'Extracted Indices' and 'Extracted Stocks' in memory into CSV format, combine them with two new lines separator, and return the final CSV data in your response starting with 'result:'.
     """
     agent = get_agent(config=config, llm=llm, tools=tools, goal=goal)
@@ -319,26 +445,30 @@ async def get_summary_position_from_app_position_page(config: MobileConfig, llm:
     可用 Available               可取 Desirable
 
     Return:
+    result:
+    Extracted Summary: or other strings
     floating_profit_loss,account_assets,market_cap,positions,available,desirable
     -361757.86,855169.66,814839.00,95.28%,40330.66,40330.66
+
+
+    Extracted Stocks: or other strings.
     name,market_cap,open,available,current_price,cost,floating_profit,floating_loss_percentage
     深振业Ａ,385875.000,37500,37500,10.290,13.361,-115165.77,-22.99%
     ...
     """
+    goto_homepage()
+    replay_page(['交易','持仓'])
     goal = """
-    If any dialog is visible, tap '取消' or '关闭' to dismiss it.
-    Tap '查看持仓' if '查看持仓' visible, then input password '817671' and then tap '登录' if on the login page, then wait over 3 seconds until '浮动盈亏' visible.
     Extract the 1 account summary (floating_profit_loss, account_assets, market_cap, positions, available, desirable) from the top of the screen
     and all visible stocks (name, market_cap, open, available, current_price, cost, floating_profit, floating_loss_percentage) from the list. Store both sets of data in memory using remember().
-    Continue scroll down the stock list with resource id "com.guotai.dazhihui:id/table_view_body" to load more stocks until '查看已清仓股票' visible.
-    When the stock list has been scrolled down, then extract all newly visible stocks and append them to the 'Extracted Stocks' in memory until '查看已清仓股票' visible.
+    Continue scroll down to got more stocks in list, then extract all newly visible stocks and append them to the 'Extracted Stocks' in memory until no more new stocks.
     Format the last 'Extracted Summary' and 'Extracted Stocks' in memory into CSV format, combine them with two new lines separator, and return the final CSV data in your response starting with 'result:'.
     """
     agent = get_agent(config=config, llm=llm, tools=tools, goal=goal)
     result = await agent.run()
     if not result.success:
         raise ValueError(f"❌ Goal get summary and position not completed: {result.reason}")
-    output = get_format_output(tools, result.reason, 'floating_profit_loss,', 'position data')
+    output = get_format_output(tools, result.reason, 'profit_loss,', 'position data')
     return output
 
 
@@ -431,7 +561,6 @@ def normalize_stock_name(name: str) -> str:
     """
     if not name:
         return ""
-    import unicodedata
     return unicodedata.normalize('NFKC', name)
 
 
@@ -453,7 +582,7 @@ def sync_index_quote_data_to_db(quote_data: Optional[str] = None, user_id: int =
     """
     index_code = index_name = ''
     stock_code = stock_name = ''
-    result = {
+    result: Dict[str, Any] = {
         'success': True,
         'message': [],
         'indices_updated': 0,
@@ -471,7 +600,6 @@ def sync_index_quote_data_to_db(quote_data: Optional[str] = None, user_id: int =
         if quote_data:
             # Split into index data and stock data sections
             sections = quote_data.strip().split('\n\n')
-
             # Section 1: Market indices
             if len(sections) >= 1:
                 header, index_rows = parse_csv_data(sections[0])
@@ -502,7 +630,12 @@ def sync_index_quote_data_to_db(quote_data: Optional[str] = None, user_id: int =
                             '创业板指': '399006.SZ'
                         }
                         index_name = index_name_map.get(index_name.lower(), index_name)
-                        index_code = index_code_map.get(index_name.lower(), index_name).upper()
+                        index_code = index_code_map.get(index_name.lower(), '').upper()
+
+                        # Skip rows that don't map to a valid index code
+                        if not index_code or not re.match(r'^\d{6}\.[A-Z]{2}$', index_code):
+                            logger.warning(f"Skipping invalid index: name={index_name}, code={index_code}")
+                            continue
 
                         # Track this index code
                         source_index_codes.add(index_code)
@@ -618,18 +751,18 @@ def sync_summary_position_data_to_db(position_data: Optional[str] = None, user_i
     """
     account_assets = market_cap = 0.0
     stock_name = ''
-    result = {
+    result: Dict[str, Any] = {
         'success': True,
         'message': [],
         'total_updated': False,
         'stocks_updated': 0,
         'stocks_removed': 0  # Track removed records
     }
+    # Track stock names from source data
+    source_stock_names = set()
     has_exceptions = True
     with DB.cursor() as cursor:
         current_time = datetime.now().isoformat()
-        # Track stock names from source data
-        source_stock_names = set()
 
         # Process position page data (summary and stock positions)
         if position_data:
@@ -729,9 +862,9 @@ def sync_summary_position_data_to_db(position_data: Optional[str] = None, user_i
 
         if not position_data:
             raise ValueError(f"Position data is missing: {position_data}.")
-        if not all([stock_name,]):
+        if not all(list(source_stock_names)):
             raise ValueError(f"""No valid stock data found in the provided data.
-                             stock_name: {stock_name}.
+                             source_stock_names: {source_stock_names}.
                              position_data: {position_data}""")
         if account_assets <= 0.0 or market_cap <= 0.0:
             raise ValueError(f"Updated portfolio summary has invalid Total Assets({account_assets}) or Market Value({market_cap}).")
@@ -762,7 +895,7 @@ def sync_order_data_to_db(order_data: Optional[str] = None, user_id: int = 1) ->
         Dict with success status and message
     """
     name = code = None
-    result = {
+    result: Dict[str, Any] = {
         'success': True,
         'message': [],
         'orders_updated': 0,
@@ -823,6 +956,8 @@ def sync_order_data_to_db(order_data: Optional[str] = None, user_id: int = 1) ->
 
             result['message'].append(f"Updated {result['orders_updated']} smart orders, removed {result['orders_removed']} orphaned orders")
 
+        result['message'] = ' | '.join(result['message'])
+
         if not all([name, code]):
             raise ValueError(f"No valid order data found to update. name: {name}, code: {code}")
         has_exceptions = False
@@ -836,7 +971,31 @@ def sync_order_data_to_db(order_data: Optional[str] = None, user_id: int = 1) ->
     return result
 
 
-async def cron_sync_app_data_to_db(check_trading_day_and_time: bool = True) -> dict:
+async def get_transactions_from_app_history_page(config: MobileConfig, llm: GoogleGenAI, tools: AndroidDriver) -> str:
+    """Get transaction history from mobile guotai app history page.
+
+    成交时间    名称        买卖类型    成交价    成交量    成交金额
+    2026-05-05  中科三环    证券买入    14.17     100      1417.00
+    ...
+
+    Return: CSV format string
+    """
+    goto_homepage()
+    goal = (
+        "在当前页面，点击底部'交易'标签，然后找到并点击'历史成交'。"
+        "提取所有交易记录（向上滚动加载更多），每条包含："
+        "名称、成交时间、成交价、成交量、买卖类型、成交金额。"
+        "完成后返回。"
+    )
+    agent = get_agent(config=config, llm=llm, tools=tools, goal=goal)
+    result = await agent.run()
+    if not result.success:
+        raise ValueError(f"❌ Goal get transactions not completed: {result.reason}")
+    output = get_format_output(tools, result.reason, 'name,', 'transactions data')
+    return output
+
+
+async def cron_sync_app_to_db(check_trading_day_and_time: bool = True) -> dict:
     """Cron job to sync app data to database.
 
     $ crontab -l # m h  dom mon dow   command
@@ -878,76 +1037,25 @@ async def cron_sync_app_data_to_db(check_trading_day_and_time: bool = True) -> d
 
     logger.info("Starting cron job to sync app data to database...")
     tools, llm, config = await pre_requirements()
-    result_quote = result_position = result_order = {}
-    need_index_quote = need_summary_position = need_smart_order = True
-    times = 1
-    close_app()
-    # Navigate to holdings page via live agent (skip droidrun macro replay)
-    logger.info("Opening app and navigating to 我的持仓...")
-    await open_app(tools)
-    await asyncio.sleep(3)
-    nav_agent = get_agent(
-        goal="在国泰海通君弘APP中，点击底部'交易'标签，然后找到并点击'我的持仓'",
-        config=config, llm=llm, tools=tools
-    )
-    await nav_agent.run()
-    await asyncio.sleep(2)
     logger.info("Navigation complete, starting data extraction...")
-    while (need_index_quote or need_summary_position or need_smart_order) and times <= 3:
-        quote_data = position_data = order_data = None
 
-        if need_index_quote:
-            quote_data = await get_index_stock_from_app_quote_page(config=config, llm=llm, tools=tools)
-            result_quote = sync_index_quote_data_to_db(quote_data, user_id=1)
-            if result_quote['success']:
-                logger.info(f'sync_index_quote_data_to_db done, result: {result_quote}')
-                need_index_quote = False
-                times = 1
-            else:
-                logger.error(f'Error in sync_index_quote_data_to_db: {result_quote}')
-                times += 1
-                if times <= 3:
-                    logger.info(f"Retrying... Attempt {times}/3 after 5 seconds.")
-                    time.sleep(5)
-                    continue
-                else:
-                    logger.error("Max retry attempts reached. Exiting cron job.")
-                    break
-        if need_summary_position:
-            position_data = await get_summary_position_from_app_position_page(config=config, llm=llm, tools=tools)
-            result_position = sync_summary_position_data_to_db(position_data, user_id=1)
-            if result_position['success']:
-                logger.info(f'sync_summary_position_data_to_db done, result: {result_position}')
-                need_summary_position = False
-                times = 1
-            else:
-                logger.error(f'Error in sync_summary_position_data_to_db: {result_position}')
-                times += 1
-                if times <= 3:
-                    logger.info(f"Retrying... Attempt {times}/3 after 5 seconds.")
-                    time.sleep(5)
-                    continue
-                else:
-                    logger.error("Max retry attempts reached. Exiting cron job.")
-                    break
+    # 1. Sync Index Quote Data
+    quote_data = await get_index_stock_from_app_quote_page(config=config, llm=llm, tools=tools)
+    result_quote = sync_index_quote_data_to_db(quote_data, user_id=1)
+    if not result_quote.get('success'):
+        logger.error(f'Error in sync_index_quote_data_to_db: {result_quote}')
+        raise ValueError(f"sync_index_quote_data_to_db failed: {result_quote.get('message') or result_quote.get('error')}")
+    logger.info(f'sync_index_quote_data_to_db done, result: {result_quote}')
 
-        if need_smart_order:
-            order_data = await get_order_from_app_smart_order_page(config=config, llm=llm, tools=tools)
-            result_order = sync_order_data_to_db(order_data, user_id=1)
-            if result_order['success']:
-                logger.info(f'sync_order_data_to_db done, result: {result_order}')
-                need_smart_order = False
-                break
-            else:
-                logger.error(f'Error in sync_order_data_to_db: {result_order}')
-                times += 1
-                if times <= 3:
-                    logger.info(f"Retrying... Attempt {times}/3 after 5 seconds.")
-                    time.sleep(5)
-                    continue
-                else:
-                    logger.error("Max retry attempts reached. Exiting cron job.")
-                    break
+    # 2. Sync Summary Position Data
+    position_data = await get_summary_position_from_app_position_page(config=config, llm=llm, tools=tools)
+    result_position = sync_summary_position_data_to_db(position_data, user_id=1)
+    if not result_position.get('success'):
+        logger.error(f'Error in sync_summary_position_data_to_db: {result_position}')
+        raise ValueError(f"sync_summary_position_data_to_db failed: {result_position.get('message') or result_position.get('error')}")
+    logger.info(f'sync_summary_position_data_to_db done, result: {result_position}')
+
+    result_order = {}
 
     result = {
         'quote_sync_result': result_quote,
@@ -958,112 +1066,327 @@ async def cron_sync_app_data_to_db(check_trading_day_and_time: bool = True) -> d
     return result
 
 
-# ══════════════════════════════════════════════════════════════════
-# GuotaiExtractor — broker app data extractor using MobileAgent
-# ══════════════════════════════════════════════════════════════════
-
-class GuotaiExtractor(AppDataExtractor):
-    """Guotai Junan (国泰海通君弘) broker app data extractor."""
-
-    def __init__(self, config=None, llm=None, driver=None):
-        super().__init__(
-            config=config,
-            llm=llm,
-            driver=driver,
-            app_package_name=GUOTAI_PACKAGE_NAME,
-            password=GUOTAI_PASSWORD,
-        )
-
-    def goto_homepage(self) -> None:
-        """Navigate to the app homepage using ADB + MobileAgent."""
-        close_app()
-        import asyncio
-        asyncio.run(open_app(self.driver))
-        time.sleep(3)
-        logger.info("✅ On homepage")
-
-    async def login(self) -> None:
-        """Login to trading account via MobileAgent vision navigation."""
-        logger.info("Logging into Guotai trading account...")
-        self.config.agent.max_steps = 15
-        goal = (
-            "在国泰海通君弘APP中，点击底部'我的'标签，"
-            "然后点击'登录/注册'或'立即登录'，"
-            "在交易账号登录页面，点击'账号登录'，"
-            "输入密码: 817671, 后点击登录。"
-            "如果已登录则直接返回。"
-        )
-        agent = get_agent(config=self.config, llm=self.llm, tools=self.driver, goal=goal)
-        result = await agent.run()
-        if not result.success:
-            raise ValueError(f"❌ Login failed: {result.reason}")
-        logger.info("✅ Login successful")
-
-    async def get_transactions(self) -> ExtractTransaction:
-        """Extract transaction history from app."""
-        self.config.agent.max_steps = 40
-        self.config.agent.reasoning = False
-        goal = (
-            "在当前页面，点击底部'交易'标签，然后找到并点击'历史成交'。"
-            "提取所有交易记录（向上滚动加载更多），每条包含："
-            "名称、成交时间、成交价、成交量、买卖类型、成交金额。"
-            "完成后返回。"
-        )
-        agent = get_agent(
-            config=self.config, llm=self.llm, tools=self.driver,
-            goal=goal, output_model=ExtractTransaction
-        )
-        result = await agent.run()
-        for _ in range(3):
-            os.system('adb shell input keyevent KEYCODE_BACK')
-            time.sleep(0.5)
-        if not result.success:
-            raise ValueError(f"❌ Get transactions failed: {result.reason}")
-        return result.structured_output
-
-    async def get_positions(self) -> ExtractPosition:
-        """Extract holdings/summary from position page."""
-        self.config.agent.max_steps = 40
-        self.config.agent.reasoning = False
-        goal = (
-            "在当前页面，点击底部'交易'标签，然后点击'持仓'。"
-            "提取账户概览（浮动盈亏、总资产、总市值、仓位、可用、可取）"
-            "和所有持仓明细（名称、市值、持仓量、可用量、现价、成本、浮动盈亏、盈亏比例），"
-            "向上滚动直到'查看已清仓股票'出现。"
-        )
-        agent = get_agent(
-            config=self.config, llm=self.llm, tools=self.driver,
-            goal=goal, output_model=ExtractPosition
-        )
-        result = await agent.run()
-        for _ in range(2):
-            os.system('adb shell input keyevent KEYCODE_BACK')
-            time.sleep(0.5)
-        if not result.success:
-            raise ValueError(f"❌ Get positions failed: {result.reason}")
-        return result.structured_output
-
-    async def get_quotes(self) -> ExtractQuote:
-        """Extract market indices and stock quotes."""
-        self.config.agent.max_steps = 40
-        self.config.agent.reasoning = False
-        goal = (
-            "在当前页面，点击底部'行情'标签，然后点击'我的持仓'，再点击'同步'。"
-            "提取所有指数（指数名、点数、涨跌幅）"
-            "和所有自选股（名称、代码、最新价、涨跌幅、涨跌额），"
-            "向上滚动加载更多直到没有新数据。"
-        )
-        agent = get_agent(
-            config=self.config, llm=self.llm, tools=self.driver,
-            goal=goal, output_model=ExtractQuote
-        )
-        result = await agent.run()
-        os.system('adb shell input keyevent KEYCODE_BACK')
-        time.sleep(0.5)
-        if not result.success:
-            raise ValueError(f"❌ Get quotes failed: {result.reason}")
-        return result.structured_output
-
-
 if __name__ == "__main__":
-    asyncio.run(cron_sync_app_data_to_db(False))
+    """
+    close_app()
+    open_app()
+    restart_app()
+    goto_homepage()
+    login()
+
+    if verify_screen_contains(["行情", "交易", "我的"]):
+        logger.info('Bottom Navigation bar is visiable(maybe at homepage).')
+    else:
+        logger.warning('Bottom Navigation bar is NOT visiable.')
+    """
+    login()
+    asyncio.run(cron_sync_app_to_db(check_trading_day_and_time=False))
+
+"""
+# 2026.6.21
+# Because on-screen keyboard input problemss cause not easy to create relate replay templates.
+# Replace by trading/order_xx.py.
+
+async def add_order_by_replay_template(app_extractor: AppDataExtractor, order: SmartOrder = None, buy_or_sell: str = "buy"):
+    '''
+    Add a smart order to the app using replay template.
+    1. Read template macro
+    2. Replace Code, Price, Quantity with order values
+       (Dynamically generate keypad taps for Price/Quantity)
+    3. Save to temp and replay
+    '''
+    if not order:
+        raise ValueError("â Order not provided.")
+    if buy_or_sell == "buy":
+        ORDER_TEMPLATE = 'trajectories/order_buy/macro.json'
+    elif buy_or_sell == "sell":
+        ORDER_TEMPLATE = 'trajectories/order_sell/macro.json'
+    else:
+        raise ValueError("â Invalid buy_or_sell value: {buy_or_sell}")
+
+    logger.info(f"   Creating {buy_or_sell} order: {order}")
+    if not os.path.exists(ORDER_TEMPLATE):
+        raise ValueError(f"â Order template not found: {ORDER_TEMPLATE}")
+
+    # Extract order details
+    # SmartOrder: code, trigger_condition (contains price), buy_or_sell_quantity
+    stock_code = order.code
+    qty = str(int(order.buy_or_sell_quantity))
+
+    # Parse Price from trigger_condition
+    # Format: "è¡ä»·>=12.30å(è§¦åä¹°å¥)" or "è¡ä»·>=12.30å(è§¦åæ­¢ç),..."
+    # We need the trigger price.
+    import re
+    price = profit_price = lose_price = "0"
+    if 'è§¦åä¹°å¥' in order.trigger_condition:
+        # Buy order
+        m = re.search(r'è¡ä»·>=([\d\.]+)å', order.trigger_condition)
+        if m: price = m.group(1)
+    elif 'è§¦åæ­¢ç' in order.trigger_condition and 'è§¦åæ­¢æ' in order.trigger_condition:
+        #profit_price = order.trigger_condition.split(',')[0].split('>=')[1].replace('å(è§¦åæ­¢ç)', '')
+        #lose_price = order.trigger_condition.split(',')[1].split('<=')[1].replace('å(è§¦åæ­¢æ)', '')
+        m = re.search(r'è¡ä»·>=([\d\.]+)å', order.trigger_condition)
+        if m: profit_price = m.group(1)
+        m = re.search(r'è¡ä»·<=([\d\.]+)å', order.trigger_condition)
+        if m: lose_price = m.group(1)
+    else:
+        raise ValueError(f"â Invalid trigger condition: {order.trigger_condition}")
+
+    # Load template
+    with open(ORDER_TEMPLATE, 'r') as f:
+        macro_data = json.load(f)
+
+    actions = macro_data.get('actions', [])
+    new_actions = []
+
+    # Helper to find keypad coordinates from known mapping
+    # Based on trajectories/keypad_num_button_mapping.md
+    keypad_map = {
+        '1': {'x': 179, 'y': 2295, 'element_index': 87, 'type': 'TapActionEvent', 'action_type': 'tap', 'element_text': '1'},
+        '2': {'x': 539, 'y': 2295, 'element_index': 91, 'type': 'TapActionEvent', 'action_type': 'tap', 'element_text': '2'},
+        '3': {'x': 900, 'y': 2295, 'element_index': 95, 'type': 'TapActionEvent', 'action_type': 'tap', 'element_text': '3'},
+        '4': {'x': 179, 'y': 2487, 'element_index': 88, 'type': 'TapActionEvent', 'action_type': 'tap', 'element_text': '4'},
+        '5': {'x': 539, 'y': 2487, 'element_index': 92, 'type': 'TapActionEvent', 'action_type': 'tap', 'element_text': '5'},
+        '6': {'x': 900, 'y': 2487, 'element_index': 96, 'type': 'TapActionEvent', 'action_type': 'tap', 'element_text': '6'},
+        '7': {'x': 179, 'y': 2679, 'element_index': 89, 'type': 'TapActionEvent', 'action_type': 'tap', 'element_text': '7'},
+        '8': {'x': 539, 'y': 2679, 'element_index': 93, 'type': 'TapActionEvent', 'action_type': 'tap', 'element_text': '8'},
+        '9': {'x': 900, 'y': 2679, 'element_index': 97, 'type': 'TapActionEvent', 'action_type': 'tap', 'element_text': '9'},
+        '0': {'x': 539, 'y': 2870, 'element_index': 94, 'type': 'TapActionEvent', 'action_type': 'tap', 'element_text': '0'},
+        '.': {'x': 900, 'y': 2870, 'element_index': 98, 'type': 'TapActionEvent', 'action_type': 'tap', 'element_text': '.'},
+    }
+
+    iterator = iter(actions)
+    digit_group_count = 0
+    skipping_digits = False
+
+    while True:
+        try:
+            action = next(iterator)
+        except StopIteration:
+            break
+
+        # 1. Replace Code Input
+        if action.get('type') == 'InputTextActionEvent':
+            action['text'] = stock_code
+            action['description'] = f"Input text: '{stock_code}'"
+            new_actions.append(action)
+            skipping_digits = False # reset just in case
+            continue
+
+        # 2. Check for Digit Event (Price/Qty)
+        # Check against string representations of digits
+        txt = str(action.get('element_text', ''))
+        is_digit = action.get('type') == 'TapActionEvent' and txt in ['0','1','2','3','4','5','6','7','8','9','.']
+
+        if is_digit:
+            if skipping_digits:
+                continue # Skip old digits in current group
+            else:
+                # Start of a NEW digit group
+                digit_group_count += 1
+                skipping_digits = True # Start skipping subsequent old digits
+
+                # Determine value to insert based on order type
+                # BUY template: 2 digit groups (Price, Quantity)
+                # SELL template: 3 digit groups (TP Price, SL Price, Quantity)
+                val_to_insert = None
+                field_name = "Unknown"
+
+                if buy_or_sell == "buy":
+                    if digit_group_count == 1:
+                        val_to_insert = price
+                        field_name = "Price"
+                    elif digit_group_count == 2:
+                        val_to_insert = qty
+                        field_name = "Quantity"
+                elif buy_or_sell == "sell":
+                    if digit_group_count == 1:
+                        val_to_insert = profit_price
+                        field_name = "TP Price"
+                    elif digit_group_count == 2:
+                        val_to_insert = lose_price
+                        field_name = "SL Price"
+                    elif digit_group_count == 3:
+                        val_to_insert = qty
+                        field_name = "Quantity"
+
+                if val_to_insert is None:
+                    logger.warning(f"â ï¸ Found unexpected digit group #{digit_group_count}. Keeping original.")
+                    new_actions.append(action)
+                    skipping_digits = False
+                    continue
+
+                logger.info(f"   Replacing Group #{digit_group_count} ({field_name}) with {val_to_insert}")
+
+                # Insert new sequence
+                for char in str(val_to_insert):
+                    if char in keypad_map:
+                        tap = keypad_map[char].copy()
+                        tap['description'] = f"Tap element '{char}' for {field_name}"
+                        new_actions.append(tap)
+                        '''
+                        # Add wait
+                        new_actions.append({
+                            "type": "WaitEvent",
+                            "action_type": "wait",
+                            "description": "Wait 0.2s",
+                            "duration": 0.2
+                        })
+                        '''
+                    else:
+                        logger.warning(f"âš ï¸  Digit '{char}' not found in keypad map. Skipping.")
+
+        elif action.get('type') == 'WaitEvent':
+            if skipping_digits:
+                continue # Skip waits inside the old digit sequence
+            else:
+                new_actions.append(action)
+
+        else:
+            # Non-digit, non-wait action (e.g. Tap Confirm, Swipe, Tap Box)
+            # This marks the end of a digit skipping sequence
+            skipping_digits = False
+            new_actions.append(action)
+
+    macro_data['actions'] = new_actions
+
+    # Save to temp
+    temp_dir = f"trajectories/temp_order_{int(random.random()*10000)}"
+    os.makedirs(temp_dir, exist_ok=True)
+    temp_file = os.path.join(temp_dir, 'macro.json')
+    with open(temp_file, 'w') as f:
+        json.dump(macro_data, f, indent=2)
+    if buy_or_sell == "buy":
+        logger.info(f"   ð Replaying BUY macro for {stock_code} Price={price} Qty={qty}...")
+    else:
+        logger.info(f"   ð Replaying SELL macro for {stock_code} TP={profit_price} SL={lose_price} Qty={qty}...")
+
+    try:
+        subprocess.run(f"droidrun macro replay {temp_dir} --delay 6", shell=True)
+        time.sleep(random.randint(8, 15)) # random 6-12 seconds
+        add_ok = await check_result_by_screenshot("ç»æè¯¦æ")
+        if not add_ok:
+            import pdb;pdb.set_trace()
+            #raise Exception("â Add order failed")
+        # Exit order page, go back to homepage
+        subprocess.run("adb shell input keyevent KEYCODE_BACK", shell=True)
+        subprocess.run("adb shell input keyevent KEYCODE_BACK", shell=True)
+        time.sleep(2)
+    except Exception as e:
+        raise Exception(f"â Error replaying macro: {e}")
+    finally:
+        # Cleanup
+        if os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir)
+
+async def _order_crud(self, orders: list) -> bool:
+    '''Create, update or stop smart orders in Guotai app.
+
+    Args:
+        orders: Smart orders to create, update or stop
+
+    Returns:
+        bool: True if operations completed successfully
+    '''
+    self.config.agent.max_steps = 25
+    for order in orders:
+        if isinstance(order, dict):
+            code, name, trigger, commission_method, qty, valid = [order[k] for k in order]
+        else:
+            code, name, trigger, commission_method, qty, valid = order
+        code = code.split('.')[0]
+        if 'è§¦åä¹°å¥' in trigger or 'è§¦åååº' in trigger:
+            price = float(trigger.split('>=')[1].split('å')[0])
+            if 'è§¦åä¹°å¥' in trigger:
+                order_type = "å°ä»·ä¹°å¥"
+            else:
+                order_type = "å°ä»·ååº"
+            goal = f'''If not on 'æºè½è®¢å' page, tap system BACK until 'äº¤æ' visible on the bottom navigation bar, then tap 'äº¤æ', then tap 'æºè½è®¢å'.
+1. Tap "{order_type}", waiting util "{order_type}" page show. Tap on the text box with "è¯·è¾å¥è¡ç¥¨ä»£ç æåç§°", waiting util "éæ©è¡ç¥¨" page show. Tap on the text box with "è¯·è¾å¥è¡ç¥¨ä»£ç æåç§°", type "{code}" into the focused text field, wait 6 seconds then tap on "æç´¢ç»æ" below line which has "{code}", wait 6 seconds.
+2. Tap "è¾å¥è§¦åä»·æ ¼" 2 times, with a 2-second interval each time, then tap on the text box "è¾å¥è§¦åä»·æ ¼". Waiting until the keypad visiable, enter the "{price}" by tapping the corresponding buttons on the keypad and then tap "ç¡®å®".
+3. Tap on the radio button with text "å½è¡ä»·â¥ {price} è§¦åå§æ".
+4. Tap on the "è¯·éæ©å§ææ¹å¼". Not need select anything, just swipe((1321, 1985), (1321, 1985)) in short duration, then tap index 92.
+5. Repeat previous step until the "å§ææ¹å¼" field got value, then continue next step.
+6. Swipe up until "æææè³" visiable. If "è¯·è¾å¥ [ä¹°å¥/ååº] æ°é" pop-up then tap "ç¡®å®" to close it.
+7. Tap "ä¹°å¥æ°é", 2 times, with a 2-second interval each time, then tap on the text box "ä¹°å¥æ°é". Waiting until the keypad visiable, remove older value and enter the "{qty}" by tapping the corresponding buttons on the keypad and then tap "ç¡®å®".
+8. Tap "è¯·éæ©ä¸åæ¹å¼" right side the radio button with text "èªå¨ä¸å".
+9. Tap "æææè³" below text box, then tap the date "{valid[-2:]}", then swipe((1321, 1156), (1321, 1156)) in short duration, then tap index 93,
+10. Repeat previous step unitl the "æææè³" field go value, then continue next step.
+11. Tap "åå»ºè®¢å", then tap on the "ç¡®å®".
+        '''
+        elif 'æ­¢çæ­¢æ' in trigger:
+            tp_price = float(trigger.split('è§¦å')[1].split('å')[0])
+            ls_price = float(trigger.split('è§¦å')[1].split('å')[0])
+            order_type = "æ­¢çæ­¢æ"
+            goal = f'''
+        '''
+        else:
+            raise ValueError(f"â Invalid trigger: {trigger}")
+        agent = get_agent(config=self.config, llm=self.llm, driver=self.driver, goal=goal)
+        try_num = 0
+        while try_num < 3:
+            result = await agent.run(save_trajectory='none')
+            if result.success:
+                break
+            try_num += 1
+        if not result.success:
+            raise ValueError(f"â try {try_num} times, but Goal get orders not completed: {result.reason}")
+        logger.info(f"   â Order {code} ({name}) trigger={trigger} qty={qty} until={valid} added successfully")
+        break
+
+    return True
+
+@staticmethod
+async def status_order_in_app(order: SmartOrder) -> str:
+    '''Check the status of the order in the app.
+
+    Args:
+        order: Smart order to check
+
+    Returns:
+        str: The status of the order in the app
+            - 'need_add': order not exist in app
+            - 'need_update': order is running in app but trigger or quantity not match
+            - 'need_stop': order is running in app but not in orders
+    '''
+    return True
+
+async def stop_order_in_app(self, order_code: str, order_name: str) -> bool:
+    '''Stop (cancel) a running smart order in the Guotai app.
+
+    Navigate to smart order list â find order by code â tap stop.
+    The app's smart order page has 'è¿è¡ä¸­' tab listing active orders.
+    Each order card has a 'åæ­¢' (stop) button.
+
+    Args:
+        order_code: Stock code (e.g., '002415')
+        order_name: Stock name for logging
+
+    Returns:
+        bool: True if order was stopped successfully
+    '''
+    code = order_code.split('.')[0]
+    logger.info(f"   ð Stopping order {code} ({order_name}) in app...")
+
+    goal = f'''If not on 'æºè½è®¢å' page, tap system BACK until 'äº¤æ' visible on the bottom navigation bar, then tap 'äº¤æ', then tap 'æºè½è®¢å'.
+1. In the smart order page, tap 'è¿è¡ä¸­' tab to see running orders.
+2. Find the order card that contains stock code "{code}" or name "{order_name}".
+3. Tap the 'åæ­¢' button on that order card.
+4. If a confirmation dialog appears, tap 'ç¡®å®' to confirm stopping the order.
+5. Verify the order status changed (no longer in 'è¿è¡ä¸­' list or shows 'å·²åæ­¢').
+    '''
+    self.config.agent.max_steps = 25
+    agent = get_agent(config=self.config, llm=self.llm, driver=self.driver, goal=goal)
+
+    try_num = 0
+    while try_num < 3:
+        result = await agent.run(save_trajectory='none')
+        if result.success:
+            logger.info(f"   â Order {code} ({order_name}) stopped successfully")
+            return True
+        try_num += 1
+        logger.warning(f"   â ï¸ Attempt {try_num}/3 to stop order {code} failed: {result.reason}")
+
+    logger.error(f"   â Failed to stop order {code} ({order_name}) after 3 attempts")
+    return False
+"""

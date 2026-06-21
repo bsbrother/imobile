@@ -1,6 +1,5 @@
 import os
 import sys
-import pandas as pd
 from loguru import logger
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -26,7 +25,7 @@ def determine_strategy(date_str: str) -> str:
     
     df = data_provider.get_index_data('000001.SH', start_date, end_date)
     if df is None or df.empty or len(df) < 5:
-        logger.warning(f"[ts_auto] Not enough data, fallback to ts_7AZ")
+        logger.warning("[ts_auto] Not enough data, fallback to ts_7AZ")
         return "ts_7AZ"
     
     df = df.sort_values(by='trade_date')

@@ -16,7 +16,6 @@ This internal API offer results in
 from urllib.parse import urlencode
 from json import loads
 
-from searx.engines.google import fetch_traits  # pylint: disable=unused-import
 from searx.engines.google import (
     get_google_info,
     time_range_dict,

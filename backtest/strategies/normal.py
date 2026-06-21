@@ -76,8 +76,8 @@ class NormalMarketStrategy(ASharesStrategy):
             # Get current values
             current_idx = len(data) - 1
             close_prices = data['Close'] if 'Close' in data.columns else data.iloc[:, 3]  # Assume OHLC format
-            high_prices = data['High'] if 'High' in data.columns else data.iloc[:, 1]
-            low_prices = data['Low'] if 'Low' in data.columns else data.iloc[:, 2]
+            data['High'] if 'High' in data.columns else data.iloc[:, 1]
+            data['Low'] if 'Low' in data.columns else data.iloc[:, 2]
             volume = data['Volume'] if 'Volume' in data.columns else None
             
             # Calculate indicators
@@ -142,7 +142,7 @@ class NormalMarketStrategy(ASharesStrategy):
             required_signals = 1
             return len(buy_signals) >= required_signals
             
-        except Exception as e:
+        except Exception:
             # Return False if any calculation fails
             return False
     
@@ -219,6 +219,6 @@ class NormalMarketStrategy(ASharesStrategy):
             # Require at least 1 sell signal for normal market
             return len(sell_signals) >= 1
             
-        except Exception as e:
+        except Exception:
             # Return False if any calculation fails
             return False

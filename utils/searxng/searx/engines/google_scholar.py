@@ -39,7 +39,6 @@ from searx.utils import (
 
 from searx.exceptions import SearxEngineCaptchaException, SearxEngineAccessDeniedException
 
-from searx.engines.google import fetch_traits  # pylint: disable=unused-import
 from searx.engines.google import (
     get_google_info,
     time_range_dict,

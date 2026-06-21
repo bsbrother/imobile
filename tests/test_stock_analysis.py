@@ -11,7 +11,6 @@ import sqlite3
 import os
 import sys
 from unittest.mock import Mock, patch
-from pathlib import Path
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -172,7 +171,7 @@ def run_quick_test():
         print(f"   ✓ Successfully retrieved {len(stocks)} stocks")
         
         if stocks:
-            print(f"\n2. Sample stocks (first 3):")
+            print("\n2. Sample stocks (first 3):")
             for code, name in stocks[:3]:
                 print(f"   - {code}: {name}")
         

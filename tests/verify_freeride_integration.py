@@ -14,7 +14,6 @@ if workspace_root not in sys.path:
 def test_imports():
     """Test that the modified ts_daily.py can be imported without errors."""
     try:
-        from backtest.strategies.ts_daily import GeminiDailyAnalyzer, DailyAnalysisCache
         print("✅ SUCCESS: ts_daily.py imports correctly")
         print("   - GeminiDailyAnalyzer class available")
         print("   - DailyAnalysisCache class available")

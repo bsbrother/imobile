@@ -135,7 +135,7 @@ def parse_category_form(query_categories: List[str], name: str, value: str) -> N
 def get_selected_categories(preferences: Preferences, form: Optional[Dict[str, str]]) -> List[str]:
     selected_categories = []
 
-    if not "categories" in preferences.cfg.lock and form is not None:
+    if "categories" not in preferences.cfg.lock and form is not None:
         for name, value in form.items():
             parse_category_form(selected_categories, name, value)
 
@@ -175,7 +175,7 @@ def parse_generic(preferences: Preferences, form: Dict[str, str], disabled_engin
 
     # set categories/engines
     explicit_engine_list = False
-    if not "categories" in preferences.cfg.lock:
+    if "categories" not in preferences.cfg.lock:
         # parse the form only if the categories are not locked
         for pd_name, pd in form.items():  # pylint: disable=invalid-name
             if pd_name == 'engines':
@@ -266,7 +266,7 @@ def get_search_query_from_webapp(
     if query_lang == 'auto':
         query_lang = preferences.client.locale_tag or 'all'
 
-    if not "categories" in preferences.cfg.lock and raw_text_query.specific:
+    if "categories" not in preferences.cfg.lock and raw_text_query.specific:
         # if engines are calculated from query,
         # set categories by using that information
         query_engineref_list = raw_text_query.enginerefs

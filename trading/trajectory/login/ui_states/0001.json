@@ -1,0 +1,173 @@
+[
+  {
+    "index": 1,
+    "resourceId": "",
+    "className": "FrameLayout",
+    "checkedState": "",
+    "text": "android.widget.FrameLayout",
+    "bounds": "0,0,1440,3120",
+    "children": []
+  },
+  {
+    "index": 2,
+    "resourceId": "com.guotai.dazhihui:id/title_back",
+    "className": "LinearLayout",
+    "checkedState": "",
+    "text": "com.guotai.dazhihui:id/title_back",
+    "bounds": "0,76,173,236",
+    "children": []
+  },
+  {
+    "index": 3,
+    "resourceId": "com.guotai.dazhihui:id/tv_title",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "交易登录",
+    "bounds": "604,120,836,192",
+    "children": []
+  },
+  {
+    "index": 4,
+    "resourceId": "com.guotai.dazhihui:id/tv_login_question",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "遇到问题",
+    "bounds": "1200,126,1392,185",
+    "children": []
+  },
+  {
+    "index": 5,
+    "resourceId": "com.guotai.dazhihui:id/keyboard_switcher_view",
+    "className": "LinearLayout",
+    "checkedState": "",
+    "text": "com.guotai.dazhihui:id/keyboard_switcher_view",
+    "bounds": "0,2188,1440,2326",
+    "children": []
+  },
+  {
+    "index": 6,
+    "resourceId": "com.guotai.dazhihui:id/num_button",
+    "className": "Button",
+    "checkedState": "",
+    "text": "123",
+    "bounds": "130,2211,344,2307",
+    "children": []
+  },
+  {
+    "index": 7,
+    "resourceId": "com.guotai.dazhihui:id/english_button",
+    "className": "Button",
+    "checkedState": "",
+    "text": "ABC",
+    "bounds": "1095,2211,1309,2307",
+    "children": []
+  },
+  {
+    "index": 8,
+    "resourceId": "com.guotai.dazhihui:id/keyboard_view",
+    "className": "View",
+    "checkedState": "",
+    "text": "com.guotai.dazhihui:id/keyboard_view",
+    "bounds": "0,2326,1440,2966",
+    "children": []
+  },
+  {
+    "index": 9,
+    "resourceId": "com.guotai.dazhihui:id/layout_account",
+    "className": "RelativeLayout",
+    "checkedState": "",
+    "text": "com.guotai.dazhihui:id/layout_account",
+    "bounds": "0,274,1440,530",
+    "children": []
+  },
+  {
+    "index": 10,
+    "resourceId": "com.guotai.dazhihui:id/account_tv",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "A4 *** 08",
+    "bounds": "170,330,414,402",
+    "children": []
+  },
+  {
+    "index": 11,
+    "resourceId": "com.guotai.dazhihui:id/tv_account_type_tag1",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "股东代码",
+    "bounds": "430,340,590,392",
+    "children": []
+  },
+  {
+    "index": 12,
+    "resourceId": "com.guotai.dazhihui:id/branch_name_tv",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "广西南宁民族大道",
+    "bounds": "170,418,1270,474",
+    "children": []
+  },
+  {
+    "index": 13,
+    "resourceId": "com.guotai.dazhihui:id/change_account_tv",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "切换",
+    "bounds": "1270,342,1392,462",
+    "children": []
+  },
+  {
+    "index": 14,
+    "resourceId": "com.guotai.dazhihui:id/password_input_et",
+    "className": "EditText",
+    "checkedState": "",
+    "text": "请输入交易密码",
+    "bounds": "170,532,1213,711",
+    "children": []
+  },
+  {
+    "index": 15,
+    "resourceId": "com.guotai.dazhihui:id/password_visibility_iv",
+    "className": "ImageView",
+    "checkedState": "",
+    "text": "com.guotai.dazhihui:id/password_visibility_iv",
+    "bounds": "1296,573,1392,669",
+    "children": []
+  },
+  {
+    "index": 16,
+    "resourceId": "com.guotai.dazhihui:id/login_confirm_btn",
+    "className": "Button",
+    "checkedState": "",
+    "text": "登录",
+    "bounds": "48,807,1392,948",
+    "children": []
+  },
+  {
+    "index": 17,
+    "resourceId": "com.guotai.dazhihui:id/tv_timeout_protector",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "保持在线时长 24小时",
+    "bounds": "48,1018,518,1106",
+    "children": []
+  },
+  {
+    "index": 18,
+    "resourceId": "com.guotai.dazhihui:id/tv_quick_open_account",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "开户享最高6.88%理财券\n\n",
+    "bounds": "895,1018,1392,1224",
+    "children": []
+  },
+  {
+    "index": 19,
+    "resourceId": "com.guotai.dazhihui:id/tv_gm_cert_chips_text",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "已开启通信卫士",
+    "bounds": "561,2823,878,2870",
+    "children": []
+  }
+]

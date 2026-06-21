@@ -14,5 +14,5 @@ config = rx.Config(
                 accent_color="blue",
             ),
         ),
-    ]
+    ],
 )

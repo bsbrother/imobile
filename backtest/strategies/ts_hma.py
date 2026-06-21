@@ -29,7 +29,7 @@ from backtest import data_provider
 from backtest.utils.trading_calendar import get_trading_days_before, convert_trade_date
 from backtest.utils.market_regime import detect_market_regime
 from backtest.utils.logging_config import configure_logger
-from backtest.strategies.ts_ths_dc import is_late_trend, no_risky_stocks
+from backtest.strategies.ts_ths_dc import no_risky_stocks
 
 warnings.filterwarnings("ignore", category=UserWarning)
 

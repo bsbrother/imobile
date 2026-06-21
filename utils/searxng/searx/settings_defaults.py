@@ -109,7 +109,7 @@ class SettingSublistValue(SettingsValue):
         if not isinstance(value, list):
             raise ValueError('The value has to a list')
         for item in value:
-            if not item in self.type_definition[0]:
+            if item not in self.type_definition[0]:
                 raise ValueError('{} not in {}'.format(item, self.type_definition))
 
 

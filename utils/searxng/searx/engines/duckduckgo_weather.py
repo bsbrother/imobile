@@ -10,7 +10,6 @@ from urllib.parse import quote
 
 from dateutil import parser as date_parser
 
-from searx.engines.duckduckgo import fetch_traits  # pylint: disable=unused-import
 from searx.engines.duckduckgo import get_ddg_lang
 
 from searx.result_types import EngineResults

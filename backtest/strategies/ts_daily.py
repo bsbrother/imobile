@@ -225,7 +225,7 @@ class NewsService:
                 dt = datetime.strptime(target_date, '%Y%m%d')
                 # Use a specific format that search engines index well for stock news
                 date_str = dt.strftime('%Y年%m月%d日')
-            except:
+            except Exception:
                 pass
 
         # Explicitly ask for news on that exact date
@@ -435,7 +435,7 @@ class GeminiDailyAnalyzer:
             try:
                 dt = datetime.strptime(target_date, '%Y%m%d')
                 formatted_date = dt.strftime('%Y年%m月%d日')
-            except:
+            except Exception:
                 formatted_date = target_date
                 
         return f"""你是一个专业的A股高级交易策略师。现在的交易日是：{formatted_date}。
@@ -459,7 +459,7 @@ class GeminiDailyAnalyzer:
                         "tp_pct": data.get("tp_pct", 0.10),
                         "sl_pct": data.get("sl_pct", 0.05)
                     }
-                except:
+                except Exception:
                     pass
             
             # 2. Comprehensive Regex Fallback
@@ -602,7 +602,7 @@ def get_stock_candidates(target_date: str, lookahead: bool = False, market_regim
         ma5 = TechnicalIndicators.moving_average(close_ser, 5).iloc[-1]
         ma10 = TechnicalIndicators.moving_average(close_ser, 10).iloc[-1]
         ma20 = TechnicalIndicators.moving_average(close_ser, 20).iloc[-1]
-        ma60 = TechnicalIndicators.moving_average(close_ser, 60).iloc[-1] if len(df) >= 60 else ma20
+        TechnicalIndicators.moving_average(close_ser, 60).iloc[-1] if len(df) >= 60 else ma20
         
         curr_close = close_ser.iloc[-1]
         bias_ma5 = ((curr_close - ma5) / ma5) * 100
@@ -648,7 +648,7 @@ def get_stock_candidates(target_date: str, lookahead: bool = False, market_regim
 def pick_stocks(target_date: str, lookahead: bool = False, no_search: bool = False, no_ai: bool = False) -> List[StockPick]:
     """Main daily picking logic."""
     import re
-    logger.info(f"=== Daily News-Driven Stock Picker (ts_daily) ===")
+    logger.info("=== Daily News-Driven Stock Picker (ts_daily) ===")
     logger.info(f"Target: {target_date}, Lookahead: {lookahead}, no_search: {no_search}, no_ai: {no_ai}")
     
     regime_data = detect_market_regime(target_date)

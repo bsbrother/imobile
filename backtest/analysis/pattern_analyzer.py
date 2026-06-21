@@ -4,8 +4,7 @@ Historical pattern analysis and validation system.
 
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Tuple, Optional
-from datetime import datetime, timedelta
+from typing import Dict
 
 from .pattern_detector import ChinaMarketPatternDetector
 from ..core.interfaces import DataProvider
@@ -87,7 +86,7 @@ class PatternAnalyzer:
                     'confidence': confidence
                 })
                 
-            except Exception as e:
+            except Exception:
                 # Skip dates with insufficient data or other issues
                 continue
         

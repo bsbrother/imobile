@@ -535,7 +535,7 @@ def get_thumbnail(img_src: str | None) -> str | None:
 
     """
     logger.debug("get_thumbnail(): %s", img_src)
-    if not img_src is None and _IMG_SRC_DEFAULT_URL_PREFIX in img_src.split()[0]:
+    if img_src is not None and _IMG_SRC_DEFAULT_URL_PREFIX in img_src.split()[0]:
         img_src_name = unquote(img_src.replace(_IMG_SRC_DEFAULT_URL_PREFIX, "").split("?", 1)[0].replace("%20", "_"))
         img_src_name_first = img_src_name
         img_src_name_second = img_src_name

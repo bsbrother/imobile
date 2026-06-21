@@ -2,7 +2,6 @@ import sys
 import os
 import pandas as pd
 import argparse
-from datetime import datetime
 
 # Add the project root to the python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../../apps/imobile')))
@@ -30,7 +29,7 @@ def calculate_return(symbol, start_date, end_date):
         if symbol.startswith('92') or symbol.startswith('8') or symbol.startswith('4'):
              try:
                  df = provider.get_ohlcv_data(symbol=f"{symbol}.BJ", start_date=start_date, end_date=end_date)
-             except:
+             except Exception:
                  df = provider.get_ohlcv_data(symbol=symbol, start_date=start_date, end_date=end_date)
         else:
              df = provider.get_ohlcv_data(symbol=symbol, start_date=start_date, end_date=end_date)

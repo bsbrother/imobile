@@ -15,21 +15,17 @@ Output:
 import os
 import sys
 import json
-import time
-from datetime import datetime, timedelta
-import logging
+from datetime import datetime
 from loguru import logger
 import pandas as pd
-import numpy as np
 import warnings
-from typing import Any
 
 import tushare as ts
 from dotenv import load_dotenv
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from backtest import data_provider
-from backtest.utils.trading_calendar import get_trading_days_before, get_trading_days_between
+from backtest.utils.trading_calendar import get_trading_days_before
 from backtest.utils.util import convert_trade_date
 from backtest.utils.market_regime import detect_market_regime
 from backtest.strategies.ts_ths_dc import no_risky_stocks
@@ -223,7 +219,7 @@ def canslim_screener(end_date: str, top_n: int = 50) -> pd.DataFrame:
             if daily is None or daily.empty or len(daily) < 200:
                 continue
             daily = daily.sort_values('trade_date', ascending=False)
-        except:
+        except Exception:
             continue
         
         close = daily['close'].astype(float)

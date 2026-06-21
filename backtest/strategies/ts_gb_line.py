@@ -11,17 +11,14 @@ import os
 import sys
 import json
 import pandas as pd
-import numpy as np
 import warnings
 from datetime import datetime
 from loguru import logger
-from typing import List, Dict, Any
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from backtest import data_provider
-from backtest.utils.trading_calendar import get_trading_days_before, get_trading_days_between
+from backtest.utils.trading_calendar import get_trading_days_before
 from backtest.utils.util import convert_trade_date
-from backtest.utils.market_regime import detect_market_regime
 
 # Suppress warnings
 warnings.filterwarnings("ignore")

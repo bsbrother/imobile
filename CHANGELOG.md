@@ -4,6 +4,16 @@ Key changes and milestones in iMobile development.
 
 ## 2026-06
 
+### Pre-Market Smart Order Fixes
+- **Tushare-first data provider** — `TushareDataProvider.get_index_data()` now tries Tushare first and falls back to Akshare; previously the order was reversed, causing noisy "Akshare index fetch failed" warnings on every run.
+- **Skip backtest reports for future dates** — `pick_orders_trading()` (Steps 3 & 4) now guards `generate_daily_report()` and `generate_period_report()` behind `date < today`. Pre-market runs targeting a future trading date no longer attempt to simulate order execution or benchmark comparison (which require OHLCV data that doesn't exist yet), eliminating "No OHLCV data found" and "Failed to calculate metrics for CSI 500" noise.
+- **Remove dead target-date OHLCV fetch** — `analyze_stocks_and_generate_orders()` in `cli.py` previously fetched `get_stock_data(symbol, target_trading_date, ...)` unconditionally for every symbol, then discarded the result in all non-bull regimes. Moved the fetch inside `if regime == 'bull':` where it is actually used.
+- **ATR-based bull market buy trigger** — In bull regime, smart order buy price is now set to `close × (1 + gap_pct)` where `gap_pct = clamp(0.5×ATR/close, min=2%, max=7%/13%)`. This ensures the `股价 <= buy_price(触发买入)` smart order fires on a typical gap-up open without chasing parabolic/near-limit-up moves. ChiNext (300) and STAR (688) stocks use the wider 13% cap (20% daily limit), main board stocks use 7% (10% daily limit).
+
+### Documentation & Architecture
+- **Comprehensive Subsystem Docs** — Created detailed documentation for all three core subsystems (`docs/BACKTEST.md`, `docs/TRADING.md`, `docs/WEB.md`).
+- **Architecture Revamp** — Rewrote `README.md` and `ARCHITECTURE.md` to reflect the unified structure and data flow between the Backtest engine, Live Trading mobile agent, and Reflex Web dashboard.
+
 ### Strategy & Backtesting
 - **ts_auto optimization** — aggressive parameter tuning for >15% 3-month returns
   - Increased max_positions to 6, bull TP to 55%, loosened stagnation cuts

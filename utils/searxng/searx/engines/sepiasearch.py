@@ -8,7 +8,6 @@ peertube engines.
 from urllib.parse import urlencode
 from datetime import datetime
 
-from searx.engines.peertube import fetch_traits  # pylint: disable=unused-import
 from searx.engines.peertube import (
     # pylint: disable=unused-import
     video_response,

@@ -1,7 +1,6 @@
 """API endpoints for serving files."""
-import os
 from pathlib import Path
-from starlette.responses import FileResponse, Response
+from starlette.responses import FileResponse
 from fastapi import HTTPException
 
 

@@ -4,13 +4,12 @@ Comprehensive reporting system for backtest results.
 
 import json
 import csv
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, List, Optional
 from datetime import datetime
 from pathlib import Path
 import pandas as pd
 from dataclasses import dataclass, asdict
 import jinja2
-from io import StringIO
 
 from .performance import PerformanceReport
 from .benchmark import BenchmarkComparison
@@ -182,7 +181,6 @@ class ReportGenerator:
     def _calculate_summary_statistics(self, performance_report: PerformanceReport) -> Dict[str, Any]:
         """Calculate additional summary statistics."""
         
-        daily_returns = performance_report.daily_returns
         
         return {
             'performance_summary': {
@@ -243,7 +241,7 @@ class ReportGenerator:
                     if month_key not in monthly_trades:
                         monthly_trades[month_key] = 0
                     monthly_trades[month_key] += 1
-                except:
+                except Exception:
                     pass
         
         # Calculate symbol statistics

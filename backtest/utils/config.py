@@ -5,7 +5,6 @@ Configuration management system for API keys and strategy parameters.
 import os
 import json5 as json # Support comments, e.g. /*..*/ //..., but not jsonref.
 from typing import Dict, Any, Optional
-from pathlib import Path
 
 from .exceptions import ConfigurationError
 

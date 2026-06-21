@@ -98,7 +98,7 @@ def method_a_searxng():
     We show the most recent announcements for the stock.
     """
     print(f"\n{'═'*70}")
-    print(f"  METHOD A -- SearXNG eastmoney-guba → Announcements API")
+    print("  METHOD A -- SearXNG eastmoney-guba → Announcements API")
     print(f"  Stock: {TICKER} ({STOCK_CODE})")
     print(f"{'═'*70}")
 
@@ -119,7 +119,7 @@ def method_a_searxng():
 
     print(f"  SearXNG total results: {len(results)}")
     print(f"  eastmoney-guba (deduped): {len(deduped)}")
-    print(f"  Note: json_engine doesn't extract display_time field.")
+    print("  Note: json_engine doesn't extract display_time field.")
     print(f"  These are the most recent announcements for {STOCK_CODE}.")
 
     for i, item in enumerate(deduped[:10], 1):
@@ -147,7 +147,7 @@ def method_b_direct():
     This is the reliable method for historical date-filtered data.
     """
     print(f"\n{'═'*70}")
-    print(f"  METHOD B -- Direct scraper → Dated historical data")
+    print("  METHOD B -- Direct scraper → Dated historical data")
     print(f"  Target: {TICKER} ({STOCK_NAME})  date: {TARGET_DATE}  (±{DAY_RANGE}d)")
     if _AUTO_WINDOW:
         print(f"  (Auto-adjusted to recent window: {DATE_START} ~ {DATE_END})")
@@ -158,7 +158,7 @@ def method_b_direct():
     all_posts = []
 
     # ── B1: Announcements with date filtering ──
-    print(f"\n  ┌── B1: Announcements API (paginated, date-filtered) ──")
+    print("\n  ┌── B1: Announcements API (paginated, date-filtered) ──")
     try:
         # Use the auto-adjusted date if target is too old
         query_date = TARGET_DATE
@@ -168,7 +168,6 @@ def method_b_direct():
         # Increase days_range to find data in the window
         all_news = em.get_news(STOCK_CODE, date=None, max_pages=MAX_PAGES)
         # Manual date filter with wider window
-        from datetime import timedelta
         target_dt = datetime.strptime(query_date, '%Y-%m-%d')
         window_days = DAY_RANGE
         filtered = []
@@ -195,7 +194,7 @@ def method_b_direct():
 
     # ── B2: Guba forum posts ──
     guba_count = 0
-    print(f"\n  ┌── B2: 股吧 forum posts (recent) ──")
+    print("\n  ┌── B2: 股吧 forum posts (recent) ──")
     try:
         guba = em.get_guba_posts(STOCK_CODE, date=None, max_pages=1)
         print(f"  │  Found {len(guba)} posts in date window")
@@ -219,13 +218,13 @@ def method_b_direct():
 def method_c_supplementary():
     """Xueqiu and CLS — attempted but may be blocked by WAF."""
     print(f"\n{'═'*70}")
-    print(f"  METHOD C -- Supplementary: Xueqiu + CLS")
+    print("  METHOD C -- Supplementary: Xueqiu + CLS")
     print(f"{'═'*70}")
 
     mod = load_scraper()
     results = []
 
-    print(f"\n  ┌── Xueqiu ──")
+    print("\n  ┌── Xueqiu ──")
     try:
         xq = mod.XueqiuScraper()
         posts = xq.get_stock_posts(STOCK_CODE, date=TARGET_DATE, max_pages=1)
@@ -233,9 +232,9 @@ def method_c_supplementary():
         results.extend(posts)
     except Exception as exc:
         print(f"  │  Blocked: {exc}")
-    print(f"  └──")
+    print("  └──")
 
-    print(f"\n  ┌── CLS ──")
+    print("\n  ┌── CLS ──")
     try:
         cls = mod.CLSNewsScraper()
         items = cls.search_news(STOCK_NAME, date=TARGET_DATE, max_pages=1)
@@ -243,7 +242,7 @@ def method_c_supplementary():
         results.extend(items)
     except Exception as exc:
         print(f"  │  Blocked: {exc}")
-    print(f"  └──")
+    print("  └──")
 
     return results
 
@@ -278,11 +277,11 @@ def aggregate_sentiment(all_posts):
     print(f"  Score:         {ratio}  →  {overall}")
 
     if bullish:
-        print(f"\n  看涨信号:")
+        print("\n  看涨信号:")
         for p in bullish[:5]:
             print(f"    • {p.get('title', '')[:68]}")
     if bearish:
-        print(f"\n  看跌信号:")
+        print("\n  看跌信号:")
         for p in bearish[:5]:
             print(f"    • {p.get('title', '')[:68]}")
 
@@ -296,7 +295,7 @@ def aggregate_sentiment(all_posts):
 
 def main():
     print(f"╔{'═'*68}╗")
-    print(f"║  Chinese Stock Historical Sentiment Search                         ║")
+    print("║  Chinese Stock Historical Sentiment Search                         ║")
     print(f"║  Ticker: {TICKER:<10}  Name: {STOCK_NAME:<8}  Date: {TARGET_DATE:<12}  ║")
     print(f"╚{'═'*68}╝")
 
@@ -320,10 +319,10 @@ def main():
     print(f"\n{'═'*70}")
     if summary["total"] > 0:
         print(f"  ✓ SUCCESS: Retrieved {summary['total']} dated posts for {TICKER}")
-        print(f"  ✓ Historical data confirmed via display_time timestamps")
+        print("  ✓ Historical data confirmed via display_time timestamps")
     else:
         print(f"  ✗ No data in window {DATE_START} ~ {DATE_END}")
-        print(f"    Try a more recent date, or increase MAX_PAGES")
+        print("    Try a more recent date, or increase MAX_PAGES")
     print(f"{'═'*70}\n")
 
 

@@ -32,18 +32,28 @@
 ## 步骤 1：获取强势板块
 ### 思路是获取板块历史数据，通过计算其相对强度（例如涨幅、RPS等）来筛选出近期强势板块。
 
+import json
+import logging
+import warnings
+
 import pandas as pd
+import requests
 
 import akshare as ak
 import adata
+import tushare as ts
 
 from tenacity import before_sleep_log, retry, retry_if_exception_type, stop_after_attempt, wait_random_exponential
 
 from utils.stock_code_name_valid import convert_akcode_to_tushare
 
+logger = logging.getLogger(__name__)
 # Create a standard logging logger for tenacity
 tenacity_logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore", category=UserWarning, module='py_mini_racer')
+
+# Tushare pro API (lazy init)
+PRO = ts.pro_api()
 
 def get_concept_sectors(start_date: str, end_date: str, src: str='ts_ths') -> pd.DataFrame:
     """
@@ -122,8 +132,7 @@ def dc_daily(concept_list: pd.DataFrame, start_date: str, end_date: str) -> pd.D
     """
     all_dc_daily = pd.DataFrame()
     for concept_name in concept_list['name']:
-        concept_daily = ak.stock_board_concept_hist_em(symbol=concept_name, period='daily', start_date=date, end_date=date)
-        import pdb;pdb.set_trace()
+        concept_daily = ak.stock_board_concept_hist_em(symbol=concept_name, period='daily', start_date=start_date, end_date=end_date)
         all_dc_daily = pd.concat([all_dc_daily, concept_daily], ignore_index=True)
 
     return all_dc_daily
@@ -242,7 +251,6 @@ if __name__ == "__main__":
     df = ths_member(index_code)
     print(df)
     # akshare limited API by IP, use adata to get concept members.
-    import adata
     df21 = adata.stock.info.all_concept_code_ths()
     print(df21)
     df22 = adata.stock.info.concept_constituent_ths(index_code=index_code)

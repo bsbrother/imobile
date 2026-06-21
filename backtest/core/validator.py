@@ -2,8 +2,8 @@
 Trade validation for China A-shares market rules.
 """
 
-from datetime import datetime, timedelta
-from typing import Dict, Any, Optional
+from datetime import datetime
+from typing import Dict, Any
 from ..utils.exceptions import TradeValidationError
 
 

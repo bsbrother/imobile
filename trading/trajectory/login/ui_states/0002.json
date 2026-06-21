@@ -1,0 +1,20 @@
+[
+  {
+    "index": 1,
+    "resourceId": "",
+    "className": "FrameLayout",
+    "checkedState": "",
+    "text": "android.widget.FrameLayout",
+    "bounds": "624,1425,816,1617",
+    "children": []
+  },
+  {
+    "index": 2,
+    "resourceId": "",
+    "className": "ProgressBar",
+    "checkedState": "",
+    "text": "android.widget.ProgressBar",
+    "bounds": "656,1457,784,1585",
+    "children": []
+  }
+]

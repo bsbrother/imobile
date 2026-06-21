@@ -22,7 +22,7 @@ import argparse
 import hashlib
 import sqlite3
 from typing import Dict, List, Any, Optional
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from datetime import datetime
 
 from dotenv import load_dotenv
@@ -33,7 +33,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 from backtest import data_provider
 from backtest.utils.trading_calendar import get_trading_days_before
 from backtest.utils.market_regime import detect_market_regime
-from backtest.strategies.ts_ths_dc import is_late_trend
 
 load_dotenv()
 
@@ -190,7 +189,7 @@ class NewsService:
                 from datetime import datetime
                 dt = datetime.strptime(target_date, '%Y%m%d')
                 date_str = dt.strftime('%Y年%m月')
-            except:
+            except Exception:
                 pass
 
         query = f"{stock_name} {stock_code.split('.')[0]} 股票 {date_str} 最新消息"
@@ -662,7 +661,7 @@ def pick_stocks(target_date: str, lookahead: bool = False, no_search: bool = Fal
     Returns:
         List of StockPick objects
     """
-    logger.info(f"=== AI Stock Picker (ts_ai) ===")
+    logger.info("=== AI Stock Picker (ts_ai) ===")
     logger.info(f"Target date: {target_date}, Lookahead: {lookahead}, no_search: {no_search}, no_ai: {no_ai}")
     
     # Detect market regime

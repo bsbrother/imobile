@@ -68,7 +68,7 @@ def _validate_model_or_exit(cli_model: str | None) -> str:
 
     # Not found
     print(f"invalid model: '{model}' is not in the FreeRide model list.")
-    print(f"Run 'python utils/FreeRide/main.py list' to see available models.")
+    print("Run 'python utils/FreeRide/main.py list' to see available models.")
     sys.exit(1)
 
 
@@ -90,7 +90,7 @@ print(f"Using FreeRide model: {VALIDATED_MODEL}")
 # ---------------------------------------------------------------------------
 # Imports that depend on validated model
 # ---------------------------------------------------------------------------
-from backtest.strategies.ts_daily import GeminiDailyAnalyzer, DailyAnalysisCache
+from backtest.strategies.ts_daily import GeminiDailyAnalyzer
 
 
 class TestFreeRideIntegration(unittest.TestCase):

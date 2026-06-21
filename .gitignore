@@ -32,14 +32,15 @@ develop-eggs/
 *.db-journal
 *.db-wal
 *.db-shm
-data_cache/
-data/
-backtest/results_backups/
-db/go_daily_cache/
+shared/data/
+shared/db/go_daily_cache/
+shared/data_cache/
+shared/db/kaipanla.cache.db
 
 # ── Backtest Outputs & Logs ────────────────────────────────
 *.log
 /backtest/results/
+backtest/results_backups/
 /logs/
 
 # ── IDE & Editor ────────────────────────────────────────────

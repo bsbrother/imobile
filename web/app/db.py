@@ -1,9 +1,9 @@
 """Database models and configuration for iMobile application."""
 import reflex as rx
 from datetime import datetime, date, time
-from typing import Optional, List
+from typing import Optional
 import sqlalchemy as sa
-from sqlmodel import Field, Relationship
+from sqlmodel import Field
 
 class User(rx.Model, table=True):
     """User model."""

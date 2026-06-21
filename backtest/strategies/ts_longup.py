@@ -26,7 +26,7 @@ from datetime import datetime
 import pandas as pd
 import numpy as np
 import warnings
-from typing import Any, Optional
+from typing import Optional
 
 from dotenv import load_dotenv
 from loguru import logger
@@ -37,7 +37,7 @@ from backtest import data_provider
 from backtest.utils.trading_calendar import get_trading_days_before, convert_trade_date
 from backtest.utils.market_regime import detect_market_regime
 from backtest.utils.logging_config import configure_logger
-from backtest.strategies.ts_ths_dc import is_late_trend, no_risky_stocks
+from backtest.strategies.ts_ths_dc import no_risky_stocks
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -252,9 +252,9 @@ def analyze_stock_longup(ts_code: str, df: pd.DataFrame,
         # 5. PULLBACK-RECOVERY (10 pts): Recent bounce off MA20
         if len(close) >= 20:
             # Check if price touched MA20 in last 10 days and bounced
-            recent_10d_low = low.tail(10).min()
-            recent_10d_close = close.tail(10)
-            ma20_recent = ma_short.tail(10)
+            low.tail(10).min()
+            close.tail(10)
+            ma_short.tail(10)
             
             # Check if any recent low touched MA20 (within 2%) 
             touched_ma20 = False
@@ -431,7 +431,7 @@ def pick_longup_stocks(end_date: str, max_picks: int = 10) -> pd.DataFrame:
     
     # Fast-fail for Bear Market
     if vt_regime == 'bear':
-        logger.warning(f"[ts_longup] 🛑 CIRCUIT BREAKER TRIGGERED: Bear Market detected (High Volatility + Shrinking Turnover). Picking 0 stocks to protect capital.")
+        logger.warning("[ts_longup] 🛑 CIRCUIT BREAKER TRIGGERED: Bear Market detected (High Volatility + Shrinking Turnover). Picking 0 stocks to protect capital.")
         return pd.DataFrame()
 
     # Dynamic scaling based on Vol/Turnover quadrant
@@ -455,7 +455,7 @@ def pick_longup_stocks(end_date: str, max_picks: int = 10) -> pd.DataFrame:
     logger.info(f"[ts_longup] Applied Adaptive Constraints -> Max Picks: {max_picks}, Min Score: {min_score}")
     
     # Legacy regime fetch for fallback dependencies (like late_trend_filter)
-    regime_data: Any = detect_market_regime(end_date)
+    detect_market_regime(end_date)
     
     # Get index returns for relative strength calculation
     index_returns_20d = get_index_returns(end_date, 20)

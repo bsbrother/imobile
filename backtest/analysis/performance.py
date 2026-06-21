@@ -2,10 +2,9 @@
 Performance analysis engine.
 """
 
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Tuple
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
 from dataclasses import dataclass
 
 from ..core.interfaces import PerformanceAnalyzer as IPerformanceAnalyzer
@@ -190,7 +189,6 @@ class PerformanceAnalyzer(IPerformanceAnalyzer):
             Dictionary containing comparison metrics
         """
         # Import here to avoid circular imports
-        from .benchmark import BenchmarkComparator
         
         # This method provides a simple interface for backward compatibility
         # For full functionality, use BenchmarkComparator directly

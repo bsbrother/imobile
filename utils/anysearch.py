@@ -3,7 +3,7 @@
 Stub for AnySearch provider.
 TODO: Implement or remove from test_search_api.py if not used.
 """
-from typing import List, Optional
+from typing import List
 
 
 class AnySearchSearchProvider:

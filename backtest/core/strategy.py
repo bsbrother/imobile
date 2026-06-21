@@ -2,9 +2,9 @@
 Base strategy classes with China A-shares constraints.
 """
 
-from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, List
-from datetime import datetime, timedelta
+from abc import abstractmethod
+from typing import Dict, Any
+from datetime import datetime
 import pandas as pd
 from backtesting import Strategy as BacktestingStrategy
 
@@ -233,8 +233,8 @@ class ASharesStrategy(BacktestingStrategy, BaseStrategy):
         from ..analysis.indicators import TechnicalIndicators
 
         close_prices = pd.Series(self.data.Close)
-        high_prices = pd.Series(self.data.High)
-        low_prices = pd.Series(self.data.Low)
+        pd.Series(self.data.High)
+        pd.Series(self.data.Low)
 
         # Calculate indicators
         self.indicators['rsi'] = TechnicalIndicators.rsi(close_prices, 14)
@@ -331,7 +331,7 @@ class ASharesStrategy(BacktestingStrategy, BaseStrategy):
                 if hasattr(self, 'buy'):
                     self.buy(size=shares)
 
-        except Exception as e:
+        except Exception:
             # Log error but continue execution
             pass
 
@@ -360,7 +360,7 @@ class ASharesStrategy(BacktestingStrategy, BaseStrategy):
             if hasattr(self, 'sell'):
                 self.sell(size=shares)
 
-        except Exception as e:
+        except Exception:
             # Log error but continue execution
             pass
 

@@ -1,0 +1,17 @@
+{
+    "venvPath": "/home/kasm-user/apps/imobile",
+    "venv": ".venv",
+    "exclude": [
+        "**/__pyrefly_virtual__/**",
+        "**/inmemory/**"
+    ],
+    "ignore": [
+        "**/__pyrefly_virtual__/**",
+        "**/inmemory/**"
+    ],
+    "executionEnvironments": [
+        {
+            "root": "/home/kasm-user/apps/imobile"
+        }
+    ]
+}

@@ -7,7 +7,6 @@ from urllib.parse import urlencode
 from lxml import html
 
 from searx.engines.bing import (  # pylint: disable=unused-import
-    fetch_traits,
     get_locale_params,
     override_accept_language,
 )

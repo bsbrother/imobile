@@ -31,10 +31,8 @@ import os
 import sys
 import time
 from datetime import datetime
-import requests
 import json
 from dotenv import load_dotenv
-import logging
 from loguru import logger
 import pandas as pd
 import numpy as np
@@ -404,7 +402,7 @@ def calculate_stock_scores(df: pd.DataFrame) -> pd.DataFrame:
                 
     # 5. 龙头得分 (权重: 20%) [NEW]
     if 'is_leader' in df.columns:
-        df.loc[df['is_leader'] == True, 'leader_score'] = 20
+        df.loc[df['is_leader'].astype(bool), 'leader_score'] = 20
 
     # 计算综合评分
     df['composite_score'] = (

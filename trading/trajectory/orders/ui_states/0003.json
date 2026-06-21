@@ -1,0 +1,749 @@
+[
+  {
+    "index": 1,
+    "resourceId": "",
+    "className": "FrameLayout",
+    "checkedState": "",
+    "text": "android.widget.FrameLayout",
+    "bounds": "0,0,1440,3120",
+    "children": []
+  },
+  {
+    "index": 2,
+    "resourceId": "",
+    "className": "WebView",
+    "checkedState": "",
+    "text": "android.webkit.WebView",
+    "bounds": "0,77,1440,2966",
+    "children": []
+  },
+  {
+    "index": 3,
+    "resourceId": "",
+    "className": "WebView",
+    "checkedState": "",
+    "text": "国泰海通君弘智投",
+    "bounds": "0,77,1440,2967",
+    "children": []
+  },
+  {
+    "index": 4,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "0,77,1440,2967",
+    "children": []
+  },
+  {
+    "index": 5,
+    "resourceId": "app",
+    "className": "View",
+    "checkedState": "",
+    "text": "app",
+    "bounds": "0,77,1440,2967",
+    "children": []
+  },
+  {
+    "index": 6,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "0,77,1440,2967",
+    "children": []
+  },
+  {
+    "index": 7,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "0,77,1440,2967",
+    "children": []
+  },
+  {
+    "index": 8,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "0,77,1440,400",
+    "children": []
+  },
+  {
+    "index": 9,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "0,77,1440,246",
+    "children": []
+  },
+  {
+    "index": 10,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "54,121,137,201",
+    "children": []
+  },
+  {
+    "index": 11,
+    "resourceId": "",
+    "className": "Image",
+    "checkedState": "",
+    "text": "AAAAABJRU5ErkJggg==",
+    "bounds": "54,121,137,201",
+    "children": []
+  },
+  {
+    "index": 12,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "我的订单普通",
+    "bounds": "512,77,928,246",
+    "children": []
+  },
+  {
+    "index": 13,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "1161,118,1385,205",
+    "children": []
+  },
+  {
+    "index": 14,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "1283,118,1356,205",
+    "children": []
+  },
+  {
+    "index": 15,
+    "resourceId": "",
+    "className": "Image",
+    "checkedState": "",
+    "text": "png;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAA8BAMAAADI0sRBAAAALVBMVEUAAAAwoOovn+svoukwoOown+own+sxn+kwn+oxoOsyn+oxnuskktswn+kwn+p4ChHPAAAADnRSTlMA82Me497IvaBzSD8H+RvY0fUAAACMSURBVDjLYxgFo2BkAAtfDwMokylRTAHKZG650gwWknv3TggqVPfu3XOoUsV37x6ClO57BwQbwELsIGYBmMkNYr5mYOCJAzFiwGJ6IOYjMPMoiPn0AAPXOxB4BRbLAzGfgZnrwMILGDjB9EuwmByI+RDMnAcWnkBAmoDhBJyG32MEgoVAoI6CUTAiAAAlRpQ590MTDwAAAABJRU5ErkJggg==",
+    "bounds": "1283,118,1356,192",
+    "children": []
+  },
+  {
+    "index": 16,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "筛选",
+    "bounds": "1161,125,1257,195",
+    "children": []
+  },
+  {
+    "index": 17,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "0,246,480,397",
+    "children": []
+  },
+  {
+    "index": 18,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "今日已触发",
+    "bounds": "48,246,432,397",
+    "children": []
+  },
+  {
+    "index": 19,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "480,246,960,397",
+    "children": []
+  },
+  {
+    "index": 20,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "运行中",
+    "bounds": "528,246,912,397",
+    "children": []
+  },
+  {
+    "index": 21,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "960,246,1440,397",
+    "children": []
+  },
+  {
+    "index": 22,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "已结束",
+    "bounds": "1008,246,1392,397",
+    "children": []
+  },
+  {
+    "index": 23,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "0,77,1440,400",
+    "children": []
+  },
+  {
+    "index": 24,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "0,77,1440,246",
+    "children": []
+  },
+  {
+    "index": 25,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "54,121,137,201",
+    "children": []
+  },
+  {
+    "index": 26,
+    "resourceId": "",
+    "className": "Image",
+    "checkedState": "",
+    "text": "AAAAABJRU5ErkJggg==",
+    "bounds": "54,121,137,201",
+    "children": []
+  },
+  {
+    "index": 27,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "我的订单普通",
+    "bounds": "512,77,928,246",
+    "children": []
+  },
+  {
+    "index": 28,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "1161,118,1385,205",
+    "children": []
+  },
+  {
+    "index": 29,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "1283,118,1356,205",
+    "children": []
+  },
+  {
+    "index": 30,
+    "resourceId": "",
+    "className": "Image",
+    "checkedState": "",
+    "text": "png;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAA8BAMAAADI0sRBAAAALVBMVEUAAAAwoOovn+svoukwoOown+own+sxn+kwn+oxoOsyn+oxnuskktswn+kwn+p4ChHPAAAADnRSTlMA82Me497IvaBzSD8H+RvY0fUAAACMSURBVDjLYxgFo2BkAAtfDwMokylRTAHKZG650gwWknv3TggqVPfu3XOoUsV37x6ClO57BwQbwELsIGYBmMkNYr5mYOCJAzFiwGJ6IOYjMPMoiPn0AAPXOxB4BRbLAzGfgZnrwMILGDjB9EuwmByI+RDMnAcWnkBAmoDhBJyG32MEgoVAoI6CUTAiAAAlRpQ590MTDwAAAABJRU5ErkJggg==",
+    "bounds": "1283,118,1356,192",
+    "children": []
+  },
+  {
+    "index": 31,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "筛选",
+    "bounds": "1161,125,1257,195",
+    "children": []
+  },
+  {
+    "index": 32,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "0,246,480,397",
+    "children": []
+  },
+  {
+    "index": 33,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "今日已触发",
+    "bounds": "48,246,432,397",
+    "children": []
+  },
+  {
+    "index": 34,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "480,246,960,397",
+    "children": []
+  },
+  {
+    "index": 35,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "运行中",
+    "bounds": "528,246,912,397",
+    "children": []
+  },
+  {
+    "index": 36,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "960,246,1440,397",
+    "children": []
+  },
+  {
+    "index": 37,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "已结束",
+    "bounds": "1008,246,1392,397",
+    "children": []
+  },
+  {
+    "index": 38,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "0,397,1440,2967",
+    "children": []
+  },
+  {
+    "index": 39,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "0,397,1440,2967",
+    "children": []
+  },
+  {
+    "index": 40,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "624,777,816,777",
+    "children": []
+  },
+  {
+    "index": 41,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "624,390,816,461",
+    "children": []
+  },
+  {
+    "index": 42,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "下拉刷新",
+    "bounds": "624,390,816,461",
+    "children": []
+  },
+  {
+    "index": 43,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "54,454,1385,1597",
+    "children": []
+  },
+  {
+    "index": 44,
+    "resourceId": "",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "到价\n买入",
+    "bounds": "112,505,201,601",
+    "children": []
+  },
+  {
+    "index": 45,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "航发科技",
+    "bounds": "256,505,505,598",
+    "children": []
+  },
+  {
+    "index": 46,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "600391",
+    "bounds": "540,512,726,592",
+    "children": []
+  },
+  {
+    "index": 47,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "触发条件",
+    "bounds": "92,704,313,784",
+    "children": []
+  },
+  {
+    "index": 48,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "股价≥50.000元触发",
+    "bounds": "329,704,793,784",
+    "children": []
+  },
+  {
+    "index": 49,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "未触发",
+    "bounds": "1203,704,1347,774",
+    "children": []
+  },
+  {
+    "index": 50,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "买入价格",
+    "bounds": "92,819,313,902",
+    "children": []
+  },
+  {
+    "index": 51,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "即时卖一价",
+    "bounds": "329,819,601,902",
+    "children": []
+  },
+  {
+    "index": 52,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "自动委托",
+    "bounds": "1158,819,1347,889",
+    "children": []
+  },
+  {
+    "index": 53,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "买入数量",
+    "bounds": "92,934,313,1017",
+    "children": []
+  },
+  {
+    "index": 54,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "100 (股/张/份)",
+    "bounds": "329,934,678,1017",
+    "children": []
+  },
+  {
+    "index": 55,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "有效期至",
+    "bounds": "92,1049,313,1133",
+    "children": []
+  },
+  {
+    "index": 56,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "2026-06-05 收盘前",
+    "bounds": "329,1049,777,1133",
+    "children": []
+  },
+  {
+    "index": 57,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "订单编号",
+    "bounds": "92,1165,313,1248",
+    "children": []
+  },
+  {
+    "index": 58,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "20260309083618W0028571190",
+    "bounds": "329,1165,1104,1232",
+    "children": []
+  },
+  {
+    "index": 59,
+    "resourceId": "",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "结束原因：用户手动停止",
+    "bounds": "92,1305,604,1366",
+    "children": []
+  },
+  {
+    "index": 60,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "再次创建",
+    "bounds": "1081,1456,1347,1558",
+    "children": []
+  },
+  {
+    "index": 61,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "54,1651,1385,2793",
+    "children": []
+  },
+  {
+    "index": 62,
+    "resourceId": "",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "到价\n买入",
+    "bounds": "112,1702,201,1795",
+    "children": []
+  },
+  {
+    "index": 63,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "*ST帅电",
+    "bounds": "256,1702,480,1795",
+    "children": []
+  },
+  {
+    "index": 64,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "605336",
+    "bounds": "515,1709,704,1789",
+    "children": []
+  },
+  {
+    "index": 65,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "委托已报",
+    "bounds": "1126,1709,1347,1789",
+    "children": []
+  },
+  {
+    "index": 66,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "触发条件",
+    "bounds": "92,1901,313,1981",
+    "children": []
+  },
+  {
+    "index": 67,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "股价≥14.160元触发",
+    "bounds": "329,1901,793,1981",
+    "children": []
+  },
+  {
+    "index": 68,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "已触发",
+    "bounds": "1203,1901,1347,1971",
+    "children": []
+  },
+  {
+    "index": 69,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "买入价格",
+    "bounds": "92,2016,313,2096",
+    "children": []
+  },
+  {
+    "index": 70,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "即时卖一价",
+    "bounds": "329,2016,601,2096",
+    "children": []
+  },
+  {
+    "index": 71,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "自动委托",
+    "bounds": "1158,2016,1347,2086",
+    "children": []
+  },
+  {
+    "index": 72,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "买入数量",
+    "bounds": "92,2131,313,2211",
+    "children": []
+  },
+  {
+    "index": 73,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "600 (股/张/份)",
+    "bounds": "329,2131,678,2211",
+    "children": []
+  },
+  {
+    "index": 74,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "有效期至",
+    "bounds": "92,2246,313,2326",
+    "children": []
+  },
+  {
+    "index": 75,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "2026-06-05 收盘前",
+    "bounds": "329,2246,777,2326",
+    "children": []
+  },
+  {
+    "index": 76,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "订单编号",
+    "bounds": "92,2361,313,2445",
+    "children": []
+  },
+  {
+    "index": 77,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "20260309083456W0028569462",
+    "bounds": "329,2361,1104,2429",
+    "children": []
+  },
+  {
+    "index": 78,
+    "resourceId": "",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "结束原因：到价买入条件已触发，停止",
+    "bounds": "92,2499,880,2563",
+    "children": []
+  },
+  {
+    "index": 79,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "再次创建",
+    "bounds": "1081,2653,1347,2755",
+    "children": []
+  },
+  {
+    "index": 80,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "54,2848,1385,2967",
+    "children": []
+  },
+  {
+    "index": 81,
+    "resourceId": "",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "到价\n买入",
+    "bounds": "112,2896,201,2967",
+    "children": []
+  },
+  {
+    "index": 82,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "科林电气",
+    "bounds": "256,2899,505,2967",
+    "children": []
+  },
+  {
+    "index": 83,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "603050",
+    "bounds": "540,2905,726,2967",
+    "children": []
+  }
+]

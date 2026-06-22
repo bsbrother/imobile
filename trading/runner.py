@@ -78,6 +78,7 @@ async def run_daily_trading(this_date, phase, user_id, dry_run, app_package_name
                 backtest_search=False,
                 backtest_ai=False,
                 resume=False,
+                is_live=True,
             )
             logger.info("✅ Pre-market stock picking + smart orders complete")
         except Exception as e:

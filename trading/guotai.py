@@ -292,7 +292,7 @@ def replay_page(description: List[str] = ['行情', '我的持仓']) -> None:
     # Temporarily restore the real password
     _toggle_trajectory_password(matched_folder, GUOTAI_PASSWORD, to_real=True)
     try:
-        result = subprocess.run(f'mobilerun macro replay {matched_folder}', shell=True)
+        result = subprocess.run(f'mobilerun macro replay {matched_folder} --state-threshold 0.54', shell=True)
         if result.returncode != 0:
             raise ValueError(f'❌ Replay failed , check {matched_folder} is valid trajectory.')
     finally:
@@ -390,8 +390,9 @@ async def get_order_from_app_smart_order_page(config: MobileConfig, llm: GoogleG
     Return: str
     """
     goto_homepage()
-    goal = """
     replay_page(['创建订单', '查看详情'])
+    goal = """
+    Tap '已结束' tab.
     Extract all visible orders (name,code,trigger_condition,buy_or_sell_price_type,buy_or_sell_quantity,valid_until,order_number,reason_of_ending) from the list. Store the extracted orders in memory using remember().
     Continue scroll down the order list with resource id "com.guotai.dazhihui:id/table_view_body" to load more orders until '全部加载完成' visible.
     When the order list has been scrolled down, then extract all newly visible orders and append them to the 'Extracted Orders' in memory until '全部加载完成' visible.

@@ -1,14 +1,14 @@
 {
   "macro_schema_version": "2.0",
   "version": "2.0",
-  "description": "Tap '\u521b\u5efa\u8ba2\u5355', then tap '\u67e5\u770b\u8be6\u60c5', then tap '\u5df2\u7ed3\u675f', wait 3 seconds for data loaded.",
-  "timestamp": "20260621_035322",
-  "total_actions": 4,
+  "description": "Tap '\u667a\u80fd\u8ba2\u5355' in screen middle, then tap '\u67e5\u770b\u8be6\u60c5', wait 3 seconds for data loaded.",
+  "timestamp": "20260622_135314",
+  "total_actions": 3,
   "actions": [
     {
       "action_type": "tap",
-      "x": 1243,
-      "y": 1834,
+      "x": 997,
+      "y": 1791,
       "pre_state": {
         "phone_state": {
           "package": null,
@@ -209,7 +209,7 @@
           {
             "resource_id": "com.guotai.dazhihui:id/tv_total_assets",
             "class": "TextView",
-            "text": "817151.98",
+            "text": "810555.13",
             "content_description": null,
             "clickable": null,
             "enabled": null,
@@ -328,7 +328,7 @@
           {
             "resource_id": "com.guotai.dazhihui:id/tv_stockvalue",
             "class": "TextView",
-            "text": "377492.00",
+            "text": "542621.00",
             "content_description": null,
             "clickable": null,
             "enabled": null,
@@ -396,7 +396,7 @@
           {
             "resource_id": "com.guotai.dazhihui:id/tv_profitloss",
             "class": "TextView",
-            "text": "--",
+            "text": "-6596.85",
             "content_description": null,
             "clickable": null,
             "enabled": null,
@@ -404,9 +404,9 @@
             "bounds": {
               "left": 508,
               "top": 601,
-              "right": 552,
+              "right": 706,
               "bottom": 678,
-              "center_x": 530,
+              "center_x": 607,
               "center_y": 639
             }
           },
@@ -447,7 +447,7 @@
           {
             "resource_id": "com.guotai.dazhihui:id/tv_available",
             "class": "TextView",
-            "text": "439659.98",
+            "text": "267934.13",
             "content_description": null,
             "clickable": null,
             "enabled": null,
@@ -947,11 +947,11 @@
             "focused": null,
             "bounds": {
               "left": 89,
-              "top": 1820,
+              "top": 1794,
               "right": 529,
-              "bottom": 1937,
+              "bottom": 1986,
               "center_x": 309,
-              "center_y": 1878
+              "center_y": 1890
             }
           },
           {
@@ -964,28 +964,96 @@
             "focused": null,
             "bounds": {
               "left": 115,
-              "top": 1856,
+              "top": 1826,
               "right": 191,
-              "bottom": 1903,
+              "bottom": 1873,
               "center_x": 153,
-              "center_y": 1879
+              "center_y": 1849
             }
           },
           {
             "resource_id": "com.guotai.dazhihui:id/tv_xgsg_count",
             "class": "TextView",
-            "text": "0",
+            "text": "2",
             "content_description": null,
             "clickable": null,
             "enabled": null,
             "focused": null,
             "bounds": {
               "left": 472,
-              "top": 1843,
+              "top": 1813,
               "right": 503,
-              "bottom": 1915,
+              "bottom": 1885,
               "center_x": 487,
-              "center_y": 1879
+              "center_y": 1849
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tv_hs_str",
+            "class": "TextView",
+            "text": "\u6caa\u6df1",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 115,
+              "top": 1923,
+              "right": 179,
+              "bottom": 1963,
+              "center_x": 147,
+              "center_y": 1943
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tv_hs_count",
+            "class": "TextView",
+            "text": "1",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 280,
+              "top": 1923,
+              "right": 299,
+              "bottom": 1967,
+              "center_x": 289,
+              "center_y": 1945
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tv_bjs_str",
+            "class": "TextView",
+            "text": "\u5317\u8bc1",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 319,
+              "top": 1923,
+              "right": 383,
+              "bottom": 1963,
+              "center_x": 351,
+              "center_y": 1943
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tv_bjs_count",
+            "class": "TextView",
+            "text": "1",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 484,
+              "top": 1923,
+              "right": 503,
+              "bottom": 1967,
+              "center_x": 493,
+              "center_y": 1945
             }
           },
           {
@@ -998,11 +1066,11 @@
             "focused": null,
             "bounds": {
               "left": 89,
-              "top": 1975,
+              "top": 2011,
               "right": 529,
-              "bottom": 2092,
+              "bottom": 2108,
               "center_x": 309,
-              "center_y": 2033
+              "center_y": 2059
             }
           },
           {
@@ -1015,11 +1083,11 @@
             "focused": null,
             "bounds": {
               "left": 115,
-              "top": 2010,
+              "top": 2036,
               "right": 191,
-              "bottom": 2057,
+              "bottom": 2083,
               "center_x": 153,
-              "center_y": 2033
+              "center_y": 2059
             }
           },
           {
@@ -1032,11 +1100,11 @@
             "focused": null,
             "bounds": {
               "left": 472,
-              "top": 1998,
+              "top": 2024,
               "right": 503,
-              "bottom": 2070,
+              "bottom": 2096,
               "center_x": 487,
-              "center_y": 2034
+              "center_y": 2060
             }
           },
           {
@@ -1057,37 +1125,71 @@
             }
           },
           {
-            "resource_id": "",
+            "resource_id": "com.guotai.dazhihui:id/tv_today_trigger_str",
             "class": "TextView",
-            "text": "\u8f7b\u677e\u4e0b\u5355\u81ea\u52a8\u76ef\u76d8",
+            "text": "\u4eca\u65e5\u89e6\u53d1",
             "content_description": null,
             "clickable": null,
             "enabled": null,
             "focused": null,
             "bounds": {
-              "left": 643,
-              "top": 1822,
-              "right": 1127,
-              "bottom": 1868,
-              "center_x": 885,
-              "center_y": 1845
+              "left": 669,
+              "top": 1812,
+              "right": 821,
+              "bottom": 1859,
+              "center_x": 745,
+              "center_y": 1835
             }
           },
           {
-            "resource_id": "com.guotai.dazhihui:id/tv_use_pp",
+            "resource_id": "com.guotai.dazhihui:id/tv_today_trigger_count",
             "class": "TextView",
-            "text": "\u521b\u5efa\u8ba2\u5355",
+            "text": "11",
             "content_description": null,
             "clickable": null,
             "enabled": null,
             "focused": null,
             "bounds": {
-              "left": 1135,
-              "top": 1794,
-              "right": 1351,
-              "bottom": 1875,
-              "center_x": 1243,
-              "center_y": 1834
+              "left": 821,
+              "top": 1800,
+              "right": 971,
+              "bottom": 1871,
+              "center_x": 896,
+              "center_y": 1835
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tv_running_str",
+            "class": "TextView",
+            "text": "\u8fd0\u884c\u4e2d",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 1023,
+              "top": 1812,
+              "right": 1137,
+              "bottom": 1859,
+              "center_x": 1080,
+              "center_y": 1835
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tv_running_count",
+            "class": "TextView",
+            "text": "0",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 1137,
+              "top": 1800,
+              "right": 1325,
+              "bottom": 1871,
+              "center_x": 1231,
+              "center_y": 1835
             }
           },
           {
@@ -1623,13 +1725,13 @@
         "width": 1440,
         "height": 3120
       },
-      "recorded_at_ms": 1781985176634,
+      "recorded_at_ms": 1782107588773,
       "elapsed_since_previous_ms": 0
     },
     {
       "action_type": "tap",
-      "x": 1233,
-      "y": 1224,
+      "x": 720,
+      "y": 1560,
       "pre_state": {
         "phone_state": {
           "package": null,
@@ -1994,6 +2096,453 @@
               "right": 448,
               "bottom": 1529,
               "center_x": 388,
+              "center_y": 1476
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "View",
+            "text": "\u4eca\u65e5\u5df2\u89e6\u53d1",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 272,
+              "top": 1526,
+              "right": 505,
+              "bottom": 1587,
+              "center_x": 388,
+              "center_y": 1556
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "View",
+            "text": "0 \u7b14",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 992,
+              "top": 1424,
+              "right": 1110,
+              "bottom": 1529,
+              "center_x": 1051,
+              "center_y": 1476
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "View",
+            "text": "\u5b9e\u65f6\u8fd0\u884c\u4e2d",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 934,
+              "top": 1526,
+              "right": 1168,
+              "bottom": 1587,
+              "center_x": 1051,
+              "center_y": 1556
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "View",
+            "text": "\u5168\u90e8\u7b56\u7565",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 54,
+              "top": 1670,
+              "right": 1385,
+              "bottom": 1961,
+              "center_x": 719,
+              "center_y": 1815
+            }
+          }
+        ]
+      },
+      "screen": {
+        "width": 1440,
+        "height": 3120
+      },
+      "recorded_at_ms": 1782107589860,
+      "elapsed_since_previous_ms": 1087
+    },
+    {
+      "action_type": "wait",
+      "duration": 3.0,
+      "pre_state": {
+        "phone_state": {
+          "package": null,
+          "activity": null
+        },
+        "screen": {
+          "width": 1440,
+          "height": 3120
+        },
+        "nodes": [
+          {
+            "resource_id": "",
+            "class": "FrameLayout",
+            "text": "android.widget.FrameLayout",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 0,
+              "right": 1440,
+              "bottom": 3120,
+              "center_x": 720,
+              "center_y": 1560
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "WebView",
+            "text": "android.webkit.WebView",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 77,
+              "right": 1440,
+              "bottom": 2966,
+              "center_x": 720,
+              "center_y": 1521
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "WebView",
+            "text": "jh-trade-new-smart-order",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 77,
+              "right": 1440,
+              "bottom": 2967,
+              "center_x": 720,
+              "center_y": 1522
+            }
+          },
+          {
+            "resource_id": "app",
+            "class": "View",
+            "text": "app",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 77,
+              "right": 1440,
+              "bottom": 2967,
+              "center_x": 720,
+              "center_y": 1522
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "View",
+            "text": "android.view.View",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 77,
+              "right": 1440,
+              "bottom": 2967,
+              "center_x": 720,
+              "center_y": 1522
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "View",
+            "text": "android.view.View",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 77,
+              "right": 1440,
+              "bottom": 246,
+              "center_x": 720,
+              "center_y": 161
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "Button",
+            "text": "\u5173\u95ed\u9875\u9762",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 77,
+              "right": 185,
+              "bottom": 246,
+              "center_x": 92,
+              "center_y": 161
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "TextView",
+            "text": "\u667a\u80fd\u8ba2\u5355",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 579,
+              "top": 118,
+              "right": 860,
+              "bottom": 205,
+              "center_x": 719,
+              "center_y": 161
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "View",
+            "text": "android.view.View",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 1305,
+              "top": 118,
+              "right": 1392,
+              "bottom": 205,
+              "center_x": 1348,
+              "center_y": 161
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "View",
+            "text": "\u4e3a\u8d85200\u4e07\u540d\u5ba2\u6237\u63d0\u4f9b\u7a33\u5b9a\u670d\u52a1",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 54,
+              "top": 333,
+              "right": 1385,
+              "bottom": 521,
+              "center_x": 719,
+              "center_y": 427
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "TextView",
+            "text": "\u6761\u4ef6\u4e0b\u5355",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 240,
+              "top": 576,
+              "right": 425,
+              "bottom": 637,
+              "center_x": 332,
+              "center_y": 606
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "TextView",
+            "text": "\u591a\u65e5\u6709\u6548",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 515,
+              "top": 576,
+              "right": 704,
+              "bottom": 637,
+              "center_x": 609,
+              "center_y": 606
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "TextView",
+            "text": "\u667a\u80fd\u76ef\u76d8",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 790,
+              "top": 576,
+              "right": 979,
+              "bottom": 637,
+              "center_x": 884,
+              "center_y": 606
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "TextView",
+            "text": "\u81ea\u52a8\u59d4\u6258",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 1068,
+              "top": 576,
+              "right": 1254,
+              "bottom": 637,
+              "center_x": 1161,
+              "center_y": 606
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "View",
+            "text": "android.view.View",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 54,
+              "top": 633,
+              "right": 1385,
+              "bottom": 749,
+              "center_x": 719,
+              "center_y": 691
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "TextView",
+            "text": "\u4e86\u89e3\u66f4\u591a",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 601,
+              "top": 694,
+              "right": 790,
+              "bottom": 752,
+              "center_x": 695,
+              "center_y": 723
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "View",
+            "text": "android.view.View",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 787,
+              "top": 701,
+              "right": 838,
+              "bottom": 749,
+              "center_x": 812,
+              "center_y": 725
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "Button",
+            "text": "\u65b0\u5efa\u8ba2\u5355",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 131,
+              "top": 822,
+              "right": 1308,
+              "bottom": 995,
+              "center_x": 719,
+              "center_y": 908
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "View",
+            "text": "\u6211\u7684\u667a\u80fd\u8ba2\u5355",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 54,
+              "top": 1181,
+              "right": 1142,
+              "bottom": 1267,
+              "center_x": 598,
+              "center_y": 1224
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "View",
+            "text": "\u67e5\u770b\u8be6\u60c5",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 1139,
+              "top": 1200,
+              "right": 1328,
+              "bottom": 1248,
+              "center_x": 1233,
+              "center_y": 1224
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "View",
+            "text": "11 \u7b14",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 307,
+              "top": 1424,
+              "right": 467,
+              "bottom": 1529,
+              "center_x": 387,
               "center_y": 1476
             }
           },
@@ -2428,2144 +2977,8 @@
         "width": 1440,
         "height": 3120
       },
-      "recorded_at_ms": 1781985185813,
-      "elapsed_since_previous_ms": 9179
-    },
-    {
-      "action_type": "tap",
-      "x": 1200,
-      "y": 321,
-      "pre_state": {
-        "phone_state": {
-          "package": null,
-          "activity": null
-        },
-        "screen": {
-          "width": 1440,
-          "height": 3120
-        },
-        "nodes": [
-          {
-            "resource_id": "",
-            "class": "FrameLayout",
-            "text": "android.widget.FrameLayout",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 0,
-              "top": 0,
-              "right": 1440,
-              "bottom": 3120,
-              "center_x": 720,
-              "center_y": 1560
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "WebView",
-            "text": "android.webkit.WebView",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 0,
-              "top": 77,
-              "right": 1440,
-              "bottom": 2966,
-              "center_x": 720,
-              "center_y": 1521
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "WebView",
-            "text": "\u56fd\u6cf0\u6d77\u901a\u541b\u5f18\u667a\u6295",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 0,
-              "top": 77,
-              "right": 1440,
-              "bottom": 2967,
-              "center_x": 720,
-              "center_y": 1522
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 0,
-              "top": 77,
-              "right": 1440,
-              "bottom": 2967,
-              "center_x": 720,
-              "center_y": 1522
-            }
-          },
-          {
-            "resource_id": "app",
-            "class": "View",
-            "text": "app",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 0,
-              "top": 77,
-              "right": 1440,
-              "bottom": 2967,
-              "center_x": 720,
-              "center_y": 1522
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 0,
-              "top": 77,
-              "right": 1440,
-              "bottom": 2967,
-              "center_x": 720,
-              "center_y": 1522
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 0,
-              "top": 77,
-              "right": 1440,
-              "bottom": 2967,
-              "center_x": 720,
-              "center_y": 1522
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 0,
-              "top": 77,
-              "right": 1440,
-              "bottom": 400,
-              "center_x": 720,
-              "center_y": 238
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 0,
-              "top": 77,
-              "right": 1440,
-              "bottom": 246,
-              "center_x": 720,
-              "center_y": 161
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 54,
-              "top": 121,
-              "right": 137,
-              "bottom": 201,
-              "center_x": 95,
-              "center_y": 161
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "Image",
-            "text": "AAAAABJRU5ErkJggg==",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 54,
-              "top": 121,
-              "right": 137,
-              "bottom": 201,
-              "center_x": 95,
-              "center_y": 161
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u6211\u7684\u8ba2\u5355\u666e\u901a",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 512,
-              "top": 77,
-              "right": 928,
-              "bottom": 246,
-              "center_x": 720,
-              "center_y": 161
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 1161,
-              "top": 118,
-              "right": 1385,
-              "bottom": 205,
-              "center_x": 1273,
-              "center_y": 161
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 1283,
-              "top": 118,
-              "right": 1356,
-              "bottom": 205,
-              "center_x": 1319,
-              "center_y": 161
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "Image",
-            "text": "png;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAA8BAMAAADI0sRBAAAALVBMVEUAAAAwoOovn+svoukwoOown+own+sxn+kwn+oxoOsyn+oxnuskktswn+kwn+p4ChHPAAAADnRSTlMA82Me497IvaBzSD8H+RvY0fUAAACMSURBVDjLYxgFo2BkAAtfDwMokylRTAHKZG650gwWknv3TggqVPfu3XOoUsV37x6ClO57BwQbwELsIGYBmMkNYr5mYOCJAzFiwGJ6IOYjMPMoiPn0AAPXOxB4BRbLAzGfgZnrwMILGDjB9EuwmByI+RDMnAcWnkBAmoDhBJyG32MEgoVAoI6CUTAiAAAlRpQ590MTDwAAAABJRU5ErkJggg==",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 1283,
-              "top": 118,
-              "right": 1356,
-              "bottom": 192,
-              "center_x": 1319,
-              "center_y": 155
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u7b5b\u9009",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 1161,
-              "top": 125,
-              "right": 1257,
-              "bottom": 195,
-              "center_x": 1209,
-              "center_y": 160
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 0,
-              "top": 246,
-              "right": 480,
-              "bottom": 397,
-              "center_x": 240,
-              "center_y": 321
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u4eca\u65e5\u5df2\u89e6\u53d1",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 48,
-              "top": 246,
-              "right": 432,
-              "bottom": 397,
-              "center_x": 240,
-              "center_y": 321
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 480,
-              "top": 246,
-              "right": 960,
-              "bottom": 397,
-              "center_x": 720,
-              "center_y": 321
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u8fd0\u884c\u4e2d",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 528,
-              "top": 246,
-              "right": 912,
-              "bottom": 397,
-              "center_x": 720,
-              "center_y": 321
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 960,
-              "top": 246,
-              "right": 1440,
-              "bottom": 397,
-              "center_x": 1200,
-              "center_y": 321
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u5df2\u7ed3\u675f",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 1008,
-              "top": 246,
-              "right": 1392,
-              "bottom": 397,
-              "center_x": 1200,
-              "center_y": 321
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 0,
-              "top": 77,
-              "right": 1440,
-              "bottom": 400,
-              "center_x": 720,
-              "center_y": 238
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 0,
-              "top": 77,
-              "right": 1440,
-              "bottom": 246,
-              "center_x": 720,
-              "center_y": 161
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 54,
-              "top": 121,
-              "right": 137,
-              "bottom": 201,
-              "center_x": 95,
-              "center_y": 161
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "Image",
-            "text": "AAAAABJRU5ErkJggg==",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 54,
-              "top": 121,
-              "right": 137,
-              "bottom": 201,
-              "center_x": 95,
-              "center_y": 161
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u6211\u7684\u8ba2\u5355\u666e\u901a",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 512,
-              "top": 77,
-              "right": 928,
-              "bottom": 246,
-              "center_x": 720,
-              "center_y": 161
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 1161,
-              "top": 125,
-              "right": 1385,
-              "bottom": 214,
-              "center_x": 1273,
-              "center_y": 169
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 1283,
-              "top": 125,
-              "right": 1356,
-              "bottom": 214,
-              "center_x": 1319,
-              "center_y": 169
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "Image",
-            "text": "png;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAA8BAMAAADI0sRBAAAALVBMVEUAAAAwoOovn+svoukwoOown+own+sxn+kwn+oxoOsyn+oxnuskktswn+kwn+p4ChHPAAAADnRSTlMA82Me497IvaBzSD8H+RvY0fUAAACMSURBVDjLYxgFo2BkAAtfDwMokylRTAHKZG650gwWknv3TggqVPfu3XOoUsV37x6ClO57BwQbwELsIGYBmMkNYr5mYOCJAzFiwGJ6IOYjMPMoiPn0AAPXOxB4BRbLAzGfgZnrwMILGDjB9EuwmByI+RDMnAcWnkBAmoDhBJyG32MEgoVAoI6CUTAiAAAlRpQ590MTDwAAAABJRU5ErkJggg==",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 1283,
-              "top": 125,
-              "right": 1356,
-              "bottom": 198,
-              "center_x": 1319,
-              "center_y": 161
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u7b5b\u9009",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 1161,
-              "top": 134,
-              "right": 1257,
-              "bottom": 205,
-              "center_x": 1209,
-              "center_y": 169
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 0,
-              "top": 246,
-              "right": 480,
-              "bottom": 397,
-              "center_x": 240,
-              "center_y": 321
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u4eca\u65e5\u5df2\u89e6\u53d1",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 48,
-              "top": 246,
-              "right": 432,
-              "bottom": 397,
-              "center_x": 240,
-              "center_y": 321
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 480,
-              "top": 246,
-              "right": 960,
-              "bottom": 397,
-              "center_x": 720,
-              "center_y": 321
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u8fd0\u884c\u4e2d",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 528,
-              "top": 246,
-              "right": 912,
-              "bottom": 397,
-              "center_x": 720,
-              "center_y": 321
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 960,
-              "top": 246,
-              "right": 1440,
-              "bottom": 397,
-              "center_x": 1200,
-              "center_y": 321
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u5df2\u7ed3\u675f",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 1008,
-              "top": 246,
-              "right": 1392,
-              "bottom": 397,
-              "center_x": 1200,
-              "center_y": 321
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 0,
-              "top": 397,
-              "right": 1440,
-              "bottom": 2967,
-              "center_x": 720,
-              "center_y": 1682
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "Image",
-            "text": "empty@3x.ff5876d9",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 400,
-              "top": 841,
-              "right": 1040,
-              "bottom": 1325,
-              "center_x": 720,
-              "center_y": 1083
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u6682\u65e0\u6570\u636e",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 611,
-              "top": 1321,
-              "right": 828,
-              "bottom": 1401,
-              "center_x": 719,
-              "center_y": 1361
-            }
-          }
-        ]
-      },
-      "screen": {
-        "width": 1440,
-        "height": 3120
-      },
-      "recorded_at_ms": 1781985189935,
-      "elapsed_since_previous_ms": 4122
-    },
-    {
-      "action_type": "wait",
-      "duration": 3.0,
-      "pre_state": {
-        "phone_state": {
-          "package": null,
-          "activity": null
-        },
-        "screen": {
-          "width": 1440,
-          "height": 3120
-        },
-        "nodes": [
-          {
-            "resource_id": "",
-            "class": "FrameLayout",
-            "text": "android.widget.FrameLayout",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 0,
-              "top": 0,
-              "right": 1440,
-              "bottom": 3120,
-              "center_x": 720,
-              "center_y": 1560
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "WebView",
-            "text": "android.webkit.WebView",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 0,
-              "top": 77,
-              "right": 1440,
-              "bottom": 2966,
-              "center_x": 720,
-              "center_y": 1521
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "WebView",
-            "text": "\u56fd\u6cf0\u6d77\u901a\u541b\u5f18\u667a\u6295",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 0,
-              "top": 77,
-              "right": 1440,
-              "bottom": 2967,
-              "center_x": 720,
-              "center_y": 1522
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 0,
-              "top": 77,
-              "right": 1440,
-              "bottom": 2967,
-              "center_x": 720,
-              "center_y": 1522
-            }
-          },
-          {
-            "resource_id": "app",
-            "class": "View",
-            "text": "app",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 0,
-              "top": 77,
-              "right": 1440,
-              "bottom": 2967,
-              "center_x": 720,
-              "center_y": 1522
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 0,
-              "top": 77,
-              "right": 1440,
-              "bottom": 2967,
-              "center_x": 720,
-              "center_y": 1522
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 0,
-              "top": 77,
-              "right": 1440,
-              "bottom": 2967,
-              "center_x": 720,
-              "center_y": 1522
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 0,
-              "top": 77,
-              "right": 1440,
-              "bottom": 400,
-              "center_x": 720,
-              "center_y": 238
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 0,
-              "top": 77,
-              "right": 1440,
-              "bottom": 246,
-              "center_x": 720,
-              "center_y": 161
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 54,
-              "top": 121,
-              "right": 137,
-              "bottom": 201,
-              "center_x": 95,
-              "center_y": 161
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "Image",
-            "text": "AAAAABJRU5ErkJggg==",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 54,
-              "top": 121,
-              "right": 137,
-              "bottom": 201,
-              "center_x": 95,
-              "center_y": 161
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u6211\u7684\u8ba2\u5355\u666e\u901a",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 512,
-              "top": 77,
-              "right": 928,
-              "bottom": 246,
-              "center_x": 720,
-              "center_y": 161
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 1161,
-              "top": 118,
-              "right": 1385,
-              "bottom": 205,
-              "center_x": 1273,
-              "center_y": 161
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 1283,
-              "top": 118,
-              "right": 1356,
-              "bottom": 205,
-              "center_x": 1319,
-              "center_y": 161
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "Image",
-            "text": "png;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAA8BAMAAADI0sRBAAAALVBMVEUAAAAwoOovn+svoukwoOown+own+sxn+kwn+oxoOsyn+oxnuskktswn+kwn+p4ChHPAAAADnRSTlMA82Me497IvaBzSD8H+RvY0fUAAACMSURBVDjLYxgFo2BkAAtfDwMokylRTAHKZG650gwWknv3TggqVPfu3XOoUsV37x6ClO57BwQbwELsIGYBmMkNYr5mYOCJAzFiwGJ6IOYjMPMoiPn0AAPXOxB4BRbLAzGfgZnrwMILGDjB9EuwmByI+RDMnAcWnkBAmoDhBJyG32MEgoVAoI6CUTAiAAAlRpQ590MTDwAAAABJRU5ErkJggg==",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 1283,
-              "top": 118,
-              "right": 1356,
-              "bottom": 192,
-              "center_x": 1319,
-              "center_y": 155
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u7b5b\u9009",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 1161,
-              "top": 125,
-              "right": 1257,
-              "bottom": 195,
-              "center_x": 1209,
-              "center_y": 160
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 0,
-              "top": 246,
-              "right": 480,
-              "bottom": 397,
-              "center_x": 240,
-              "center_y": 321
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u4eca\u65e5\u5df2\u89e6\u53d1",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 48,
-              "top": 246,
-              "right": 432,
-              "bottom": 397,
-              "center_x": 240,
-              "center_y": 321
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 480,
-              "top": 246,
-              "right": 960,
-              "bottom": 397,
-              "center_x": 720,
-              "center_y": 321
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u8fd0\u884c\u4e2d",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 528,
-              "top": 246,
-              "right": 912,
-              "bottom": 397,
-              "center_x": 720,
-              "center_y": 321
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 960,
-              "top": 246,
-              "right": 1440,
-              "bottom": 397,
-              "center_x": 1200,
-              "center_y": 321
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u5df2\u7ed3\u675f",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 1008,
-              "top": 246,
-              "right": 1392,
-              "bottom": 397,
-              "center_x": 1200,
-              "center_y": 321
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 0,
-              "top": 77,
-              "right": 1440,
-              "bottom": 400,
-              "center_x": 720,
-              "center_y": 238
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 0,
-              "top": 77,
-              "right": 1440,
-              "bottom": 246,
-              "center_x": 720,
-              "center_y": 161
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 54,
-              "top": 121,
-              "right": 137,
-              "bottom": 201,
-              "center_x": 95,
-              "center_y": 161
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "Image",
-            "text": "AAAAABJRU5ErkJggg==",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 54,
-              "top": 121,
-              "right": 137,
-              "bottom": 201,
-              "center_x": 95,
-              "center_y": 161
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u6211\u7684\u8ba2\u5355\u666e\u901a",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 512,
-              "top": 77,
-              "right": 928,
-              "bottom": 246,
-              "center_x": 720,
-              "center_y": 161
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 1161,
-              "top": 118,
-              "right": 1385,
-              "bottom": 205,
-              "center_x": 1273,
-              "center_y": 161
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 1283,
-              "top": 118,
-              "right": 1356,
-              "bottom": 205,
-              "center_x": 1319,
-              "center_y": 161
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "Image",
-            "text": "png;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAA8BAMAAADI0sRBAAAALVBMVEUAAAAwoOovn+svoukwoOown+own+sxn+kwn+oxoOsyn+oxnuskktswn+kwn+p4ChHPAAAADnRSTlMA82Me497IvaBzSD8H+RvY0fUAAACMSURBVDjLYxgFo2BkAAtfDwMokylRTAHKZG650gwWknv3TggqVPfu3XOoUsV37x6ClO57BwQbwELsIGYBmMkNYr5mYOCJAzFiwGJ6IOYjMPMoiPn0AAPXOxB4BRbLAzGfgZnrwMILGDjB9EuwmByI+RDMnAcWnkBAmoDhBJyG32MEgoVAoI6CUTAiAAAlRpQ590MTDwAAAABJRU5ErkJggg==",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 1283,
-              "top": 118,
-              "right": 1356,
-              "bottom": 192,
-              "center_x": 1319,
-              "center_y": 155
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u7b5b\u9009",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 1161,
-              "top": 125,
-              "right": 1257,
-              "bottom": 195,
-              "center_x": 1209,
-              "center_y": 160
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 0,
-              "top": 246,
-              "right": 480,
-              "bottom": 397,
-              "center_x": 240,
-              "center_y": 321
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u4eca\u65e5\u5df2\u89e6\u53d1",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 48,
-              "top": 246,
-              "right": 432,
-              "bottom": 397,
-              "center_x": 240,
-              "center_y": 321
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 480,
-              "top": 246,
-              "right": 960,
-              "bottom": 397,
-              "center_x": 720,
-              "center_y": 321
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u8fd0\u884c\u4e2d",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 528,
-              "top": 246,
-              "right": 912,
-              "bottom": 397,
-              "center_x": 720,
-              "center_y": 321
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 960,
-              "top": 246,
-              "right": 1440,
-              "bottom": 397,
-              "center_x": 1200,
-              "center_y": 321
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u5df2\u7ed3\u675f",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 1008,
-              "top": 246,
-              "right": 1392,
-              "bottom": 397,
-              "center_x": 1200,
-              "center_y": 321
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 0,
-              "top": 397,
-              "right": 1440,
-              "bottom": 2967,
-              "center_x": 720,
-              "center_y": 1682
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 0,
-              "top": 397,
-              "right": 1440,
-              "bottom": 2967,
-              "center_x": 720,
-              "center_y": 1682
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 624,
-              "top": 777,
-              "right": 816,
-              "bottom": 777,
-              "center_x": 720,
-              "center_y": 777
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 624,
-              "top": 390,
-              "right": 816,
-              "bottom": 461,
-              "center_x": 720,
-              "center_y": 425
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u4e0b\u62c9\u5237\u65b0",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 624,
-              "top": 390,
-              "right": 816,
-              "bottom": 461,
-              "center_x": 720,
-              "center_y": 425
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 54,
-              "top": 454,
-              "right": 1385,
-              "bottom": 1597,
-              "center_x": 719,
-              "center_y": 1025
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "TextView",
-            "text": "\u5230\u4ef7 \u4e70\u5165",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 112,
-              "top": 505,
-              "right": 201,
-              "bottom": 601,
-              "center_x": 156,
-              "center_y": 553
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u822a\u53d1\u79d1\u6280",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 256,
-              "top": 505,
-              "right": 505,
-              "bottom": 598,
-              "center_x": 380,
-              "center_y": 551
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "600391",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 540,
-              "top": 512,
-              "right": 726,
-              "bottom": 592,
-              "center_x": 633,
-              "center_y": 552
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u89e6\u53d1\u6761\u4ef6",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 92,
-              "top": 704,
-              "right": 313,
-              "bottom": 784,
-              "center_x": 202,
-              "center_y": 744
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u80a1\u4ef7\u226550.000\u5143\u89e6\u53d1",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 329,
-              "top": 704,
-              "right": 793,
-              "bottom": 784,
-              "center_x": 561,
-              "center_y": 744
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u672a\u89e6\u53d1",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 1203,
-              "top": 704,
-              "right": 1347,
-              "bottom": 774,
-              "center_x": 1275,
-              "center_y": 739
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u4e70\u5165\u4ef7\u683c",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 92,
-              "top": 819,
-              "right": 313,
-              "bottom": 902,
-              "center_x": 202,
-              "center_y": 860
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u5373\u65f6\u5356\u4e00\u4ef7",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 329,
-              "top": 819,
-              "right": 601,
-              "bottom": 902,
-              "center_x": 465,
-              "center_y": 860
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u81ea\u52a8\u59d4\u6258",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 1158,
-              "top": 819,
-              "right": 1347,
-              "bottom": 889,
-              "center_x": 1252,
-              "center_y": 854
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u4e70\u5165\u6570\u91cf",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 92,
-              "top": 934,
-              "right": 313,
-              "bottom": 1017,
-              "center_x": 202,
-              "center_y": 975
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "100 (\u80a1/\u5f20/\u4efd)",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 329,
-              "top": 934,
-              "right": 678,
-              "bottom": 1017,
-              "center_x": 503,
-              "center_y": 975
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u6709\u6548\u671f\u81f3",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 92,
-              "top": 1049,
-              "right": 313,
-              "bottom": 1133,
-              "center_x": 202,
-              "center_y": 1091
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "2026-06-05 \u6536\u76d8\u524d",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 329,
-              "top": 1049,
-              "right": 777,
-              "bottom": 1133,
-              "center_x": 553,
-              "center_y": 1091
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u8ba2\u5355\u7f16\u53f7",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 92,
-              "top": 1165,
-              "right": 313,
-              "bottom": 1248,
-              "center_x": 202,
-              "center_y": 1206
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "20260309083618W0028571190",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 329,
-              "top": 1165,
-              "right": 1104,
-              "bottom": 1232,
-              "center_x": 716,
-              "center_y": 1198
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "TextView",
-            "text": "\u7ed3\u675f\u539f\u56e0\uff1a\u7528\u6237\u624b\u52a8\u505c\u6b62",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 92,
-              "top": 1305,
-              "right": 604,
-              "bottom": 1366,
-              "center_x": 348,
-              "center_y": 1335
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u518d\u6b21\u521b\u5efa",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 1081,
-              "top": 1456,
-              "right": 1347,
-              "bottom": 1558,
-              "center_x": 1214,
-              "center_y": 1507
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 54,
-              "top": 1651,
-              "right": 1385,
-              "bottom": 2793,
-              "center_x": 719,
-              "center_y": 2222
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "TextView",
-            "text": "\u5230\u4ef7 \u4e70\u5165",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 112,
-              "top": 1702,
-              "right": 201,
-              "bottom": 1795,
-              "center_x": 156,
-              "center_y": 1748
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "*ST\u5e05\u7535",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 256,
-              "top": 1702,
-              "right": 480,
-              "bottom": 1795,
-              "center_x": 368,
-              "center_y": 1748
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "605336",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 515,
-              "top": 1709,
-              "right": 704,
-              "bottom": 1789,
-              "center_x": 609,
-              "center_y": 1749
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u59d4\u6258\u5df2\u62a5",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 1126,
-              "top": 1709,
-              "right": 1347,
-              "bottom": 1789,
-              "center_x": 1236,
-              "center_y": 1749
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u89e6\u53d1\u6761\u4ef6",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 92,
-              "top": 1901,
-              "right": 313,
-              "bottom": 1981,
-              "center_x": 202,
-              "center_y": 1941
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u80a1\u4ef7\u226514.160\u5143\u89e6\u53d1",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 329,
-              "top": 1901,
-              "right": 793,
-              "bottom": 1981,
-              "center_x": 561,
-              "center_y": 1941
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u5df2\u89e6\u53d1",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 1203,
-              "top": 1901,
-              "right": 1347,
-              "bottom": 1971,
-              "center_x": 1275,
-              "center_y": 1936
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u4e70\u5165\u4ef7\u683c",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 92,
-              "top": 2016,
-              "right": 313,
-              "bottom": 2096,
-              "center_x": 202,
-              "center_y": 2056
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u5373\u65f6\u5356\u4e00\u4ef7",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 329,
-              "top": 2016,
-              "right": 601,
-              "bottom": 2096,
-              "center_x": 465,
-              "center_y": 2056
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u81ea\u52a8\u59d4\u6258",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 1158,
-              "top": 2016,
-              "right": 1347,
-              "bottom": 2086,
-              "center_x": 1252,
-              "center_y": 2051
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u4e70\u5165\u6570\u91cf",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 92,
-              "top": 2131,
-              "right": 313,
-              "bottom": 2211,
-              "center_x": 202,
-              "center_y": 2171
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "600 (\u80a1/\u5f20/\u4efd)",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 329,
-              "top": 2131,
-              "right": 678,
-              "bottom": 2211,
-              "center_x": 503,
-              "center_y": 2171
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u6709\u6548\u671f\u81f3",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 92,
-              "top": 2246,
-              "right": 313,
-              "bottom": 2326,
-              "center_x": 202,
-              "center_y": 2286
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "2026-06-05 \u6536\u76d8\u524d",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 329,
-              "top": 2246,
-              "right": 777,
-              "bottom": 2326,
-              "center_x": 553,
-              "center_y": 2286
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u8ba2\u5355\u7f16\u53f7",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 92,
-              "top": 2361,
-              "right": 313,
-              "bottom": 2445,
-              "center_x": 202,
-              "center_y": 2403
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "20260309083456W0028569462",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 329,
-              "top": 2361,
-              "right": 1104,
-              "bottom": 2429,
-              "center_x": 716,
-              "center_y": 2395
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "TextView",
-            "text": "\u7ed3\u675f\u539f\u56e0\uff1a\u5230\u4ef7\u4e70\u5165\u6761\u4ef6\u5df2\u89e6\u53d1\uff0c\u505c\u6b62",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 92,
-              "top": 2499,
-              "right": 880,
-              "bottom": 2563,
-              "center_x": 486,
-              "center_y": 2531
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u518d\u6b21\u521b\u5efa",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 1081,
-              "top": 2653,
-              "right": 1347,
-              "bottom": 2755,
-              "center_x": 1214,
-              "center_y": 2704
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "android.view.View",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 54,
-              "top": 2848,
-              "right": 1385,
-              "bottom": 2967,
-              "center_x": 719,
-              "center_y": 2907
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "TextView",
-            "text": "\u5230\u4ef7 \u4e70\u5165",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 112,
-              "top": 2896,
-              "right": 201,
-              "bottom": 2967,
-              "center_x": 156,
-              "center_y": 2931
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "\u79d1\u6797\u7535\u6c14",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 256,
-              "top": 2899,
-              "right": 505,
-              "bottom": 2967,
-              "center_x": 380,
-              "center_y": 2933
-            }
-          },
-          {
-            "resource_id": "",
-            "class": "View",
-            "text": "603050",
-            "content_description": null,
-            "clickable": null,
-            "enabled": null,
-            "focused": null,
-            "bounds": {
-              "left": 540,
-              "top": 2905,
-              "right": 726,
-              "bottom": 2967,
-              "center_x": 633,
-              "center_y": 2936
-            }
-          }
-        ]
-      },
-      "screen": {
-        "width": 1440,
-        "height": 3120
-      },
-      "recorded_at_ms": 1781985193469,
-      "elapsed_since_previous_ms": 3534
+      "recorded_at_ms": 1782107593359,
+      "elapsed_since_previous_ms": 3499
     }
   ]
 }

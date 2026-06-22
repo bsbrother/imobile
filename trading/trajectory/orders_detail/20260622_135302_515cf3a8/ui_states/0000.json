@@ -103,7 +103,7 @@
     "resourceId": "com.guotai.dazhihui:id/tv_total_assets",
     "className": "TextView",
     "checkedState": "",
-    "text": "817151.98",
+    "text": "810555.13",
     "bounds": "86,397,461,503",
     "children": []
   },
@@ -166,7 +166,7 @@
     "resourceId": "com.guotai.dazhihui:id/tv_stockvalue",
     "className": "TextView",
     "checkedState": "",
-    "text": "377492.00",
+    "text": "542621.00",
     "bounds": "86,601,316,678",
     "children": []
   },
@@ -202,8 +202,8 @@
     "resourceId": "com.guotai.dazhihui:id/tv_profitloss",
     "className": "TextView",
     "checkedState": "",
-    "text": "--",
-    "bounds": "508,601,552,678",
+    "text": "-6596.85",
+    "bounds": "508,601,706,678",
     "children": []
   },
   {
@@ -229,7 +229,7 @@
     "resourceId": "com.guotai.dazhihui:id/tv_available",
     "className": "TextView",
     "checkedState": "",
-    "text": "439659.98",
+    "text": "267934.13",
     "bounds": "931,601,1161,678",
     "children": []
   },
@@ -491,7 +491,7 @@
     "className": "ViewGroup",
     "checkedState": "",
     "text": "com.guotai.dazhihui:id/cl_xgsg",
-    "bounds": "89,1820,529,1937",
+    "bounds": "89,1794,529,1986",
     "children": []
   },
   {
@@ -500,7 +500,7 @@
     "className": "TextView",
     "checkedState": "",
     "text": "新股",
-    "bounds": "115,1856,191,1903",
+    "bounds": "115,1826,191,1873",
     "children": []
   },
   {
@@ -508,39 +508,75 @@
     "resourceId": "com.guotai.dazhihui:id/tv_xgsg_count",
     "className": "TextView",
     "checkedState": "",
-    "text": "0",
-    "bounds": "472,1843,503,1915",
+    "text": "2",
+    "bounds": "472,1813,503,1885",
     "children": []
   },
   {
     "index": 58,
-    "resourceId": "com.guotai.dazhihui:id/cl_kzz",
-    "className": "ViewGroup",
+    "resourceId": "com.guotai.dazhihui:id/tv_hs_str",
+    "className": "TextView",
     "checkedState": "",
-    "text": "com.guotai.dazhihui:id/cl_kzz",
-    "bounds": "89,1975,529,2092",
+    "text": "沪深",
+    "bounds": "115,1923,179,1963",
     "children": []
   },
   {
     "index": 59,
-    "resourceId": "com.guotai.dazhihui:id/tv_kzz_str",
+    "resourceId": "com.guotai.dazhihui:id/tv_hs_count",
     "className": "TextView",
     "checkedState": "",
-    "text": "新债",
-    "bounds": "115,2010,191,2057",
+    "text": "1",
+    "bounds": "280,1923,299,1967",
     "children": []
   },
   {
     "index": 60,
-    "resourceId": "com.guotai.dazhihui:id/tv_kzz_count",
+    "resourceId": "com.guotai.dazhihui:id/tv_bjs_str",
     "className": "TextView",
     "checkedState": "",
-    "text": "0",
-    "bounds": "472,1998,503,2070",
+    "text": "北证",
+    "bounds": "319,1923,383,1963",
     "children": []
   },
   {
     "index": 61,
+    "resourceId": "com.guotai.dazhihui:id/tv_bjs_count",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "1",
+    "bounds": "484,1923,503,1967",
+    "children": []
+  },
+  {
+    "index": 62,
+    "resourceId": "com.guotai.dazhihui:id/cl_kzz",
+    "className": "ViewGroup",
+    "checkedState": "",
+    "text": "com.guotai.dazhihui:id/cl_kzz",
+    "bounds": "89,2011,529,2108",
+    "children": []
+  },
+  {
+    "index": 63,
+    "resourceId": "com.guotai.dazhihui:id/tv_kzz_str",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "新债",
+    "bounds": "115,2036,191,2083",
+    "children": []
+  },
+  {
+    "index": 64,
+    "resourceId": "com.guotai.dazhihui:id/tv_kzz_count",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "0",
+    "bounds": "472,2024,503,2096",
+    "children": []
+  },
+  {
+    "index": 65,
     "resourceId": "com.guotai.dazhihui:id/cl_strategy_card",
     "className": "ViewGroup",
     "checkedState": "",
@@ -549,25 +585,43 @@
     "children": []
   },
   {
-    "index": 62,
-    "resourceId": "",
+    "index": 66,
+    "resourceId": "com.guotai.dazhihui:id/tv_today_trigger_str",
     "className": "TextView",
     "checkedState": "",
-    "text": "轻松下单自动盯盘",
-    "bounds": "643,1822,1127,1868",
+    "text": "今日触发",
+    "bounds": "669,1812,821,1859",
     "children": []
   },
   {
-    "index": 63,
-    "resourceId": "com.guotai.dazhihui:id/tv_use_pp",
+    "index": 67,
+    "resourceId": "com.guotai.dazhihui:id/tv_today_trigger_count",
     "className": "TextView",
     "checkedState": "",
-    "text": "创建订单",
-    "bounds": "1135,1794,1351,1875",
+    "text": "11",
+    "bounds": "821,1800,971,1871",
     "children": []
   },
   {
-    "index": 64,
+    "index": 68,
+    "resourceId": "com.guotai.dazhihui:id/tv_running_str",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "运行中",
+    "bounds": "1023,1812,1137,1859",
+    "children": []
+  },
+  {
+    "index": 69,
+    "resourceId": "com.guotai.dazhihui:id/tv_running_count",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "0",
+    "bounds": "1137,1800,1325,1871",
+    "children": []
+  },
+  {
+    "index": 70,
     "resourceId": "com.guotai.dazhihui:id/cl_smart_card",
     "className": "ViewGroup",
     "checkedState": "",
@@ -576,7 +630,7 @@
     "children": []
   },
   {
-    "index": 65,
+    "index": 71,
     "resourceId": "",
     "className": "TextView",
     "checkedState": "",
@@ -585,7 +639,7 @@
     "children": []
   },
   {
-    "index": 66,
+    "index": 72,
     "resourceId": "com.guotai.dazhihui:id/tv_go_use",
     "className": "TextView",
     "checkedState": "",
@@ -594,7 +648,7 @@
     "children": []
   },
   {
-    "index": 67,
+    "index": 73,
     "resourceId": "",
     "className": "LinearLayout",
     "checkedState": "",
@@ -603,7 +657,7 @@
     "children": []
   },
   {
-    "index": 68,
+    "index": 74,
     "resourceId": "com.guotai.dazhihui:id/trade_yw_tv",
     "className": "TextView",
     "checkedState": "",
@@ -612,7 +666,7 @@
     "children": []
   },
   {
-    "index": 69,
+    "index": 75,
     "resourceId": "com.guotai.dazhihui:id/trade_yw_sub_tv",
     "className": "TextView",
     "checkedState": "",
@@ -621,7 +675,7 @@
     "children": []
   },
   {
-    "index": 70,
+    "index": 76,
     "resourceId": "com.guotai.dazhihui:id/trade_yw_summary_tv",
     "className": "TextView",
     "checkedState": "",
@@ -630,7 +684,7 @@
     "children": []
   },
   {
-    "index": 71,
+    "index": 77,
     "resourceId": "",
     "className": "LinearLayout",
     "checkedState": "",
@@ -639,7 +693,7 @@
     "children": []
   },
   {
-    "index": 72,
+    "index": 78,
     "resourceId": "com.guotai.dazhihui:id/trade_yw_tv",
     "className": "TextView",
     "checkedState": "",
@@ -648,7 +702,7 @@
     "children": []
   },
   {
-    "index": 73,
+    "index": 79,
     "resourceId": "com.guotai.dazhihui:id/trade_yw_summary_tv",
     "className": "TextView",
     "checkedState": "",
@@ -657,7 +711,7 @@
     "children": []
   },
   {
-    "index": 74,
+    "index": 80,
     "resourceId": "",
     "className": "LinearLayout",
     "checkedState": "",
@@ -666,7 +720,7 @@
     "children": []
   },
   {
-    "index": 75,
+    "index": 81,
     "resourceId": "com.guotai.dazhihui:id/trade_yw_tv",
     "className": "TextView",
     "checkedState": "",
@@ -675,7 +729,7 @@
     "children": []
   },
   {
-    "index": 76,
+    "index": 82,
     "resourceId": "com.guotai.dazhihui:id/trade_yw_summary_tv",
     "className": "TextView",
     "checkedState": "",
@@ -684,7 +738,7 @@
     "children": []
   },
   {
-    "index": 77,
+    "index": 83,
     "resourceId": "",
     "className": "LinearLayout",
     "checkedState": "",
@@ -693,7 +747,7 @@
     "children": []
   },
   {
-    "index": 78,
+    "index": 84,
     "resourceId": "com.guotai.dazhihui:id/trade_yw_tv",
     "className": "TextView",
     "checkedState": "",
@@ -702,7 +756,7 @@
     "children": []
   },
   {
-    "index": 79,
+    "index": 85,
     "resourceId": "com.guotai.dazhihui:id/trade_yw_summary_tv",
     "className": "TextView",
     "checkedState": "",
@@ -711,7 +765,7 @@
     "children": []
   },
   {
-    "index": 80,
+    "index": 86,
     "resourceId": "com.guotai.dazhihui:id/bottom_menu_button1",
     "className": "LinearLayout",
     "checkedState": "",
@@ -720,7 +774,7 @@
     "children": []
   },
   {
-    "index": 81,
+    "index": 87,
     "resourceId": "com.guotai.dazhihui:id/btm_image1",
     "className": "ImageView",
     "checkedState": "",
@@ -729,7 +783,7 @@
     "children": []
   },
   {
-    "index": 82,
+    "index": 88,
     "resourceId": "com.guotai.dazhihui:id/btm_text1",
     "className": "TextView",
     "checkedState": "",
@@ -738,7 +792,7 @@
     "children": []
   },
   {
-    "index": 83,
+    "index": 89,
     "resourceId": "com.guotai.dazhihui:id/bottom_menu_button2",
     "className": "LinearLayout",
     "checkedState": "",
@@ -747,7 +801,7 @@
     "children": []
   },
   {
-    "index": 84,
+    "index": 90,
     "resourceId": "com.guotai.dazhihui:id/btm_image2",
     "className": "ImageView",
     "checkedState": "",
@@ -756,7 +810,7 @@
     "children": []
   },
   {
-    "index": 85,
+    "index": 91,
     "resourceId": "com.guotai.dazhihui:id/btm_text2",
     "className": "TextView",
     "checkedState": "",
@@ -765,7 +819,7 @@
     "children": []
   },
   {
-    "index": 86,
+    "index": 92,
     "resourceId": "com.guotai.dazhihui:id/bottom_menu_button3",
     "className": "LinearLayout",
     "checkedState": "",
@@ -774,7 +828,7 @@
     "children": []
   },
   {
-    "index": 87,
+    "index": 93,
     "resourceId": "com.guotai.dazhihui:id/btm_image3",
     "className": "ImageView",
     "checkedState": "",
@@ -783,7 +837,7 @@
     "children": []
   },
   {
-    "index": 88,
+    "index": 94,
     "resourceId": "com.guotai.dazhihui:id/btm_text3",
     "className": "TextView",
     "checkedState": "",
@@ -792,7 +846,7 @@
     "children": []
   },
   {
-    "index": 89,
+    "index": 95,
     "resourceId": "com.guotai.dazhihui:id/bottom_menu_button4",
     "className": "LinearLayout",
     "checkedState": "",
@@ -801,7 +855,7 @@
     "children": []
   },
   {
-    "index": 90,
+    "index": 96,
     "resourceId": "com.guotai.dazhihui:id/btm_image4",
     "className": "ImageView",
     "checkedState": "",
@@ -810,7 +864,7 @@
     "children": []
   },
   {
-    "index": 91,
+    "index": 97,
     "resourceId": "com.guotai.dazhihui:id/btm_text4",
     "className": "TextView",
     "checkedState": "",
@@ -819,7 +873,7 @@
     "children": []
   },
   {
-    "index": 92,
+    "index": 98,
     "resourceId": "com.guotai.dazhihui:id/bottom_menu_button5",
     "className": "LinearLayout",
     "checkedState": "",
@@ -828,7 +882,7 @@
     "children": []
   },
   {
-    "index": 93,
+    "index": 99,
     "resourceId": "com.guotai.dazhihui:id/btm_image5",
     "className": "ImageView",
     "checkedState": "",
@@ -837,7 +891,7 @@
     "children": []
   },
   {
-    "index": 94,
+    "index": 100,
     "resourceId": "com.guotai.dazhihui:id/btm_text5",
     "className": "TextView",
     "checkedState": "",

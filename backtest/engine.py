@@ -1965,7 +1965,7 @@ def discover_working_search_providers():
         )
 
 
-def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=None, user_id: int = 1, src: str = 'ts_7AZ', resume: bool = False, backtest_search: bool = True, backtest_ai: bool = True):
+def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=None, user_id: int = 1, src: str = 'ts_7AZ', resume: bool = False, backtest_search: bool = True, backtest_ai: bool = True, is_live: bool = False):
     """
     Pick stocks, create smart orders and trading for the specified date range.
 
@@ -1979,7 +1979,14 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
                        If False, skip all search calls, AI gets no news context.
     backtest_ai -- Enable AI analysis for stock picking (default True).
                    If False, switch AI-dependent strategies to pure-technical alternatives.
+    is_live -- If True, uses the real production database (DB) instead of the test database (DBTEST).
     """
+    global DB
+    if is_live:
+        from shared.db.db import DB as REAL_DB
+        DB = REAL_DB
+        logger.warning("Live mode active: Using real imobile.db instead of test database.")
+
     # Auto discover and white-list working search providers before beginning the backtest
     if backtest_search:
         discover_working_search_providers()
@@ -2044,7 +2051,18 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
 
         current_portfolio_nav = INITIAL_CASH + cumulative_realized_pnl
         current_capital = current_portfolio_nav - current_holdings_cost
-        logger.info(f"[{this_date}] Cumulative Realized P&L: ¥{cumulative_realized_pnl:,.2f}, Total Equity (Cash+Holdings): ¥{current_portfolio_nav:,.2f}, Avail Cash: ¥{current_capital:,.2f}")
+
+        if is_live:
+            with DB.cursor() as cursor:
+                cursor.execute("SELECT cash FROM summary_account WHERE user_id=?", (user_id,))
+                res = cursor.fetchone()
+                if res and res[0] is not None:
+                    current_capital = float(res[0])
+                    logger.info(f"[{this_date}] Live mode: using available cash from DB summary_account: ¥{current_capital:,.2f}")
+                else:
+                    logger.warning(f"[{this_date}] Live mode but no cash found in summary_account. Falling back to simulated capital: ¥{current_capital:,.2f}")
+        else:
+            logger.info(f"[{this_date}] Cumulative Realized P&L: ¥{cumulative_realized_pnl:,.2f}, Total Equity (Cash+Holdings): ¥{current_portfolio_nav:,.2f}, Avail Cash: ¥{current_capital:,.2f}")
 
         # Step 2: Create smart orders from picks and save to database
         smart_output_file = create_smart_orders_from_picks(pick_output_file, user_id=user_id, current_capital=current_capital)

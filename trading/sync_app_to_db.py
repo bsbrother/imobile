@@ -44,6 +44,38 @@ from utils.tools import (
 # 1. Pure ADB UI Parsers (No AI agent)
 # ==========================================
 
+def extract_stock_code_and_name(raw_name: str) -> Tuple[str, str]:
+    """
+    Extract stock code and clean name.
+    Handles:
+      - 6 digits at start: "000670盈方微"
+      - 6 digits in parentheses: "盈方微(000670)"
+      - 6 digits without parentheses: "盈方微000670"
+    """
+    n_name = normalize_stock_name(raw_name).strip()
+    
+    # 1. Check pattern: 6 digits at the beginning, e.g. "000670盈方微"
+    m1 = re.match(r'^(\d{6})\s*(.+)$', n_name)
+    if m1:
+        return m1.group(1), m1.group(2).strip()
+        
+    # 2. Check pattern: name followed by 6 digits in parentheses, e.g. "盈方微(000670)"
+    m2 = re.match(r'^(.+?)\((\d{6})\)$', n_name)
+    if m2:
+        return m2.group(2), m2.group(1).strip()
+        
+    # 3. Check pattern: name followed by 6 digits without parentheses, e.g. "盈方微000670"
+    m3 = re.match(r'^(.+?)\s*(\d{6})$', n_name)
+    if m3:
+        return m3.group(2), m3.group(1).strip()
+        
+    # Fall back to guotai's extract_stock_code
+    name_clean, ext_code = extract_stock_code(n_name)
+    if ext_code:
+        return ext_code, name_clean
+        
+    return "", n_name
+
 async def get_index_stock_from_app_quote_page_structured(
     config: MobileConfig, llm: GoogleGenAI, tools: AndroidDriver
 ) -> str:
@@ -326,6 +358,7 @@ async def get_order_from_app_smart_order_page_structured(
             device_tap(*center_details, sleep_after=3)
             
     orders = {}  # dict of order_number -> dict of order details
+    current_year = datetime.now().year
 
     async def scrape_tab(tab_name: str):
         logger.info(f"Tapping tab '{tab_name}'...")
@@ -337,7 +370,11 @@ async def get_order_from_app_smart_order_page_structured(
             logger.warning(f"Could not find tab '{tab_name}' programmatically.")
             return
 
-        for scroll_idx in range(12):  # Scroll max 12 times to load all orders for this tab
+        tab_orders = set()  # Track orders seen in this tab session
+        stop_tab_scrolling = False
+        for scroll_idx in range(40):  # Scroll max 40 times to load all orders for this tab
+            if stop_tab_scrolling:
+                break
             ui = get_ui_tree()
             lines = ui.split('\n')
             
@@ -353,8 +390,8 @@ async def get_order_from_app_smart_order_page_structured(
                 logger.info(f"No smart orders visible on screen for tab '{tab_name}'.")
                 break
                 
-            if scroll_idx > 0 and current_screen_orders.issubset(set(orders.keys())):
-                logger.info(f"Scroll reached bottom of tab '{tab_name}' (no new orders visible).")
+            if scroll_idx > 0 and current_screen_orders.issubset(tab_orders):
+                logger.info(f"Scroll reached bottom of tab '{tab_name}' (no new orders visible in this tab).")
                 break
             
             i = 0
@@ -413,16 +450,30 @@ async def get_order_from_app_smart_order_page_structured(
                             if re_match: reason_of_ending = re_match.group(1)
                     
                     if order_number:
-                        orders[order_number] = {
-                            'name': name or "未知",
-                            'code': code or "000000",
-                            'trigger_condition': trigger_condition or "",
-                            'buy_or_sell_price_type': buy_or_sell_price_type or "",
-                            'buy_or_sell_quantity': buy_or_sell_quantity or 0.0,
-                            'valid_until': valid_until or "",
-                            'order_number': order_number,
-                            'reason_of_ending': reason_of_ending or ""
-                        }
+                        skip_order = False
+                        if valid_until:
+                            m_year = re.search(r'(\d{4})', valid_until)
+                            if m_year:
+                                order_year = int(m_year.group(1))
+                                if order_year < current_year:
+                                    logger.info(f"Skipping order {order_number} with validity before current year: {valid_until}")
+                                    skip_order = True
+                                    if tab_name == "已结束":
+                                        logger.info("Stopping scroll for '已结束' tab.")
+                                        stop_tab_scrolling = True
+                                        
+                        if not skip_order:
+                            orders[order_number] = {
+                                'name': name or "未知",
+                                'code': code or "000000",
+                                'trigger_condition': trigger_condition or "",
+                                'buy_or_sell_price_type': buy_or_sell_price_type or "",
+                                'buy_or_sell_quantity': buy_or_sell_quantity or 0.0,
+                                'valid_until': valid_until or "",
+                                'order_number': order_number,
+                                'reason_of_ending': reason_of_ending or ""
+                            }
+                        tab_orders.add(order_number)
                         i += j  # Skip parsed block
                 i += 1
                 
@@ -476,7 +527,7 @@ async def get_transactions_from_app_history_page_structured(
     last_ui = ""
     stop_scrolling = False
     
-    for scroll_idx in range(12):  # Scroll max 12 times
+    for scroll_idx in range(40):  # Scroll max 40 times
         if stop_scrolling:
             break
         ui = get_ui_tree()
@@ -532,10 +583,10 @@ async def get_transactions_from_app_history_page_structured(
                 else:
                     tx_date = time_str
                     
-                # Check if it belongs to current month (e.g. "2026-06")
-                current_month_prefix = f"{current_year:04d}-{datetime.now().month:02d}"
-                if not tx_date.startswith(current_month_prefix):
-                    logger.info(f"Reached transaction from previous month: {tx_date}. Discarding and stopping.")
+                # Check if it belongs to current year (e.g. 2026) and >= 2026-01-01
+                year_start_prefix = f"{current_year}-01-01 00:00:00"
+                if tx_date < year_start_prefix:
+                    logger.info(f"Reached transaction before current year start: {tx_date}. Discarding and stopping.")
                     stop_scrolling = True
                     break
                     
@@ -564,8 +615,34 @@ async def get_transactions_from_app_history_page_structured(
 # 2. Database Helpers & Logic
 # ==========================================
 
+_stock_name_to_code_map = {}
+
+def init_stock_index_map():
+    global _stock_name_to_code_map
+    if _stock_name_to_code_map:
+        return
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    json_path = os.path.join(base_dir, "utils", "daily_stock_analysis", "apps", "dsa-web", "public", "stocks.index.json")
+    if os.path.exists(json_path):
+        try:
+            import json
+            with open(json_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                for item in data:
+                    if len(item) >= 3:
+                        code = item[1]
+                        name = normalize_stock_name(item[2])
+                        _stock_name_to_code_map[name] = code
+            logger.info(f"Loaded {len(_stock_name_to_code_map)} stock mappings from stocks.index.json")
+        except Exception as e:
+            logger.error(f"Failed to parse stocks.index.json: {e}")
+
 def get_stock_code_by_name(name: str, user_id: int = 1) -> str:
-    """Query database to find stock code for a given stock name."""
+    """Query database or json index to find stock code for a given stock name."""
+    init_stock_index_map()
+    if name in _stock_name_to_code_map:
+        return _stock_name_to_code_map[name]
+        
     with DB.cursor() as cursor:
         # 1. Search in current holdings
         row = cursor.execute("SELECT code FROM holding_stocks WHERE user_id = ? AND name = ?", (user_id, name)).fetchone()
@@ -577,7 +654,7 @@ def get_stock_code_by_name(name: str, user_id: int = 1) -> str:
             return row[0]
         # 3. Search in existing transactions
         row = cursor.execute("SELECT code FROM transactions WHERE user_id = ? AND name = ?", (user_id, name)).fetchone()
-        if row:
+        if row and row[0] != "000000":
             return row[0]
     return ""
 
@@ -597,7 +674,7 @@ def sync_transactions_to_db(transactions_data: str, user_id: int = 1) -> dict:
             if len(row) < 6:
                 continue
             tx_date = row[0].strip()
-            name = normalize_stock_name(row[1])
+            raw_name = row[1]
             tx_type = row[2].strip()
             price = parse_number(row[3])
             quantity = int(parse_number(row[4]))
@@ -611,15 +688,30 @@ def sync_transactions_to_db(transactions_data: str, user_id: int = 1) -> dict:
             else:
                 norm_type = tx_type.lower()
                 
-            # Try to resolve code
-            code = get_stock_code_by_name(name, user_id)
-            if not code:
-                name_clean, ext_code = extract_stock_code(name)
-                if ext_code:
-                    code = ext_code
-                    name = name_clean
-                else:
+            # Extract code and clean name
+            code, name = extract_stock_code_and_name(raw_name)
+            if not code or code == "000000":
+                code = get_stock_code_by_name(name, user_id)
+                if not code:
                     code = "000000"  # fallback if still unknown
+            
+            # Update older records with '000000' in database tables if a valid code is resolved
+            if code and code != "000000":
+                cursor.execute("""
+                    UPDATE transactions
+                    SET code = ?
+                    WHERE user_id = ? AND name = ? AND code = '000000'
+                """, (code, user_id, name))
+                cursor.execute("""
+                    UPDATE holding_stocks
+                    SET code = ?
+                    WHERE user_id = ? AND name = ? AND code = '000000'
+                """, (code, user_id, name))
+                cursor.execute("""
+                    UPDATE smart_orders
+                    SET code = ?
+                    WHERE user_id = ? AND name = ? AND code = '000000'
+                """, (code, user_id, name))
                     
             # Check if this exact transaction already exists to avoid duplication
             cursor.execute("""
@@ -676,42 +768,102 @@ async def cron_sync_app_to_db(check_trading_day_and_time: bool = True) -> dict:
     logger.info("Starting cron job using ADB UI parsing extraction...")
     tools, llm, config = await pre_requirements()
     
-    # 1. Sync Index Quote Data
-    logger.info("Extracting indices and stock quotes...")
+    # 1. Fetch App Origin Data
+    logger.info("Extracting indices and stock quotes from app...")
     quote_csv = await get_index_stock_from_app_quote_page_structured(config=config, llm=llm, tools=tools)
+    
+    logger.info("Extracting account summary and positions from app...")
+    position_csv = await get_summary_position_from_app_position_page_structured(config=config, llm=llm, tools=tools)
+    
+    logger.info("Extracting smart orders from app...")
+    order_csv = await get_order_from_app_smart_order_page_structured(config=config, llm=llm, tools=tools)
+    
+    logger.info("Extracting transaction history from app...")
+    tx_csv = await get_transactions_from_app_history_page_structured(config=config, llm=llm, tools=tools)
+    
+    # 2. Pre-save app counts
+    pos_count = 0
+    if position_csv:
+        pos_sections = position_csv.strip().split('\n\n')
+        if len(pos_sections) >= 2:
+            pos_header, pos_rows = parse_csv_data(pos_sections[1])
+            pos_count = len(pos_rows)
+            
+    ord_count = 0
+    if order_csv:
+        ord_header, ord_rows = parse_csv_data(order_csv)
+        ord_count = len(ord_rows)
+        
+    tx_count = 0
+    if tx_csv:
+        tx_header, tx_rows = parse_csv_data(tx_csv)
+        tx_count = len(tx_rows)
+        
+    # 3. Sync to Database
+    logger.info("Syncing index and stock quotes to DB...")
     result_quote = sync_index_quote_data_to_db(quote_csv, user_id=1)
     if not result_quote.get('success'):
         raise ValueError(f"sync_index_quote_data_to_db failed: {result_quote}")
     logger.info(f"Synced indices & quotes: {result_quote}")
-
-    # 2. Sync Summary Position Data
-    logger.info("Extracting account summary and positions...")
-    position_csv = await get_summary_position_from_app_position_page_structured(config=config, llm=llm, tools=tools)
+        
+    logger.info("Syncing summary position data to DB...")
     result_position = sync_summary_position_data_to_db(position_csv, user_id=1)
     if not result_position.get('success'):
         raise ValueError(f"sync_summary_position_data_to_db failed: {result_position}")
     logger.info(f"Synced portfolio: {result_position}")
-    # 3. Sync Smart Orders
-    logger.info("Extracting smart orders...")
-    order_csv = await get_order_from_app_smart_order_page_structured(config=config, llm=llm, tools=tools)
+        
+    logger.info("Syncing order data to DB...")
     result_order = sync_order_data_to_db(order_csv, user_id=1)
     if not result_order.get('success'):
         raise ValueError(f"sync_order_data_to_db failed: {result_order}")
     logger.info(f"Synced smart orders: {result_order}")
-
-    # 4. Sync Transactions
-    logger.info("Extracting transaction history...")
-    tx_csv = await get_transactions_from_app_history_page_structured(config=config, llm=llm, tools=tools)
+        
+    logger.info("Syncing transactions to DB...")
     result_tx = sync_transactions_to_db(tx_csv, user_id=1)
     if not result_tx.get('success'):
         raise ValueError(f"sync_transactions_to_db failed: {result_tx}")
     logger.info(f"Synced transactions: {result_tx}")
 
+    # 4. Query DB Counts Post-Sync
+    with DB.cursor() as cursor:
+        db_holdings = cursor.execute("SELECT COUNT(*) FROM holding_stocks").fetchone()[0]
+        db_orders = cursor.execute("SELECT COUNT(*) FROM smart_orders").fetchone()[0]
+        current_year = datetime.now().year
+        db_transactions = cursor.execute(
+            "SELECT COUNT(*) FROM transactions WHERE transaction_date >= ?",
+            (f"{current_year}-01-01 00:00:00",)
+        ).fetchone()[0]
+
+    # 5. Run shared/db/sql.sh
+    import subprocess
+    logger.info("Running shared/db/sql.sh to show current DB records...")
+    try:
+        sql_res = subprocess.run("bash shared/db/sql.sh", shell=True, capture_output=True, text=True, cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        logger.info(f"\n[shared/db/sql.sh output]:\n{sql_res.stdout}")
+    except Exception as e:
+        logger.error(f"Failed to run shared/db/sql.sh: {e}")
+
+    # 6. DB vs App Data Comparison and Validation
+    logger.info("\n==================================================")
+    logger.info("       REAL-TIME DATA MATCH CHECK (DB VS APP)")
+    logger.info("==================================================")
+    logger.info(f"Holding Stocks: App = {pos_count}, DB = {db_holdings}")
+    logger.info(f"Smart Orders:   App = {ord_count}, DB = {db_orders}")
+    logger.info(f"Transactions:   App = {tx_count}, DB = {db_transactions} (>= {current_year}-01-01)")
+    
+    is_real_sync = (pos_count == db_holdings and ord_count == db_orders and tx_count == db_transactions)
+    if is_real_sync:
+        logger.info("REAL SYNC VALIDATION: SUCCESS (DB EXACTLY MATCHES APP DATA)")
+    else:
+        logger.warning("REAL SYNC VALIDATION: FAILURE (DISCREPANCY DETECTED)")
+    logger.info("==================================================")
+
     result = {
         'quote_sync_result': result_quote,
         'position_sync_result': result_position,
         'order_sync_result': result_order,
-        'transaction_sync_result': result_tx
+        'transaction_sync_result': result_tx,
+        'real_sync': is_real_sync
     }
     
     summary_msg = (
@@ -722,6 +874,7 @@ async def cron_sync_app_to_db(check_trading_day_and_time: bool = True) -> dict:
         f"2. Portfolio:    {result_position.get('message', 'No message')}\n"
         f"3. Smart Orders: {result_order.get('message', 'No message')}\n"
         f"4. Transactions: {result_tx.get('message', 'No message')}\n"
+        f"5. Real Sync:    {'SUCCESS (DB == App)' if is_real_sync else 'FAILURE (Discrepancy)'}\n"
         "=================================================="
     )
     logger.info(summary_msg)

@@ -49,9 +49,11 @@
       they must wait until the next day for the settlement and transfer of ownership before they can sell.
       Additionally, any funds from stocks or funds sold on the same day must also wait until the next day to be withdrawn.
 
+    - Minimum lot size for purchase is 100 shares for Shanghai and Shenzhen Mainboard stocks. However, for ChiNext (30xxxx) and STAR Market (688xxx) stocks, the minimum buy quantity must be >= 200 shares. Selling has no such minimum restriction (odd lots can be sold).
+
     - Commission and Taxes
       - The transaction commission is typically 0.03% of the transaction amount, with a minimum of 5 yuan.
-      - The stamp duty is 0.1% of the transaction amount for selling stocks, and there is no stamp duty for buying stocks.
+      - The stamp duty is 0.05% of the transaction amount for selling stocks (halved from 0.1% in August 2023), and there is no stamp duty for buying stocks.
       - There is no capital gains tax for individual investors in the A-share market.
       - The capital gains tax is 0.15% of the transaction amount for individual investors, and there is no capital gains tax for institutional investors.
 

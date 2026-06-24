@@ -812,7 +812,8 @@ class OrderAnalyzer:
             can_sell_today = available_shares > 0 and purchase_date < date
             if can_sell_today:
                 # REAL-WORLD FIX: Cannot sell if stock is locked at limit down all day
-                limit_down_price = round(prev_close * (0.805 if symbol.startswith(('30', '688')) else 0.905), 2)
+                is_wide = symbol.startswith('3') or symbol.startswith('688')
+                limit_down_price = round(prev_close * (0.80 if is_wide else 0.90), 2)
                 if high_price <= limit_down_price:
                     logger.warning(f"Stock {symbol} locked at limit down {limit_down_price} all day. Cannot sell.")
                     return {
@@ -1126,7 +1127,8 @@ class OrderAnalyzer:
         buy_fill_price = open_price # 2025.12.14: cannot buy at min(buy_price, open_price)
 
         # REAL-WORLD FIX: Filter out impossible limit-up opens (retail cannot reliably buy a limit-up open)
-        limit_up_price = round(prev_close * (1.195 if symbol.startswith(('30', '688')) else 1.095), 2)
+        is_wide = symbol.startswith('3') or symbol.startswith('688')
+        limit_up_price = round(prev_close * (1.20 if is_wide else 1.10), 2)
         if open_price >= limit_up_price:
             return {
                 'executed': False,
@@ -2008,6 +2010,19 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
     logger.info(f"Starting picking from {start_date} to {end_date}...")
     dates = calendar.get_trading_days_between(start_date, end_date)
     for this_date in dates:
+        # Dynamically set MAX_POSITIONS based on market regime
+        regime_data = detect_market_regime(this_date)
+        regime = regime_data.get('regime', 'normal')
+        regime_max_positions = {
+            'bull': 12,
+            'normal': 10,
+            'volatile': 8,
+            'bear': 5
+        }
+        global MAX_POSITIONS
+        MAX_POSITIONS = regime_max_positions.get(regime, 10)
+        logger.info(f"[{this_date}] Dynamic position limit: {MAX_POSITIONS} positions (Regime: {regime.upper()})")
+
         report_file = os.path.join(REPORT_PATH, f'report_orders_{this_date}.md')
         if resume and os.path.exists(report_file):
             logger.info(f"[{this_date}] Found existing report {report_file}, skipping...")
@@ -2053,14 +2068,50 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
         current_capital = current_portfolio_nav - current_holdings_cost
 
         if is_live:
-            with DB.cursor() as cursor:
-                cursor.execute("SELECT cash FROM summary_account WHERE user_id=?", (user_id,))
-                res = cursor.fetchone()
-                if res and res[0] is not None:
-                    current_capital = float(res[0])
-                    logger.info(f"[{this_date}] Live mode: using available cash from DB summary_account: ¥{current_capital:,.2f}")
+            # Determine if this run date is today (current date) or a past date (backtest run)
+            check_date = this_date.replace('-', '')
+            today_str = datetime.now().strftime('%Y%m%d')
+            if check_date >= today_str:
+                # Target date is today/future: get real cash directly from app homepage
+                real_cash = None
+                try:
+                    from utils.tools import get_available_cash_from_homepage
+                    real_cash = get_available_cash_from_homepage()
+                except Exception as e:
+                    logger.error(f"[{this_date}] Live mode: Failed to get real cash from app: {e}. Falling back to DB summary_account.")
+                
+                if real_cash is not None:
+                    current_capital = real_cash
+                    logger.info(f"[{this_date}] Live mode (Today/Future): using real cash from app homepage: ¥{current_capital:,.2f}")
+                    # Sync it to DB summary_account
+                    with DB.cursor() as cursor:
+                        cursor.execute("""
+                            INSERT INTO summary_account (user_id, cash, last_updated)
+                            VALUES (?, ?, ?)
+                            ON CONFLICT(user_id) DO UPDATE SET
+                                cash = excluded.cash,
+                                last_updated = excluded.last_updated
+                        """, (user_id, real_cash, datetime.now().isoformat()))
                 else:
-                    logger.warning(f"[{this_date}] Live mode but no cash found in summary_account. Falling back to simulated capital: ¥{current_capital:,.2f}")
+                    # Fallback to DB
+                    with DB.cursor() as cursor:
+                        cursor.execute("SELECT cash FROM summary_account WHERE user_id=?", (user_id,))
+                        res = cursor.fetchone()
+                        if res and res[0] is not None:
+                            current_capital = float(res[0])
+                            logger.info(f"[{this_date}] Live mode fallback: using available cash from DB summary_account: ¥{current_capital:,.2f}")
+                        else:
+                            logger.warning(f"[{this_date}] Live mode fallback but no cash found in summary_account. Falling back to simulated capital: ¥{current_capital:,.2f}")
+            else:
+                # Past date (backtest run): read cash from summary_account table in DB
+                with DB.cursor() as cursor:
+                    cursor.execute("SELECT cash FROM summary_account WHERE user_id=?", (user_id,))
+                    res = cursor.fetchone()
+                    if res and res[0] is not None:
+                        current_capital = float(res[0])
+                        logger.info(f"[{this_date}] Live mode (Backtest): using available cash from DB summary_account: ¥{current_capital:,.2f}")
+                    else:
+                        logger.warning(f"[{this_date}] Live mode but no cash found in summary_account. Falling back to simulated capital: ¥{current_capital:,.2f}")
         else:
             logger.info(f"[{this_date}] Cumulative Realized P&L: ¥{cumulative_realized_pnl:,.2f}, Total Equity (Cash+Holdings): ¥{current_portfolio_nav:,.2f}, Avail Cash: ¥{current_capital:,.2f}")
 

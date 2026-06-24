@@ -42,7 +42,7 @@ cd web && reflex run
 - **Regime-Aware CANSLIM Strategy:** `ts_7AZ` screens stocks across 7 dimensions (C-A-N-S-L-I-M) with regime-based risk management.
 - **Dynamic Risk Management:** Take-profit and stop-loss adjust per regime (Bull 25%/5%, Normal 15%/4%, Volatile 10%/3%, Bear 8%/2%) with trailing SL. ChiNext/STAR (3/688) stocks get boosted TP/SL (35%/15% Bull, 25%/14% Normal) for their 20% daily limit.
 - **Smart Order Generation:** Computes position size, buy price, take-profit, and stop-loss using technical indicators (ATR, Bollinger Bands). Bull regime uses ATR-based gap pricing (`close × (1 + 0.5×ATR/close)`, capped at 7%/13%) to ensure the `股价 ≤ buy_price` trigger fires on gap-up opens.
-- **A-Shares Compliance:** Strictly enforces T+1 settlement, limit-up/limit-down blocking, and realistic fees (Commission + Stamp Duty).
+- **A-Shares Compliance:** Strictly enforces T+1 settlement, limit-up/limit-down blocking, and realistic fees (Commission + Stamp Duty). *Note: The minimum buy lot size of 200 shares for STAR/ChiNext stocks is currently not enforced in the simulation engine (it uses a 100-shares limit for all A-shares).*
 - **Rich Reporting:** Generates per-day Markdown reports with P&L, transactions, and final period vs benchmark (SSE/CSI300) comparisons. Reports are automatically skipped for future dates (pre-market mode) where no historical OHLCV data exists yet.
 
 ### 2. Live Trading & Automation (`trading/`)

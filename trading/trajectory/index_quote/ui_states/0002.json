@@ -262,11 +262,11 @@
   },
   {
     "index": 30,
-    "resourceId": "com.guotai.dazhihui:id/tv_columnName",
+    "resourceId": "com.guotai.dazhihui:id/tv_holdSync",
     "className": "TextView",
     "checkedState": "",
-    "text": "名称/代码",
-    "bounds": "51,575,218,622",
+    "text": "同步",
+    "bounds": "51,575,183,622",
     "children": []
   },
   {
@@ -355,7 +355,7 @@
     "resourceId": "com.guotai.dazhihui:id/item_main_content",
     "className": "RelativeLayout",
     "checkedState": "",
-    "text": "东山精密，最新价255.02元，涨幅-5.74%",
+    "text": "宏和科技，最新价247.90元，涨幅-5.75%",
     "bounds": "51,647,1389,847",
     "children": []
   },
@@ -364,7 +364,7 @@
     "resourceId": "com.guotai.dazhihui:id/tv_name",
     "className": "TextView",
     "checkedState": "",
-    "text": "东山精密",
+    "text": "宏和科技",
     "bounds": "51,666,287,739",
     "children": []
   },
@@ -373,21 +373,12 @@
     "resourceId": "com.guotai.dazhihui:id/tv_code",
     "className": "TextView",
     "checkedState": "",
-    "text": "002384",
+    "text": "603256",
     "bounds": "51,767,207,828",
     "children": []
   },
   {
     "index": 43,
-    "resourceId": "com.guotai.dazhihui:id/tv_loan",
-    "className": "TextView",
-    "checkedState": "",
-    "text": "融",
-    "bounds": "213,777,257,817",
-    "children": []
-  },
-  {
-    "index": 44,
     "resourceId": "com.guotai.dazhihui:id/line_scroll_view",
     "className": "HorizontalScrollView",
     "checkedState": "",
@@ -396,12 +387,21 @@
     "children": []
   },
   {
+    "index": 44,
+    "resourceId": "",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "247.90",
+    "bounds": "411,706,738,788",
+    "children": []
+  },
+  {
     "index": 45,
     "resourceId": "",
     "className": "TextView",
     "checkedState": "",
-    "text": "255.02",
-    "bounds": "411,706,738,788",
+    "text": "-5.75%",
+    "bounds": "738,706,1065,788",
     "children": []
   },
   {
@@ -409,21 +409,12 @@
     "resourceId": "",
     "className": "TextView",
     "checkedState": "",
-    "text": "-5.74%",
-    "bounds": "738,706,1065,788",
-    "children": []
-  },
-  {
-    "index": 47,
-    "resourceId": "",
-    "className": "TextView",
-    "checkedState": "",
-    "text": "-15.53",
+    "text": "-15.11",
     "bounds": "1065,706,1389,788",
     "children": []
   },
   {
-    "index": 48,
+    "index": 47,
     "resourceId": "",
     "className": "FrameLayout",
     "checkedState": "",
@@ -432,34 +423,34 @@
     "children": []
   },
   {
-    "index": 49,
+    "index": 48,
     "resourceId": "com.guotai.dazhihui:id/item_main_content",
     "className": "RelativeLayout",
     "checkedState": "",
-    "text": "兆易创新，最新价640.99元，涨幅-7.06%",
+    "text": "光迅科技，最新价266.90元，涨幅-3.33%",
     "bounds": "51,847,1389,1047",
     "children": []
   },
   {
-    "index": 50,
+    "index": 49,
     "resourceId": "com.guotai.dazhihui:id/tv_name",
     "className": "TextView",
     "checkedState": "",
-    "text": "兆易创新",
+    "text": "光迅科技",
     "bounds": "51,866,287,939",
     "children": []
   },
   {
-    "index": 51,
+    "index": 50,
     "resourceId": "com.guotai.dazhihui:id/tv_code",
     "className": "TextView",
     "checkedState": "",
-    "text": "603986",
+    "text": "002281",
     "bounds": "51,967,207,1028",
     "children": []
   },
   {
-    "index": 52,
+    "index": 51,
     "resourceId": "com.guotai.dazhihui:id/tv_loan",
     "className": "TextView",
     "checkedState": "",
@@ -468,7 +459,7 @@
     "children": []
   },
   {
-    "index": 53,
+    "index": 52,
     "resourceId": "com.guotai.dazhihui:id/line_scroll_view",
     "className": "HorizontalScrollView",
     "checkedState": "",
@@ -477,12 +468,21 @@
     "children": []
   },
   {
+    "index": 53,
+    "resourceId": "",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "266.90",
+    "bounds": "411,906,738,988",
+    "children": []
+  },
+  {
     "index": 54,
     "resourceId": "",
     "className": "TextView",
     "checkedState": "",
-    "text": "640.99",
-    "bounds": "411,906,738,988",
+    "text": "-3.33%",
+    "bounds": "738,906,1065,988",
     "children": []
   },
   {
@@ -490,21 +490,12 @@
     "resourceId": "",
     "className": "TextView",
     "checkedState": "",
-    "text": "-7.06%",
-    "bounds": "738,906,1065,988",
-    "children": []
-  },
-  {
-    "index": 56,
-    "resourceId": "",
-    "className": "TextView",
-    "checkedState": "",
-    "text": "-48.71",
+    "text": "-9.18",
     "bounds": "1065,906,1389,988",
     "children": []
   },
   {
-    "index": 57,
+    "index": 56,
     "resourceId": "",
     "className": "FrameLayout",
     "checkedState": "",
@@ -513,34 +504,34 @@
     "children": []
   },
   {
-    "index": 58,
+    "index": 57,
     "resourceId": "com.guotai.dazhihui:id/item_main_content",
     "className": "RelativeLayout",
     "checkedState": "",
-    "text": "沪电股份，最新价138.50元，涨幅-4.65%",
+    "text": "北方稀土，最新价49.95元，涨幅-7.76%",
     "bounds": "51,1047,1389,1247",
     "children": []
   },
   {
-    "index": 59,
+    "index": 58,
     "resourceId": "com.guotai.dazhihui:id/tv_name",
     "className": "TextView",
     "checkedState": "",
-    "text": "沪电股份",
+    "text": "北方稀土",
     "bounds": "51,1066,287,1139",
     "children": []
   },
   {
-    "index": 60,
+    "index": 59,
     "resourceId": "com.guotai.dazhihui:id/tv_code",
     "className": "TextView",
     "checkedState": "",
-    "text": "002463",
+    "text": "600111",
     "bounds": "51,1167,207,1228",
     "children": []
   },
   {
-    "index": 61,
+    "index": 60,
     "resourceId": "com.guotai.dazhihui:id/tv_loan",
     "className": "TextView",
     "checkedState": "",
@@ -549,7 +540,7 @@
     "children": []
   },
   {
-    "index": 62,
+    "index": 61,
     "resourceId": "com.guotai.dazhihui:id/line_scroll_view",
     "className": "HorizontalScrollView",
     "checkedState": "",
@@ -558,12 +549,21 @@
     "children": []
   },
   {
+    "index": 62,
+    "resourceId": "",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "49.95",
+    "bounds": "411,1106,738,1188",
+    "children": []
+  },
+  {
     "index": 63,
     "resourceId": "",
     "className": "TextView",
     "checkedState": "",
-    "text": "138.50",
-    "bounds": "411,1106,738,1188",
+    "text": "-7.76%",
+    "bounds": "738,1106,1065,1188",
     "children": []
   },
   {
@@ -571,21 +571,12 @@
     "resourceId": "",
     "className": "TextView",
     "checkedState": "",
-    "text": "-4.65%",
-    "bounds": "738,1106,1065,1188",
-    "children": []
-  },
-  {
-    "index": 65,
-    "resourceId": "",
-    "className": "TextView",
-    "checkedState": "",
-    "text": "-6.76",
+    "text": "-4.20",
     "bounds": "1065,1106,1389,1188",
     "children": []
   },
   {
-    "index": 66,
+    "index": 65,
     "resourceId": "",
     "className": "FrameLayout",
     "checkedState": "",
@@ -594,34 +585,34 @@
     "children": []
   },
   {
-    "index": 67,
+    "index": 66,
     "resourceId": "com.guotai.dazhihui:id/item_main_content",
     "className": "RelativeLayout",
     "checkedState": "",
-    "text": "三环集团，最新价145.50元，涨幅-6.80%",
+    "text": "中国巨石，最新价58.93元，涨幅+0.94%",
     "bounds": "51,1247,1389,1447",
     "children": []
   },
   {
-    "index": 68,
+    "index": 67,
     "resourceId": "com.guotai.dazhihui:id/tv_name",
     "className": "TextView",
     "checkedState": "",
-    "text": "三环集团",
+    "text": "中国巨石",
     "bounds": "51,1266,287,1339",
     "children": []
   },
   {
-    "index": 69,
+    "index": 68,
     "resourceId": "com.guotai.dazhihui:id/tv_code",
     "className": "TextView",
     "checkedState": "",
-    "text": "300408",
+    "text": "600176",
     "bounds": "51,1367,207,1428",
     "children": []
   },
   {
-    "index": 70,
+    "index": 69,
     "resourceId": "com.guotai.dazhihui:id/tv_loan",
     "className": "TextView",
     "checkedState": "",
@@ -630,7 +621,7 @@
     "children": []
   },
   {
-    "index": 71,
+    "index": 70,
     "resourceId": "com.guotai.dazhihui:id/line_scroll_view",
     "className": "HorizontalScrollView",
     "checkedState": "",
@@ -639,12 +630,21 @@
     "children": []
   },
   {
+    "index": 71,
+    "resourceId": "",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "58.93",
+    "bounds": "411,1306,738,1388",
+    "children": []
+  },
+  {
     "index": 72,
     "resourceId": "",
     "className": "TextView",
     "checkedState": "",
-    "text": "145.50",
-    "bounds": "411,1306,738,1388",
+    "text": "+0.94%",
+    "bounds": "738,1306,1065,1388",
     "children": []
   },
   {
@@ -652,21 +652,12 @@
     "resourceId": "",
     "className": "TextView",
     "checkedState": "",
-    "text": "-6.80%",
-    "bounds": "738,1306,1065,1388",
-    "children": []
-  },
-  {
-    "index": 74,
-    "resourceId": "",
-    "className": "TextView",
-    "checkedState": "",
-    "text": "-10.61",
+    "text": "+0.55",
     "bounds": "1065,1306,1389,1388",
     "children": []
   },
   {
-    "index": 75,
+    "index": 74,
     "resourceId": "",
     "className": "FrameLayout",
     "checkedState": "",
@@ -675,34 +666,34 @@
     "children": []
   },
   {
-    "index": 76,
+    "index": 75,
     "resourceId": "com.guotai.dazhihui:id/item_main_content",
     "className": "RelativeLayout",
     "checkedState": "",
-    "text": "生益科技，最新价167.87元，涨幅-9.01%",
+    "text": "中钨高新，最新价102.50元，涨幅-5.38%",
     "bounds": "51,1447,1389,1647",
     "children": []
   },
   {
-    "index": 77,
+    "index": 76,
     "resourceId": "com.guotai.dazhihui:id/tv_name",
     "className": "TextView",
     "checkedState": "",
-    "text": "生益科技",
+    "text": "中钨高新",
     "bounds": "51,1466,287,1539",
     "children": []
   },
   {
-    "index": 78,
+    "index": 77,
     "resourceId": "com.guotai.dazhihui:id/tv_code",
     "className": "TextView",
     "checkedState": "",
-    "text": "600183",
+    "text": "000657",
     "bounds": "51,1567,207,1628",
     "children": []
   },
   {
-    "index": 79,
+    "index": 78,
     "resourceId": "com.guotai.dazhihui:id/tv_loan",
     "className": "TextView",
     "checkedState": "",
@@ -711,7 +702,7 @@
     "children": []
   },
   {
-    "index": 80,
+    "index": 79,
     "resourceId": "com.guotai.dazhihui:id/line_scroll_view",
     "className": "HorizontalScrollView",
     "checkedState": "",
@@ -720,12 +711,21 @@
     "children": []
   },
   {
+    "index": 80,
+    "resourceId": "",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "102.50",
+    "bounds": "411,1506,738,1588",
+    "children": []
+  },
+  {
     "index": 81,
     "resourceId": "",
     "className": "TextView",
     "checkedState": "",
-    "text": "167.87",
-    "bounds": "411,1506,738,1588",
+    "text": "-5.38%",
+    "bounds": "738,1506,1065,1588",
     "children": []
   },
   {
@@ -733,21 +733,12 @@
     "resourceId": "",
     "className": "TextView",
     "checkedState": "",
-    "text": "-9.01%",
-    "bounds": "738,1506,1065,1588",
-    "children": []
-  },
-  {
-    "index": 83,
-    "resourceId": "",
-    "className": "TextView",
-    "checkedState": "",
-    "text": "-16.63",
+    "text": "-5.83",
     "bounds": "1065,1506,1389,1588",
     "children": []
   },
   {
-    "index": 84,
+    "index": 83,
     "resourceId": "",
     "className": "FrameLayout",
     "checkedState": "",
@@ -756,52 +747,43 @@
     "children": []
   },
   {
-    "index": 85,
+    "index": 84,
     "resourceId": "com.guotai.dazhihui:id/item_main_content",
     "className": "RelativeLayout",
     "checkedState": "",
-    "text": "华虹宏力，最新价292.08元，涨幅+4.31%",
+    "text": "京东方Ａ，最新价6.77元，涨幅-2.31%",
     "bounds": "51,1647,1389,1847",
     "children": []
   },
   {
-    "index": 86,
+    "index": 85,
     "resourceId": "com.guotai.dazhihui:id/tv_name",
     "className": "TextView",
     "checkedState": "",
-    "text": "华虹宏力",
+    "text": "京东方Ａ",
     "bounds": "51,1666,287,1739",
     "children": []
   },
   {
-    "index": 87,
+    "index": 86,
     "resourceId": "com.guotai.dazhihui:id/tv_code",
     "className": "TextView",
     "checkedState": "",
-    "text": "688347",
+    "text": "000725",
     "bounds": "51,1767,207,1828",
     "children": []
   },
   {
-    "index": 88,
-    "resourceId": "com.guotai.dazhihui:id/tv_kcb",
-    "className": "TextView",
-    "checkedState": "",
-    "text": "科",
-    "bounds": "213,1777,257,1817",
-    "children": []
-  },
-  {
-    "index": 89,
+    "index": 87,
     "resourceId": "com.guotai.dazhihui:id/tv_loan",
     "className": "TextView",
     "checkedState": "",
     "text": "融",
-    "bounds": "263,1777,307,1817",
+    "bounds": "213,1777,257,1817",
     "children": []
   },
   {
-    "index": 90,
+    "index": 88,
     "resourceId": "com.guotai.dazhihui:id/line_scroll_view",
     "className": "HorizontalScrollView",
     "checkedState": "",
@@ -810,34 +792,34 @@
     "children": []
   },
   {
-    "index": 91,
+    "index": 89,
     "resourceId": "",
     "className": "TextView",
     "checkedState": "",
-    "text": "292.08",
+    "text": "6.77",
     "bounds": "411,1706,738,1788",
     "children": []
   },
   {
-    "index": 92,
+    "index": 90,
     "resourceId": "",
     "className": "TextView",
     "checkedState": "",
-    "text": "+4.31%",
+    "text": "-2.31%",
     "bounds": "738,1706,1065,1788",
     "children": []
   },
   {
-    "index": 93,
+    "index": 91,
     "resourceId": "",
     "className": "TextView",
     "checkedState": "",
-    "text": "+12.08",
+    "text": "-0.16",
     "bounds": "1065,1706,1389,1788",
     "children": []
   },
   {
-    "index": 94,
+    "index": 92,
     "resourceId": "",
     "className": "FrameLayout",
     "checkedState": "",
@@ -846,34 +828,34 @@
     "children": []
   },
   {
-    "index": 95,
+    "index": 93,
     "resourceId": "com.guotai.dazhihui:id/item_main_content",
     "className": "RelativeLayout",
     "checkedState": "",
-    "text": "北方华创，最新价747.49元，涨幅+0.33%",
+    "text": "中天科技，最新价61.73元，涨幅+3.52%",
     "bounds": "51,1847,1389,2047",
     "children": []
   },
   {
-    "index": 96,
+    "index": 94,
     "resourceId": "com.guotai.dazhihui:id/tv_name",
     "className": "TextView",
     "checkedState": "",
-    "text": "北方华创",
+    "text": "中天科技",
     "bounds": "51,1866,287,1939",
     "children": []
   },
   {
-    "index": 97,
+    "index": 95,
     "resourceId": "com.guotai.dazhihui:id/tv_code",
     "className": "TextView",
     "checkedState": "",
-    "text": "002371",
+    "text": "600522",
     "bounds": "51,1967,207,2028",
     "children": []
   },
   {
-    "index": 98,
+    "index": 96,
     "resourceId": "com.guotai.dazhihui:id/tv_loan",
     "className": "TextView",
     "checkedState": "",
@@ -882,7 +864,7 @@
     "children": []
   },
   {
-    "index": 99,
+    "index": 97,
     "resourceId": "com.guotai.dazhihui:id/line_scroll_view",
     "className": "HorizontalScrollView",
     "checkedState": "",
@@ -891,34 +873,34 @@
     "children": []
   },
   {
-    "index": 100,
+    "index": 98,
     "resourceId": "",
     "className": "TextView",
     "checkedState": "",
-    "text": "747.49",
+    "text": "61.73",
     "bounds": "411,1906,738,1988",
     "children": []
   },
   {
-    "index": 101,
+    "index": 99,
     "resourceId": "",
     "className": "TextView",
     "checkedState": "",
-    "text": "+0.33%",
+    "text": "+3.52%",
     "bounds": "738,1906,1065,1988",
     "children": []
   },
   {
-    "index": 102,
+    "index": 100,
     "resourceId": "",
     "className": "TextView",
     "checkedState": "",
-    "text": "+2.49",
+    "text": "+2.10",
     "bounds": "1065,1906,1389,1988",
     "children": []
   },
   {
-    "index": 103,
+    "index": 101,
     "resourceId": "",
     "className": "FrameLayout",
     "checkedState": "",
@@ -927,34 +909,43 @@
     "children": []
   },
   {
-    "index": 104,
+    "index": 102,
     "resourceId": "com.guotai.dazhihui:id/item_main_content",
     "className": "RelativeLayout",
     "checkedState": "",
-    "text": "宏和科技，最新价247.90元，涨幅-5.75%",
+    "text": "工业富联，最新价74.10元，涨幅-6.06%",
     "bounds": "51,2047,1389,2247",
     "children": []
   },
   {
-    "index": 105,
+    "index": 103,
     "resourceId": "com.guotai.dazhihui:id/tv_name",
     "className": "TextView",
     "checkedState": "",
-    "text": "宏和科技",
+    "text": "工业富联",
     "bounds": "51,2066,287,2139",
     "children": []
   },
   {
-    "index": 106,
+    "index": 104,
     "resourceId": "com.guotai.dazhihui:id/tv_code",
     "className": "TextView",
     "checkedState": "",
-    "text": "603256",
+    "text": "601138",
     "bounds": "51,2167,207,2228",
     "children": []
   },
   {
-    "index": 107,
+    "index": 105,
+    "resourceId": "com.guotai.dazhihui:id/tv_loan",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "融",
+    "bounds": "213,2177,257,2217",
+    "children": []
+  },
+  {
+    "index": 106,
     "resourceId": "com.guotai.dazhihui:id/line_scroll_view",
     "className": "HorizontalScrollView",
     "checkedState": "",
@@ -963,12 +954,21 @@
     "children": []
   },
   {
+    "index": 107,
+    "resourceId": "",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "74.10",
+    "bounds": "411,2106,738,2188",
+    "children": []
+  },
+  {
     "index": 108,
     "resourceId": "",
     "className": "TextView",
     "checkedState": "",
-    "text": "247.90",
-    "bounds": "411,2106,738,2188",
+    "text": "-6.06%",
+    "bounds": "738,2106,1065,2188",
     "children": []
   },
   {
@@ -976,21 +976,12 @@
     "resourceId": "",
     "className": "TextView",
     "checkedState": "",
-    "text": "-5.75%",
-    "bounds": "738,2106,1065,2188",
-    "children": []
-  },
-  {
-    "index": 110,
-    "resourceId": "",
-    "className": "TextView",
-    "checkedState": "",
-    "text": "-15.11",
+    "text": "-4.78",
     "bounds": "1065,2106,1389,2188",
     "children": []
   },
   {
-    "index": 111,
+    "index": 110,
     "resourceId": "",
     "className": "FrameLayout",
     "checkedState": "",
@@ -999,34 +990,34 @@
     "children": []
   },
   {
-    "index": 112,
+    "index": 111,
     "resourceId": "com.guotai.dazhihui:id/item_main_content",
     "className": "RelativeLayout",
     "checkedState": "",
-    "text": "长飞光纤，最新价570.58元，涨幅+10.00%",
+    "text": "亨通光电，最新价117.31元，涨幅-2.35%",
     "bounds": "51,2247,1389,2447",
     "children": []
   },
   {
-    "index": 113,
+    "index": 112,
     "resourceId": "com.guotai.dazhihui:id/tv_name",
     "className": "TextView",
     "checkedState": "",
-    "text": "长飞光纤",
+    "text": "亨通光电",
     "bounds": "51,2266,287,2339",
     "children": []
   },
   {
-    "index": 114,
+    "index": 113,
     "resourceId": "com.guotai.dazhihui:id/tv_code",
     "className": "TextView",
     "checkedState": "",
-    "text": "601869",
+    "text": "600487",
     "bounds": "51,2367,207,2428",
     "children": []
   },
   {
-    "index": 115,
+    "index": 114,
     "resourceId": "com.guotai.dazhihui:id/tv_loan",
     "className": "TextView",
     "checkedState": "",
@@ -1035,7 +1026,7 @@
     "children": []
   },
   {
-    "index": 116,
+    "index": 115,
     "resourceId": "com.guotai.dazhihui:id/line_scroll_view",
     "className": "HorizontalScrollView",
     "checkedState": "",
@@ -1044,12 +1035,21 @@
     "children": []
   },
   {
+    "index": 116,
+    "resourceId": "",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "117.31",
+    "bounds": "411,2306,738,2388",
+    "children": []
+  },
+  {
     "index": 117,
     "resourceId": "",
     "className": "TextView",
     "checkedState": "",
-    "text": "570.58",
-    "bounds": "411,2306,738,2388",
+    "text": "-2.35%",
+    "bounds": "738,2306,1065,2388",
     "children": []
   },
   {
@@ -1057,21 +1057,12 @@
     "resourceId": "",
     "className": "TextView",
     "checkedState": "",
-    "text": "+10.00%",
-    "bounds": "738,2306,1065,2388",
-    "children": []
-  },
-  {
-    "index": 119,
-    "resourceId": "",
-    "className": "TextView",
-    "checkedState": "",
-    "text": "+51.87",
+    "text": "-2.82",
     "bounds": "1065,2306,1389,2388",
     "children": []
   },
   {
-    "index": 120,
+    "index": 119,
     "resourceId": "",
     "className": "FrameLayout",
     "checkedState": "",
@@ -1080,34 +1071,34 @@
     "children": []
   },
   {
-    "index": 121,
+    "index": 120,
     "resourceId": "com.guotai.dazhihui:id/item_main_content",
     "className": "RelativeLayout",
     "checkedState": "",
-    "text": "鼎泰高科，最新价600.00元，涨幅-9.04%",
+    "text": "潍柴动力，最新价30.06元，涨幅-3.93%",
     "bounds": "51,2447,1389,2647",
     "children": []
   },
   {
-    "index": 122,
+    "index": 121,
     "resourceId": "com.guotai.dazhihui:id/tv_name",
     "className": "TextView",
     "checkedState": "",
-    "text": "鼎泰高科",
+    "text": "潍柴动力",
     "bounds": "51,2466,287,2539",
     "children": []
   },
   {
-    "index": 123,
+    "index": 122,
     "resourceId": "com.guotai.dazhihui:id/tv_code",
     "className": "TextView",
     "checkedState": "",
-    "text": "301377",
+    "text": "000338",
     "bounds": "51,2567,207,2628",
     "children": []
   },
   {
-    "index": 124,
+    "index": 123,
     "resourceId": "com.guotai.dazhihui:id/tv_loan",
     "className": "TextView",
     "checkedState": "",
@@ -1116,7 +1107,7 @@
     "children": []
   },
   {
-    "index": 125,
+    "index": 124,
     "resourceId": "com.guotai.dazhihui:id/line_scroll_view",
     "className": "HorizontalScrollView",
     "checkedState": "",
@@ -1125,12 +1116,21 @@
     "children": []
   },
   {
+    "index": 125,
+    "resourceId": "",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "30.06",
+    "bounds": "411,2506,738,2588",
+    "children": []
+  },
+  {
     "index": 126,
     "resourceId": "",
     "className": "TextView",
     "checkedState": "",
-    "text": "600.00",
-    "bounds": "411,2506,738,2588",
+    "text": "-3.93%",
+    "bounds": "738,2506,1065,2588",
     "children": []
   },
   {
@@ -1138,39 +1138,93 @@
     "resourceId": "",
     "className": "TextView",
     "checkedState": "",
-    "text": "-9.04%",
-    "bounds": "738,2506,1065,2588",
+    "text": "-1.23",
+    "bounds": "1065,2506,1389,2588",
     "children": []
   },
   {
     "index": 128,
     "resourceId": "",
-    "className": "TextView",
+    "className": "FrameLayout",
     "checkedState": "",
-    "text": "-59.60",
-    "bounds": "1065,2506,1389,2588",
+    "text": "android.widget.FrameLayout",
+    "bounds": "51,2647,1389,2790",
     "children": []
   },
   {
     "index": 129,
-    "resourceId": "",
-    "className": "LinearLayout",
+    "resourceId": "com.guotai.dazhihui:id/item_main_content",
+    "className": "RelativeLayout",
     "checkedState": "",
-    "text": "android.widget.LinearLayout",
+    "text": "沪电股份，最新价138.50元，涨幅-4.65%",
     "bounds": "51,2647,1389,2790",
     "children": []
   },
   {
     "index": 130,
-    "resourceId": "com.guotai.dazhihui:id/stocklist_footer",
+    "resourceId": "com.guotai.dazhihui:id/tv_name",
     "className": "TextView",
     "checkedState": "",
-    "text": "添加自选股",
-    "bounds": "527,2711,912,2790",
+    "text": "沪电股份",
+    "bounds": "51,2666,287,2739",
     "children": []
   },
   {
     "index": 131,
+    "resourceId": "com.guotai.dazhihui:id/tv_code",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "002463",
+    "bounds": "51,2767,207,2790",
+    "children": []
+  },
+  {
+    "index": 132,
+    "resourceId": "com.guotai.dazhihui:id/tv_loan",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "融",
+    "bounds": "213,2777,257,2790",
+    "children": []
+  },
+  {
+    "index": 133,
+    "resourceId": "com.guotai.dazhihui:id/line_scroll_view",
+    "className": "HorizontalScrollView",
+    "checkedState": "",
+    "text": "com.guotai.dazhihui:id/line_scroll_view",
+    "bounds": "411,2647,1389,2790",
+    "children": []
+  },
+  {
+    "index": 134,
+    "resourceId": "",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "138.50",
+    "bounds": "411,2706,738,2788",
+    "children": []
+  },
+  {
+    "index": 135,
+    "resourceId": "",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "-4.65%",
+    "bounds": "738,2706,1065,2788",
+    "children": []
+  },
+  {
+    "index": 136,
+    "resourceId": "",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "-6.76",
+    "bounds": "1065,2706,1389,2788",
+    "children": []
+  },
+  {
+    "index": 137,
     "resourceId": "com.guotai.dazhihui:id/bottom_menu_button1",
     "className": "LinearLayout",
     "checkedState": "",
@@ -1179,7 +1233,7 @@
     "children": []
   },
   {
-    "index": 132,
+    "index": 138,
     "resourceId": "com.guotai.dazhihui:id/btm_image1",
     "className": "ImageView",
     "checkedState": "",
@@ -1188,7 +1242,7 @@
     "children": []
   },
   {
-    "index": 133,
+    "index": 139,
     "resourceId": "com.guotai.dazhihui:id/btm_text1",
     "className": "TextView",
     "checkedState": "",
@@ -1197,7 +1251,7 @@
     "children": []
   },
   {
-    "index": 134,
+    "index": 140,
     "resourceId": "com.guotai.dazhihui:id/bottom_menu_button2",
     "className": "LinearLayout",
     "checkedState": "",
@@ -1206,7 +1260,7 @@
     "children": []
   },
   {
-    "index": 135,
+    "index": 141,
     "resourceId": "com.guotai.dazhihui:id/btm_image2",
     "className": "ImageView",
     "checkedState": "",
@@ -1215,7 +1269,7 @@
     "children": []
   },
   {
-    "index": 136,
+    "index": 142,
     "resourceId": "com.guotai.dazhihui:id/btm_text2",
     "className": "TextView",
     "checkedState": "",
@@ -1224,7 +1278,7 @@
     "children": []
   },
   {
-    "index": 137,
+    "index": 143,
     "resourceId": "com.guotai.dazhihui:id/bottom_menu_button3",
     "className": "LinearLayout",
     "checkedState": "",
@@ -1233,7 +1287,7 @@
     "children": []
   },
   {
-    "index": 138,
+    "index": 144,
     "resourceId": "com.guotai.dazhihui:id/btm_image3",
     "className": "ImageView",
     "checkedState": "",
@@ -1242,7 +1296,7 @@
     "children": []
   },
   {
-    "index": 139,
+    "index": 145,
     "resourceId": "com.guotai.dazhihui:id/btm_text3",
     "className": "TextView",
     "checkedState": "",
@@ -1251,7 +1305,7 @@
     "children": []
   },
   {
-    "index": 140,
+    "index": 146,
     "resourceId": "com.guotai.dazhihui:id/bottom_menu_button4",
     "className": "LinearLayout",
     "checkedState": "",
@@ -1260,7 +1314,7 @@
     "children": []
   },
   {
-    "index": 141,
+    "index": 147,
     "resourceId": "com.guotai.dazhihui:id/btm_image4",
     "className": "ImageView",
     "checkedState": "",
@@ -1269,7 +1323,7 @@
     "children": []
   },
   {
-    "index": 142,
+    "index": 148,
     "resourceId": "com.guotai.dazhihui:id/btm_text4",
     "className": "TextView",
     "checkedState": "",
@@ -1278,7 +1332,7 @@
     "children": []
   },
   {
-    "index": 143,
+    "index": 149,
     "resourceId": "com.guotai.dazhihui:id/bottom_menu_button5",
     "className": "LinearLayout",
     "checkedState": "",
@@ -1287,7 +1341,7 @@
     "children": []
   },
   {
-    "index": 144,
+    "index": 150,
     "resourceId": "com.guotai.dazhihui:id/btm_image5",
     "className": "ImageView",
     "checkedState": "",
@@ -1296,7 +1350,7 @@
     "children": []
   },
   {
-    "index": 145,
+    "index": 151,
     "resourceId": "com.guotai.dazhihui:id/btm_text5",
     "className": "TextView",
     "checkedState": "",

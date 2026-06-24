@@ -50,8 +50,8 @@ dotenv.load_dotenv(os.path.expanduser('.env'), verbose=True)
 from trading.guotai import (
     GUOTAI_PACKAGE_NAME,
     login,
-    cron_sync_app_to_db,
 )
+from trading.sync_app_to_db import cron_sync_app_to_db
 
 
 async def run_daily_trading(this_date, phase, user_id, dry_run, app_package_name):
@@ -139,6 +139,8 @@ Examples:
                         help='Legacy mode - only sync data from mobile app (no trading phases)')
 
     args = parser.parse_args()
+    if not args.date:
+        args.date = datetime.now().strftime('%Y%m%d')
 
     # Cleanup empty trajectory directories
     cleanup_empty_trajectories()
@@ -151,14 +153,13 @@ Examples:
     else:
         # Determine trading date
         this_date = args.date
-        if not this_date:
-            this_date = datetime.now().strftime('%Y%m%d')
 
         # Check if trading day, if not, get next trading day
         if not calendar.is_trading_day(this_date):
             next_trading_date = calendar.get_next_trading_day(this_date)
             print(f"⚠️ {this_date} is not a trading day. Skipping to next trading day: {next_trading_date}")
             this_date = next_trading_date
+            args.date = next_trading_date
 
             # If we skipped to a future date, we almost certainly want to run pre-market (preparation)
             if args.phase == 'auto':

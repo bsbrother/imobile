@@ -672,7 +672,17 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
         regime_data: Any = detect_market_regime(base_date)
         stop_loss_ratio = regime_data.get('stop_loss_pct', 0.10)
         take_profit_ratio = regime_data.get('take_profit_pct', 0.10)
-        logger.info(f"Market Regime: {regime_data.get('regime', 'Unknown')}, "
+        
+        regime = regime_data.get('regime', 'normal')
+        regime_max_positions = {
+            'bull': 12,
+            'normal': 10,
+            'volatile': 8,
+            'bear': 5
+        }
+        max_positions = regime_max_positions.get(regime, max_positions)
+        
+        logger.info(f"Market Regime: {regime.upper()}, Max Positions: {max_positions}, "
                     f"SL Ratio: {stop_loss_ratio:.2%}, TP Ratio: {take_profit_ratio:.2%}")
 
         # Get strategy configuration for current market pattern
@@ -846,13 +856,15 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                 else:
                     buy_quantity = int(position_value / buy_price)
 
-                # Ensure minimum lot size (100 shares in China A-shares)
+                # Ensure minimum lot size (100 shares in China A-shares, 200 shares for STAR/ChiNext)
+                is_star_chinext = symbol.startswith('3') or symbol.startswith('688')
+                min_qty = 200 if is_star_chinext else 100
                 buy_quantity = (buy_quantity // 100) * 100
 
-                # Ensure at least 1 lot when affordable; otherwise skip
-                if buy_quantity < 100:
+                # Ensure at least minimum lot when affordable; otherwise skip
+                if buy_quantity < min_qty:
                     logger.info(
-                        f"Skip {symbol}: computed position too small (qty={buy_quantity}) "
+                        f"Skip {symbol}: computed position too small (qty={buy_quantity}, min={min_qty}) "
                         f"for buy_price={buy_price:.2f}, remaining_cash={remaining_cash:.2f}."
                     )
                     continue

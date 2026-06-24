@@ -9,7 +9,6 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Tuple, Optional, Any
 from loguru import logger
 import unicodedata
-import Levenshtein
 
 from mobilerun import (
     AndroidDriver,
@@ -335,40 +334,26 @@ def get_agent(config: MobileConfig | None = None, llm: GoogleGenAI | None = None
     return agent
 
 
-def get_format_output(tools: AndroidDriver, output:str, start_str:str = 'csv_format_name,', data_name:str = 'which data') -> str:
+def get_format_output(output:str) -> str:
     """
     Get CSV format string from doridrun output to extract relevant data.
 
     output: 'I have successfully extracted all indices and stocks from the \'我的持仓\' page, formatted them into CSV format, and stored the result. Here is the final CSV data:\n\nIndex Name,Number,Ratio\n沪,3890.45,"+0.36%"\n深,
     """
-    if not output:
-        return output
     output = output.lower().strip()
     SPLIT_STR = ['data is:', 'data:', 'result:']
     for s in SPLIT_STR:
         if s in output:
             output = output.split(s)[-1].strip()
             break
-    start_str = start_str.strip().lower()
-    start = output.split(',', 1)[0].split(' ', 1)[-1].split('_', 1)[-1].strip().lower() + ','
-    # 2026.06.15 compare nearly same xx%.
-    if Levenshtein.distance(start_str, start) <= 3:
-        return output
-    if not output.startswith(start_str) and start != start_str:
-        output_save = output
-        # Regex to remove 'name,:' or 'Indices Data:' or 'Stocks Data:' lines.
-        output = re.sub(r'.*name,:\s*', '', output, flags=re.IGNORECASE)
-        output = re.sub(r'.*indices:\s*', '', output, flags=re.IGNORECASE)
-        output = re.sub(r'.*stocks:\s*', '', output, flags=re.IGNORECASE)
-        output = re.sub(r'.*summary:\s*', '', output, flags=re.IGNORECASE)
-        output = re.sub(r'.*indices data:\s*', '', output, flags=re.IGNORECASE)
-        output = re.sub(r'.*stocks data:\s*', '', output, flags=re.IGNORECASE)
-        output = re.sub(r'.*summary data:\s*', '', output, flags=re.IGNORECASE)
-        start = output.split(',', 1)[0].split(' ', 1)[-1].split('_', 1)[-1].strip().lower() + ','
-        if Levenshtein.distance(start_str, start) <= 3:
-            return output
-        if not output.startswith(start_str) and start != start_str:
-            raise ValueError(f"FORMAT ERROR: <{data_name}> should start with <{start_str}> ~= <{start}>:\n{output_save}")
+    # Regex to remove 'name,:' or 'Indices Data:' or 'Stocks Data:' lines.
+    output = re.sub(r'.*name,:\s*', '', output, flags=re.IGNORECASE)
+    output = re.sub(r'.*indices:\s*', '', output, flags=re.IGNORECASE)
+    output = re.sub(r'.*stocks:\s*', '', output, flags=re.IGNORECASE)
+    output = re.sub(r'.*summary:\s*', '', output, flags=re.IGNORECASE)
+    output = re.sub(r'.*indices data:\s*', '', output, flags=re.IGNORECASE)
+    output = re.sub(r'.*stocks data:\s*', '', output, flags=re.IGNORECASE)
+    output = re.sub(r'.*summary data:\s*', '', output, flags=re.IGNORECASE)
     return output
 
 
@@ -390,7 +375,7 @@ async def get_order_from_app_smart_order_page(config: MobileConfig, llm: GoogleG
     Return: str
     """
     goto_homepage()
-    replay_page(['创建订单', '查看详情'])
+    replay_page(['智能订单', '查看详情'])
     goal = """
     Tap '已结束' tab.
     Extract all visible orders (name,code,trigger_condition,buy_or_sell_price_type,buy_or_sell_quantity,valid_until,order_number,reason_of_ending) from the list. Store the extracted orders in memory using remember().
@@ -400,9 +385,9 @@ async def get_order_from_app_smart_order_page(config: MobileConfig, llm: GoogleG
     """
     agent = get_agent(config=config, llm=llm, tools=tools, goal=goal)
     result = await agent.run()
-    if not result.success:
+    if not result.success or not result.reason:
         raise ValueError(f"❌ Goal get orders not completed: {result.reason}")
-    output = get_format_output(tools, result.reason, 'name,', 'orders data')
+    output = get_format_output(result.reason.strip())
     return output
 
 
@@ -423,15 +408,15 @@ async def get_index_stock_from_app_quote_page(config: MobileConfig, llm: GoogleG
     goto_homepage()
     replay_page(['行情','我的持仓'])
     goal = """
-    Extract the 3 indices (name, number, ratio) from the top of the screen and all visible stocks (name, code, latest price, increase percentage, increase amount) from the list. Store both sets of data in memory using remember().
-    Continue scroll down to got more stocks in list, then extract all newly visible stocks and append them to the 'Extracted Stocks' in memory until no more new stocks.
-    Format the last 'Extracted Indices' and 'Extracted Stocks' in memory into CSV format, combine them with two new lines separator, and return the final CSV data in your response starting with 'result:'.
+    Extract the 3 indices (3 values: name, number, ratio) from the top of the screen and all visible stocks (5 values: name, code, latest price, increase percentage, increase amount) from the list. Store both sets of data in memory using remember().
+    loop scroll down to got more stocks in list, then extract all newly visible stocks and append them to the 'Extracted Stocks' in memory until no more new stocks.
+    Format the last 'Extracted Indices' and 'Extracted Stocks' in memory into CSV format, combine them with two new lines separator, return the final CSV data in your response starting with 'result:'.
     """
     agent = get_agent(config=config, llm=llm, tools=tools, goal=goal)
     result = await agent.run()
-    if not result.success:
+    if not result.success or not result.reason:
         raise ValueError(f"❌ Goal get index and stock not completed: {result.reason}")
-    output = get_format_output(tools, result.reason, 'name,', 'quote data')
+    output = get_format_output(result.reason.strip())
     return output
 
 
@@ -460,17 +445,15 @@ async def get_summary_position_from_app_position_page(config: MobileConfig, llm:
     goto_homepage()
     replay_page(['交易','持仓'])
     goal = """
-    Extract the 1 account summary (floating_profit_loss, account_assets, market_cap, positions, available, desirable) from the top of the screen
-    and all visible stocks (name, market_cap, open, available, current_price, cost, floating_profit, floating_loss_percentage) from the list. Store both sets of data in memory using remember().
+    Extract the 1 account summary (6 numeric values: floating_profit_loss, account_assets, market_cap, positions, available, desirable) from the top of the screen and all visible stocks (8 values: name, market_cap, position_number, available, current_price, cost, floating_profit, floating_loss_percentage) from the list. Store both sets of data in memory using remember().
     Continue scroll down to got more stocks in list, then extract all newly visible stocks and append them to the 'Extracted Stocks' in memory until no more new stocks.
-    Format the last 'Extracted Summary' and 'Extracted Stocks' in memory into CSV format, combine them with two new lines separator, and return the final CSV data in your response starting with 'result:'.
+    Format the last 'Extracted Summary' and 'Extracted Stocks' in memory into CSV format, combine them with two new lines separator, remove all lines like 'Extracted xx' and only return the final CSV data in your response starting with 'result:', DO NOT return summary content, just final result CSV data.
     """
     agent = get_agent(config=config, llm=llm, tools=tools, goal=goal)
     result = await agent.run()
-    if not result.success:
+    if not result.success or not result.reason:
         raise ValueError(f"❌ Goal get summary and position not completed: {result.reason}")
-    output = get_format_output(tools, result.reason, 'profit_loss,', 'position data')
-    return output
+    return get_format_output(result.reason.strip())
 
 
 def parse_csv_data(csv_text: str) -> Tuple[List[str], List[List[str]]]:
@@ -489,12 +472,20 @@ def parse_csv_data(csv_text: str) -> Tuple[List[str], List[List[str]]]:
     if not lines:
         return [], []
 
-    header = [h.strip() for h in lines[0].split(',')]
-    data_rows = []
-    for line in lines[1:]:
-        row = [cell.strip() for cell in line.split(',')]
-        data_rows.append(row)
-
+    # Some time AI return is no header, so we need to check if the first line is header
+    # if first line has format 'xx, yy, ... has more than 1 numberic in it...' then it has no header.
+    if len(lines[0].split(',')) >=2 and any(item.replace('.', '', 1).isdigit() for item in lines[0].split(',')):
+        header = []
+        data_rows = []
+        for line in lines:
+            row = [cell.strip() for cell in line.split(',')]
+            data_rows.append(row)
+    else:
+        header = [h.strip() for h in lines[0].split(',')]
+        data_rows = []
+        for line in lines[1:]:
+            row = [cell.strip() for cell in line.split(',')]
+            data_rows.append(row)
     return header, data_rows
 
 
@@ -565,7 +556,6 @@ def normalize_stock_name(name: str) -> str:
     return unicodedata.normalize('NFKC', name)
 
 
-
 def sync_index_quote_data_to_db(quote_data: Optional[str] = None, user_id: int = 1) -> Dict:
     """Sync real-time index and stock quote data from mobile app to database.
 
@@ -581,6 +571,11 @@ def sync_index_quote_data_to_db(quote_data: Optional[str] = None, user_id: int =
     Returns:
         Dict with success status and message
     """
+    if not quote_data:
+        raise ValueError(f"Quote data is missing: {quote_data}.")
+    sections = quote_data.split('\n\n')
+    if len(sections) != 2:
+        raise ValueError(f"Quote data must has indexes \\n\\n stocks. But got: {sections}")
     index_code = index_name = ''
     stock_code = stock_name = ''
     result: Dict[str, Any] = {
@@ -597,128 +592,121 @@ def sync_index_quote_data_to_db(quote_data: Optional[str] = None, user_id: int =
         source_index_codes = set()
         source_stock_codes = set()
 
-        # Process quote page data (indices and stock quotes)
-        if quote_data:
-            # Split into index data and stock data sections
-            sections = quote_data.strip().split('\n\n')
-            # Section 1: Market indices
-            if len(sections) >= 1:
-                header, index_rows = parse_csv_data(sections[0])
-                for row in index_rows:
-                    if len(row) >= 3:
-                        index_name = row[0]
-                        index_value = parse_number(row[1])
-                        index_ratio = parse_percentage(row[2])
+        # Section 1: Market indices
+        header, index_rows = parse_csv_data(sections[0])
+        for row in index_rows:
+            if len(row) != 3:
+                raise ValueError(f"Index row {row} is invalid.")
+            index_name = row[0]
+            index_value = parse_number(row[1])
+            index_ratio = parse_percentage(row[2])
+            # Generate index_code based on name
+            index_name_map = {
+                'index_1:上证指数': '上证指数',
+                'index_2:深证成指': '深证成指',
+                'index_3:创业板指': '创业板指',
+                'shanghai (沪)': '上证指数',
+                'shenzhen (深)': '深证成指',
+                'chi (创)': '创业板指',
+                'shanghai': '上证指数',
+                'shenzhen': '深证成指',
+                'chinext': '创业板指',
+                '沪': '上证指数',
+                '深': '深证成指',
+                '创': '创业板指'
+            }
+            index_code_map = {
+                '上证指数': '000001.SH',
+                '深证成指': '399001.SZ',
+                '创业板指': '399006.SZ'
+            }
+            index_name = index_name_map.get(index_name.lower(), index_name)
+            index_code = index_code_map.get(index_name.lower(), '').upper()
 
-                        # Generate index_code based on name
-                        index_name_map = {
-                            'index_1:上证指数': '上证指数',
-                            'index_2:深证成指': '深证成指',
-                            'index_3:创业板指': '创业板指',
-                            'shanghai (沪)': '上证指数',
-                            'shenzhen (深)': '深证成指',
-                            'chi (创)': '创业板指',
-                            'shanghai': '上证指数',
-                            'shenzhen': '深证成指',
-                            'chinext': '创业板指',
-                            '沪': '上证指数',
-                            '深': '深证成指',
-                            '创': '创业板指'
-                        }
-                        index_code_map = {
-                            '上证指数': '000001.SH',
-                            '深证成指': '399001.SZ',
-                            '创业板指': '399006.SZ'
-                        }
-                        index_name = index_name_map.get(index_name.lower(), index_name)
-                        index_code = index_code_map.get(index_name.lower(), '').upper()
+            # Skip rows that don't map to a valid index code
+            if not index_code or not re.match(r'^\d{6}\.[A-Z]{2}$', index_code):
+                logger.warning(f"Skipping invalid index: name={index_name}, code={index_code}")
+                continue
 
-                        # Skip rows that don't map to a valid index code
-                        if not index_code or not re.match(r'^\d{6}\.[A-Z]{2}$', index_code):
-                            logger.warning(f"Skipping invalid index: name={index_name}, code={index_code}")
-                            continue
+            # Track this index code
+            source_index_codes.add(index_code)
 
-                        # Track this index code
-                        source_index_codes.add(index_code)
+            # Upsert into market_indices
+            cursor.execute("""
+                INSERT INTO market_indices (index_code, index_name, current_value, change_percent, last_updated)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(index_code) DO UPDATE SET
+                    index_name = excluded.index_name,
+                    current_value = excluded.current_value,
+                    change_percent = excluded.change_percent,
+                    last_updated = excluded.last_updated
+                """, (index_code, index_name, index_value, index_ratio, current_time))
+            result['indices_updated'] += 1
 
-                        # Upsert into market_indices
-                        cursor.execute("""
-                            INSERT INTO market_indices (index_code, index_name, current_value, change_percent, last_updated)
-                            VALUES (?, ?, ?, ?, ?)
-                            ON CONFLICT(index_code) DO UPDATE SET
-                                index_name = excluded.index_name,
-                                current_value = excluded.current_value,
-                                change_percent = excluded.change_percent,
-                                last_updated = excluded.last_updated
-                        """, (index_code, index_name, index_value, index_ratio, current_time))
-                        result['indices_updated'] += 1
+        # Section 2: Stock quotes
+        header, stock_rows = parse_csv_data(sections[1])
+        for row in stock_rows:
+            if len(row) != 5:
+                raise ValueError(f"Invalid stock row: {row}")
+            stock_name = normalize_stock_name(row[0])
+            stock_code = row[1]
+            # stock_code must 6 number, if not, prefix fill with 0.
+            if re.match(r'^\d{1,6}$', stock_code):
+                if len(stock_code) < 6:
+                    stock_code = stock_code.zfill(6)
+            current_price = parse_number(row[2])
+            change_percent = parse_percentage(row[3])
+            change_amount = parse_number(row[4])
 
-            # Section 2: Stock quotes
-            if len(sections) >= 2:
-                header, stock_rows = parse_csv_data(sections[1])
-                for row in stock_rows:
-                    if len(row) >= 5:
-                        stock_name = normalize_stock_name(row[0])
-                        stock_code = row[1]
-                        # stock_code must 6 number, if not, prefix fill with 0.
-                        if re.match(r'^\d{1,6}$', stock_code):
-                            if len(stock_code) < 6:
-                                stock_code = stock_code.zfill(6)
-                        current_price = parse_number(row[2])
-                        change_percent = parse_percentage(row[3])
-                        change_amount = parse_number(row[4])
+            # Check stock_code validity
+            if not stock_code or not re.match(r'^\d{6}$', stock_code):
+                raise ValueError(f"Invalid stock code format: {stock_code} for stock {stock_name}. row: {row}")
+            if not stock_name or not re.match(r'^[\w\uFF21-\uFF3A*]+$', stock_name):
+                raise ValueError(f"Invalid stock name format: {stock_name}")
 
-                        # Check stock_code validity
-                        if not stock_code or not re.match(r'^\d{6}$', stock_code):
-                            raise ValueError(f"Invalid stock code format: {stock_code} for stock {stock_name}. row: {row}")
-                        if not stock_name or not re.match(r'^[\w\uFF21-\uFF3A*]+$', stock_name):
-                            raise ValueError(f"Invalid stock name format: {stock_name}")
+            # Track this stock code
+            source_stock_codes.add(stock_code)
 
-                        # Track this stock code
-                        source_stock_codes.add(stock_code)
+            # First try to update by name (in case stock exists with different code format)
+            cursor.execute("""
+                UPDATE holding_stocks
+                SET code = ?,
+                    current_price = ?,
+                    change = ?,
+                    change_percent = ?,
+                    last_updated = ?
+                WHERE user_id = ? AND name = ?
+            """, (stock_code, current_price, change_amount, change_percent, current_time, user_id, stock_name))
 
-                        # First try to update by name (in case stock exists with different code format)
-                        cursor.execute("""
-                            UPDATE holding_stocks
-                            SET code = ?,
-                                current_price = ?,
-                                change = ?,
-                                change_percent = ?,
-                                last_updated = ?
-                            WHERE user_id = ? AND name = ?
-                        """, (stock_code, current_price, change_amount, change_percent, current_time, user_id, stock_name))
+            if cursor.rowcount == 0:
+                # If no match by name, try upsert by code
+                cursor.execute("""
+                    INSERT INTO holding_stocks (user_id, code, name, current_price, change, change_percent, last_updated)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(user_id, code) DO UPDATE SET
+                        name = excluded.name,
+                        current_price = excluded.current_price,
+                        change = excluded.change,
+                        change_percent = excluded.change_percent,
+                        last_updated = excluded.last_updated
+                """, (user_id, stock_code, stock_name, current_price, change_amount, change_percent, current_time))
 
-                        if cursor.rowcount == 0:
-                            # If no match by name, try upsert by code
-                            cursor.execute("""
-                                INSERT INTO holding_stocks (user_id, code, name, current_price, change, change_percent, last_updated)
-                                VALUES (?, ?, ?, ?, ?, ?, ?)
-                                ON CONFLICT(user_id, code) DO UPDATE SET
-                                    name = excluded.name,
-                                    current_price = excluded.current_price,
-                                    change = excluded.change,
-                                    change_percent = excluded.change_percent,
-                                    last_updated = excluded.last_updated
-                            """, (user_id, stock_code, stock_name, current_price, change_amount, change_percent, current_time))
+            result['stocks_updated'] += 1
 
-                        result['stocks_updated'] += 1
+        # Remove orphaned stock records (exist in DB but not in source data)
+        if source_stock_codes:
+            placeholders = ','.join('?' * len(source_stock_codes))
+            cursor.execute(f"""
+                DELETE FROM holding_stocks
+                WHERE user_id = ? AND code NOT IN ({placeholders})
+            """, [user_id] + list(source_stock_codes))
+            result['stocks_removed'] = cursor.rowcount
 
-            # Remove orphaned stock records (exist in DB but not in source data)
-            if source_stock_codes:
-                placeholders = ','.join('?' * len(source_stock_codes))
-                cursor.execute(f"""
-                    DELETE FROM holding_stocks
-                    WHERE user_id = ? AND code NOT IN ({placeholders})
-                """, [user_id] + list(source_stock_codes))
-                result['stocks_removed'] = cursor.rowcount
-
-            result['message'].append(f"Updated {result['indices_updated']} indices and {result['stocks_updated']} stock quotes, removed {result['stocks_removed']} orphaned stocks")
+        result['message'].append(f"Updated {result['indices_updated']} indices and {result['stocks_updated']} stock quotes, removed {result['stocks_removed']} orphaned stocks")
 
         result['message'] = ' | '.join(result['message'])
 
         # Analysis result whether data is fully synced
-        if not quote_data:
-            raise ValueError(f"Quote data is missing: {quote_data}.")
         if not all([index_code, index_name, stock_code, stock_name]):
             raise ValueError(f"""No valid index or stock data found in the provided data.
                              index_code: {index_code}, index_name: {index_name},
@@ -750,6 +738,12 @@ def sync_summary_position_data_to_db(position_data: Optional[str] = None, user_i
     Returns:
         Dict with success status and message
     """
+    if not position_data:
+        raise ValueError(f"Position data is missing: {position_data}.")
+    sections = position_data.split('\n\n')
+    if len(sections) != 2:
+        raise ValueError(f"""Position data must has sumary \\n\\n stocks, but got: {sections}.""")
+
     account_assets = market_cap = 0.0
     stock_name = ''
     result: Dict[str, Any] = {
@@ -764,105 +758,98 @@ def sync_summary_position_data_to_db(position_data: Optional[str] = None, user_i
     has_exceptions = True
     with DB.cursor() as cursor:
         current_time = datetime.now().isoformat()
-
         # Process position page data (summary and stock positions)
-        if position_data:
-            sections = position_data.strip().split('\n\n')
+        # Section 1: Portfolio summary
+        header, summary_rows = parse_csv_data(sections[0])
+        if not summary_rows or len(summary_rows[0]) != 6:
+            raise ValueError("Position summary data is missing or invalid: {summary_rows}")
+        row = summary_rows[0]
+        floating_pnl = parse_number(row[0])
+        account_assets = parse_number(row[1])
+        market_cap = parse_number(row[2])
+        position_percent = parse_percentage(row[3])
+        available = parse_number(row[4])
+        withdrawable = parse_number(row[5])
+        floating_pnl_percent = (floating_pnl / market_cap * 100) if market_cap > 0 else 0.0
 
-            # Section 1: Portfolio summary
-            if len(sections) >= 1:
-                header, summary_rows = parse_csv_data(sections[0])
-                if summary_rows and len(summary_rows[0]) >= 6:
-                    row = summary_rows[0]
-                    floating_pnl = parse_number(row[0])
-                    account_assets = parse_number(row[1])
-                    market_cap = parse_number(row[2])
-                    position_percent = parse_percentage(row[3])
-                    available = parse_number(row[4])
-                    withdrawable = parse_number(row[5])
+        cursor.execute("""
+            INSERT INTO summary_account (
+                user_id, total_market_value, floating_pnl_summary,
+                floating_pnl_summary_percent, total_assets, cash,
+                position_percent, withdrawable, last_updated
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                total_market_value = excluded.total_market_value,
+                floating_pnl_summary = excluded.floating_pnl_summary,
+                floating_pnl_summary_percent = excluded.floating_pnl_summary_percent,
+                total_assets = excluded.total_assets,
+                cash = excluded.cash,
+                position_percent = excluded.position_percent,
+                withdrawable = excluded.withdrawable,
+                last_updated = excluded.last_updated
+        """, (user_id, market_cap, floating_pnl, floating_pnl_percent,
+                account_assets, available, position_percent, withdrawable, current_time))
 
-                    floating_pnl_percent = (floating_pnl / market_cap * 100) if market_cap > 0 else 0.0
+        result['total_updated'] = True
+        result['message'].append(f"Updated portfolio summary: Total Assets={account_assets}, Market Value={market_cap}")
 
-                    cursor.execute("""
-                        INSERT INTO summary_account (
-                            user_id, total_market_value, floating_pnl_summary,
-                            floating_pnl_summary_percent, total_assets, cash,
-                            position_percent, withdrawable, last_updated
-                        )
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        ON CONFLICT(user_id) DO UPDATE SET
-                            total_market_value = excluded.total_market_value,
-                            floating_pnl_summary = excluded.floating_pnl_summary,
-                            floating_pnl_summary_percent = excluded.floating_pnl_summary_percent,
-                            total_assets = excluded.total_assets,
-                            cash = excluded.cash,
-                            position_percent = excluded.position_percent,
-                            withdrawable = excluded.withdrawable,
-                            last_updated = excluded.last_updated
-                    """, (user_id, market_cap, floating_pnl, floating_pnl_percent,
-                          account_assets, available, position_percent, withdrawable, current_time))
+        # Section 2: Stock positions
+        header, position_rows = parse_csv_data(sections[1])
+        for row in position_rows:
+            if len(row) != 8:
+                raise ValueError(f"Invalid stock position data format: {row}")
+            stock_name = normalize_stock_name(row[0])
+            market_value = parse_number(row[1])
+            holdings = int(parse_number(row[2]))
+            available_shares = int(parse_number(row[3]))
+            current_price = parse_number(row[4])
+            cost_basis = parse_number(row[5])
+            pnl_float = parse_number(row[6])
+            pnl_float_percent = parse_percentage(row[7])
 
-                    result['total_updated'] = True
-                    result['message'].append(f"Updated portfolio summary: Total Assets={account_assets}, Market Value={market_cap}")
+            if not stock_name or not re.match(r'^[\w\uFF21-\uFF3A*]+$', stock_name):
+                raise ValueError(f"Invalid stock name format: {stock_name}")
 
-            # Section 2: Stock positions
-            if len(sections) >= 2:
-                header, position_rows = parse_csv_data(sections[1])
-                for row in position_rows:
-                    if len(row) >= 8:
-                        stock_name = normalize_stock_name(row[0])
-                        market_value = parse_number(row[1])
-                        holdings = int(parse_number(row[2]))
-                        available_shares = int(parse_number(row[3]))
-                        current_price = parse_number(row[4])
-                        cost_basis = parse_number(row[5])
-                        pnl_float = parse_number(row[6])
-                        pnl_float_percent = parse_percentage(row[7])
+            # Track this stock name
+            source_stock_names.add(stock_name)
 
-                        if not stock_name or not re.match(r'^[\w\uFF21-\uFF3A*]+$', stock_name):
-                            raise ValueError(f"Invalid stock name format: {stock_name}")
+            # Try to update existing stock by name
+            cursor.execute("""
+                UPDATE holding_stocks
+                SET market_value = ?,
+                    holdings = ?,
+                    available_shares = ?,
+                    current_price = ?,
+                    cost_basis_diluted = ?,
+                    cost_basis_total = ?,
+                    pnl_float = ?,
+                    pnl_float_percent = ?,
+                    last_updated = ?
+                WHERE user_id = ? AND name = ?
+            """, (market_value, holdings, available_shares, current_price,
+                cost_basis, cost_basis, pnl_float, pnl_float_percent,
+                current_time, user_id, stock_name))
 
-                        # Track this stock name
-                        source_stock_names.add(stock_name)
+            # If stock doesn't exist, we can optionally insert it (though position data lacks code)
+            # For now, we only update existing stocks as per original logic
+            if cursor.rowcount > 0:
+                result['stocks_updated'] += 1
 
-                        # Try to update existing stock by name
-                        cursor.execute("""
-                            UPDATE holding_stocks
-                            SET market_value = ?,
-                                holdings = ?,
-                                available_shares = ?,
-                                current_price = ?,
-                                cost_basis_diluted = ?,
-                                cost_basis_total = ?,
-                                pnl_float = ?,
-                                pnl_float_percent = ?,
-                                last_updated = ?
-                            WHERE user_id = ? AND name = ?
-                        """, (market_value, holdings, available_shares, current_price,
-                              cost_basis, cost_basis, pnl_float, pnl_float_percent,
-                              current_time, user_id, stock_name))
+        # Remove orphaned stock records (exist in DB but not in source data)
+        # Only remove if we have valid position data
+        if source_stock_names:
+            placeholders = ','.join('?' * len(source_stock_names))
+            cursor.execute(f"""
+                DELETE FROM holding_stocks
+                WHERE user_id = ? AND name NOT IN ({placeholders})
+            """, [user_id] + list(source_stock_names))
+            result['stocks_removed'] = cursor.rowcount
 
-                        # If stock doesn't exist, we can optionally insert it (though position data lacks code)
-                        # For now, we only update existing stocks as per original logic
-                        if cursor.rowcount > 0:
-                            result['stocks_updated'] += 1
-
-                # Remove orphaned stock records (exist in DB but not in source data)
-                # Only remove if we have valid position data
-                if source_stock_names:
-                    placeholders = ','.join('?' * len(source_stock_names))
-                    cursor.execute(f"""
-                        DELETE FROM holding_stocks
-                        WHERE user_id = ? AND name NOT IN ({placeholders})
-                    """, [user_id] + list(source_stock_names))
-                    result['stocks_removed'] = cursor.rowcount
-
-                result['message'].append(f"Updated {result.get('stocks_updated', 0)} stock positions from {len(position_rows)} records, removed {result['stocks_removed']} orphaned stocks")
+            result['message'].append(f"Updated {result.get('stocks_updated', 0)} stock positions from {len(position_rows)} records, removed {result['stocks_removed']} orphaned stocks")
 
         result['message'] = ' | '.join(result['message'])
 
-        if not position_data:
-            raise ValueError(f"Position data is missing: {position_data}.")
         if not all(list(source_stock_names)):
             raise ValueError(f"""No valid stock data found in the provided data.
                              source_stock_names: {source_stock_names}.
@@ -990,10 +977,9 @@ async def get_transactions_from_app_history_page(config: MobileConfig, llm: Goog
     )
     agent = get_agent(config=config, llm=llm, tools=tools, goal=goal)
     result = await agent.run()
-    if not result.success:
+    if not result.success or not result.reason:
         raise ValueError(f"❌ Goal get transactions not completed: {result.reason}")
-    output = get_format_output(tools, result.reason, 'name,', 'transactions data')
-    return output
+    return get_format_output(result.reason.strip())
 
 
 async def cron_sync_app_to_db(check_trading_day_and_time: bool = True) -> dict:

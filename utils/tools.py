@@ -424,38 +424,6 @@ def fill_stock_code(code: str, ui_text: str, verify_page_text: str = None) -> No
 # Navigation Logic
 # ---------------------------------------------------------------------------
 
-def _goto_create_order_page() -> None:
-    """From the homepage, scroll down and tap '创建订单' to open the smart order page."""
-    logger.info("Looking for '创建订单' button on homepage…")
-    run_cmd("mobilerun device swipe 720 1500 720 500", check=False)
-    time.sleep(2)
-
-    ui = get_ui_tree()
-    center = find_element_center(ui, '创建订单')
-    if not center:
-        logger.info("'创建订单' not found yet, scrolling further…")
-        run_cmd("mobilerun device swipe 720 1500 720 500", check=False)
-        time.sleep(2)
-        ui = get_ui_tree()
-        center = find_element_center(ui, '创建订单')
-
-    if not center:
-        raise RuntimeError("Cannot find '创建订单' button on homepage after scrolling.")
-
-    logger.info(f"Tapping '创建订单' at {center}")
-    device_tap(*center, sleep_after=3)
-
-    for attempt in range(1, 6):
-        ui = get_ui_tree()
-        if '到价买入' in ui:
-            logger.info("✅ Smart order selection page reached.")
-            return
-        logger.info(f"Waiting for smart order page to load (attempt {attempt}/5)…")
-        time.sleep(1)
-
-    raise RuntimeError("Did not reach the smart order page after tapping '创建订单'.")
-
-
 def _tap_order_page(page: str) -> None:
     """Tap the button for the requested page (到价买入 / 到价卖出 / 止盈止损)."""
     label = PAGE_LABELS.get(page)
@@ -464,6 +432,12 @@ def _tap_order_page(page: str) -> None:
 
     ui = get_ui_tree()
     center = find_element_center(ui, label)
+    if not center:
+        # try scrolling to find it
+        device_swipe(720, 1500, 720, 500, sleep_after=1.5)
+        ui = get_ui_tree()
+        center = find_element_center(ui, label)
+
     if not center:
         raise RuntimeError(f"Cannot find '{label}' button on smart order page.")
 
@@ -483,8 +457,8 @@ def _tap_order_page(page: str) -> None:
 
 
 def goto_page(page: str = 'order_buy') -> None:
-    """Full navigation: open_app → login → homepage → 创建订单 → target page."""
-    from trading.guotai import open_app, login, goto_homepage
+    """Full navigation: open_app → login → homepage → replay_page(['今日触发']) → target page."""
+    from trading.guotai import open_app, login, goto_homepage, replay_page
     if page not in PAGE_LABELS:
         raise ValueError(f"Unknown page '{page}'. Valid: {list(PAGE_LABELS)}")
 
@@ -493,8 +467,76 @@ def goto_page(page: str = 'order_buy') -> None:
     open_app()
     login()
     goto_homepage()
-    _goto_create_order_page()
+    
+    logger.info("Replaying '今日触发' to reach smart order select page...")
+    replay_page(['今日触发'])
+    time.sleep(2)
+    
     _tap_order_page(page)
+
+
+def get_available_cash_from_homepage() -> float:
+    """Read available cash from the '资金资产' field on the homepage (交易 tab main view)."""
+    from trading.guotai import open_app, login, goto_homepage
+    
+    logger.info("Extracting available cash from app homepage...")
+    open_app()
+    login()
+    goto_homepage()
+    
+    # Check if "资金资产" is visible
+    ui = get_ui_tree()
+    if "资金资产" not in ui:
+        # Tap the "交易" tab on the bottom menu
+        # Bottom menu "交易" tab is typically around (720, 2880)
+        trading_tab = find_element_center(ui, "交易")
+        if trading_tab:
+            logger.info(f"Tapping '交易' tab at {trading_tab}")
+            device_tap(*trading_tab, sleep_after=2)
+        else:
+            logger.info("Tapping default '交易' tab coordinates (720, 2880)")
+            device_tap(720, 2880, sleep_after=2)
+        ui = get_ui_tree()
+        
+    # Check if there is a clearing warning popup like "当前为我司交易系统清算期间..."
+    # If "我知道了" exists, tap it to dismiss and refresh UI tree
+    p = find_element_center(ui, "我知道了")
+    if p:
+        logger.info(f"Dismissing clearing warning popup at {p}")
+        device_tap(*p, sleep_after=1.5)
+        ui = get_ui_tree()
+
+    # Parse available cash
+    # The TextView tv_available contains the cash amount
+    lines = ui.split('\n')
+    cash_value = None
+    for i, line in enumerate(lines):
+        if "资金资产" in line:
+            # Look at the next few lines for tv_available or numbers
+            for j in range(i + 1, min(i + 10, len(lines))):
+                next_line = lines[j]
+                # Look for a number pattern (like 365277.14)
+                match = re.search(r'"(\d+\.\d+)"', next_line)
+                if match:
+                    cash_value = float(match.group(1))
+                    break
+            if cash_value is not None:
+                break
+                
+    if cash_value is None:
+        # Fallback regex search for tv_available in the entire UI dump
+        for line in lines:
+            if "tv_available" in line:
+                match = re.search(r'text - "(\d+\.\d+)"', line) or re.search(r'"(\d+\.\d+)"', line)
+                if match:
+                    cash_value = float(match.group(1))
+                    break
+                    
+    if cash_value is None:
+        raise RuntimeError("Failed to extract available cash ('资金资产') from app homepage.")
+        
+    logger.info(f"Successfully extracted cash from app homepage: ¥{cash_value:,.2f}")
+    return cash_value
 
 
 # ---------------------------------------------------------------------------

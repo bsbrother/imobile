@@ -276,7 +276,8 @@ Runs before the market opens (typically ~09:00):
 
 During trading session (09:30–11:30, 13:00–15:00):
 
-- Monitors and executes pending smart orders (TODO: order execution integration)
+- Monitors and executes pending smart orders. Note that the live market session execution via ADB in `trading/runner.py` is currently a **`TODO` stub**. Instead, the system relies on the Guotai Junan broker app's native server-side trigger system: smart orders generated during `pre-market` are uploaded/synced to the app, and the broker's servers handle the live execution.
+- *A-Share Rule Difference*: The backtesting system does not enforce the real-market requirement that ChiNext (`30xxx`) and STAR Market (`688xxx`) stocks have a minimum buy quantity of **200 shares** (it rounds down to 100 shares unconditionally). Ensure your real-world sizing rules enforce the 200-shares floor to prevent order submission failures on the broker app.
 
 ### `post-market`
 

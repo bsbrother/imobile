@@ -1,0 +1,734 @@
+import os
+import sys
+import asyncio
+import re
+import time
+from datetime import datetime, timedelta
+from typing import Dict, List, Tuple, Optional, Any
+from loguru import logger
+
+# Add the parent directory to Python path so we can import from shared/utils
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from mobilerun import MobileConfig, AndroidDriver
+from llama_index.llms.google_genai import GoogleGenAI
+from shared.db.db import DB
+from backtest.utils.trading_calendar import calendar
+from utils.trading_time import get_market_open_times_refresh_interval
+
+# Import functions and requirements from trading.guotai
+from trading.guotai import (
+    pre_requirements,
+    goto_homepage,
+    replay_page,
+    parse_csv_data,
+    parse_number,
+    parse_percentage,
+    normalize_stock_name,
+    extract_stock_code,
+    sync_index_quote_data_to_db,
+    sync_summary_position_data_to_db,
+    sync_order_data_to_db,
+    login
+)
+
+from utils.tools import (
+    get_ui_tree,
+    device_tap,
+    device_swipe,
+    find_element_center
+)
+
+
+# ==========================================
+# 1. Pure ADB UI Parsers (No AI agent)
+# ==========================================
+
+async def get_index_stock_from_app_quote_page_structured(
+    config: MobileConfig, llm: GoogleGenAI, tools: AndroidDriver
+) -> str:
+    """
+    Get real-time index and stock data from mobile guotai app quote page.
+    """
+    logger.info("Navigating to quote page...")
+    goto_homepage()
+    ui = get_ui_tree()
+    # Tap "行情" bottom tab
+    hangqing_tab = find_element_center(ui, "btm_text2") or find_element_center(ui, "bottom_menu_button2") or (432, 2878)
+    device_tap(*hangqing_tab, sleep_after=2)
+    
+    ui = get_ui_tree()
+    # Tap "我的持仓" tab
+    holding_tab = find_element_center(ui, "我的持仓")
+    if holding_tab:
+        logger.info(f"Tapping '我的持仓' tab at {holding_tab}")
+        device_tap(*holding_tab, sleep_after=3)
+    else:
+        logger.warning("Could not find '我的持仓' tab programmatically. Replaying trajectory...")
+        replay_page(['行情', '我的持仓'])
+        time.sleep(3)
+        
+    # Tap "同步" button to sync/refresh holdings
+    ui = get_ui_tree()
+    sync_btn = find_element_center(ui, "同步") or find_element_center(ui, "tv_holdSync")
+    if sync_btn:
+        logger.info(f"Tapping '同步' button at {sync_btn}")
+        device_tap(*sync_btn, sleep_after=4)
+    else:
+        logger.warning("Could not find '同步' button on holding page.")
+    
+    indices = []  # list of (name, value, ratio)
+    stocks = {}   # dict of code -> (name, price, ratio, change_amount)
+    
+    last_ui = ""
+    for scroll_idx in range(12):  # Scroll max 12 times to load all stocks
+        ui = get_ui_tree()
+        
+        # Check if we should stop scrolling (only on iterations > 0)
+        if scroll_idx > 0:
+            current_screen_codes = set()
+            for line in ui.split('\n'):
+                if 'tv_code' in line:
+                    match = re.search(r'tv_code", "(\d{6})"', line)
+                    if match:
+                        current_screen_codes.add(match.group(1))
+            if current_screen_codes and current_screen_codes.issubset(set(stocks.keys())):
+                logger.info("Scroll reached bottom of stock list (no new stock codes visible).")
+                break
+                
+        # Parse indices only on the first screen
+        if not indices:
+            prices = []
+            zdfs = []
+            for line in ui.split('\n'):
+                if 'tv_price' in line:
+                    match = re.search(r'text - "([^"]+)"|tv_price", "([^"]+)"', line)
+                    txt = match.group(1) or match.group(2) if match else None
+                    m_bounds = re.search(r'\((\d+),(\d+),(\d+),(\d+)\)', line)
+                    if txt and m_bounds:
+                        cx = (int(m_bounds.group(1)) + int(m_bounds.group(3))) // 2
+                        cy = (int(m_bounds.group(2)) + int(m_bounds.group(4))) // 2
+                        if cy < 400:
+                            prices.append((cx, txt))
+                elif 'tv_zdf' in line:
+                    match = re.search(r'text - "([^"]+)"|tv_zdf", "([^"]+)"', line)
+                    txt = match.group(1) or match.group(2) if match else None
+                    m_bounds = re.search(r'\((\d+),(\d+),(\d+),(\d+)\)', line)
+                    if txt and m_bounds:
+                        cx = (int(m_bounds.group(1)) + int(m_bounds.group(3))) // 2
+                        cy = (int(m_bounds.group(2)) + int(m_bounds.group(4))) // 2
+                        if cy < 400:
+                            zdfs.append((cx, txt))
+            
+            prices.sort()
+            zdfs.sort()
+            for (cx1, p_val), (cx2, z_val) in zip(prices, zdfs):
+                idx_match = re.search(r'([^\s\d.+-]+)\s*([+\-]?\d+\.?\d*%)', z_val)
+                if idx_match:
+                    idx_name = idx_match.group(1)
+                    idx_ratio = idx_match.group(2)
+                    indices.append((idx_name, p_val, idx_ratio))
+            logger.info(f"Extracted indices: {indices}")
+
+        # Parse stock quotes
+        rows = []
+        for line in ui.split('\n'):
+            if 'item_main_content' in line:
+                match = re.search(r'item_main_content", "([^，]+)，最新价([\d.]+)元，涨幅([+\-]?[\d.]+%?)" - \((\d+),(\d+),(\d+),(\d+)\)', line)
+                if match:
+                    name, price, ratio, x1, y1, x2, y2 = match.groups()
+                    rows.append((int(y1), int(y2), name, float(price), ratio))
+        
+        # Find codes and change amounts for each row by mapping Y coordinates
+        for y1, y2, name, price, ratio in rows:
+            row_code = None
+            row_change = 0.0
+            rightmost_x = -1
+            for line in ui.split('\n'):
+                m_bounds = re.search(r'\((\d+),(\d+),(\d+),(\d+)\)', line)
+                if m_bounds:
+                    cy = (int(m_bounds.group(2)) + int(m_bounds.group(4))) // 2
+                    if y1 <= cy <= y2:
+                        if 'tv_code' in line:
+                            match = re.search(r'tv_code", "(\d{6})"', line)
+                            if match:
+                                row_code = match.group(1)
+                        # Find change amount (TextView float)
+                        match_txt = re.search(r'TextView: "[^"]*", "([+\-]?\d+\.\d+)"|TextView: "([+\-]?\d+\.\d+)"', line)
+                        if match_txt:
+                            txt = match_txt.group(1) or match_txt.group(2)
+                            cx = (int(m_bounds.group(1)) + int(m_bounds.group(3))) // 2
+                            if cx > rightmost_x:
+                                rightmost_x = cx
+                                row_change = float(txt)
+            
+            if row_code:
+                stocks[row_code] = (name, price, ratio, row_change)
+        
+        # Scroll logic
+        footer_visible = False
+        for line in ui.split('\n'):
+            if 'stocklist_footer' in line or '添加自选股' in line:
+                m_bounds = re.search(r'\((\d+),(\d+),(\d+),(\d+)\)', line)
+                if m_bounds:
+                    y1, y2 = int(m_bounds.group(2)), int(m_bounds.group(4))
+                    cy = (y1 + y2) // 2
+                    if cy < 2780:
+                        footer_visible = True
+                        break
+        if footer_visible:
+            logger.info("Reached bottom of stock list (footer visible on screen).")
+            break
+        
+        logger.info("Scrolling down stock list...")
+        device_swipe(720, 2000, 720, 500, sleep_after=1.5)
+        
+    # Serialize to CSV
+    lines1 = ["index_name,index_number,index_ratio"]
+    for idx in indices:
+        lines1.append(f"{idx[0]},{idx[1]},{idx[2]}")
+        
+    lines2 = ["name,code,latest_price,increase_percentage,increase_amount"]
+    for code, (name, price, ratio, change) in stocks.items():
+        lines2.append(f"{name},{code},{price},{ratio},{change}")
+        
+    return "\n".join(lines1) + "\n\n" + "\n".join(lines2)
+
+
+async def get_summary_position_from_app_position_page_structured(
+    config: MobileConfig, llm: GoogleGenAI, tools: AndroidDriver
+) -> str:
+    """
+    Get real-time summary and position data from mobile guotai app position page.
+    """
+    logger.info("Navigating to position page...")
+    goto_homepage()
+    ui = get_ui_tree()
+    trading_tab_center = find_element_center(ui, "btm_text3") or find_element_center(ui, "bottom_menu_button3") or (720, 2880)
+    device_tap(*trading_tab_center, sleep_after=3)
+    
+    ui = get_ui_tree()
+    p = find_element_center(ui, "我知道了")
+    if p:
+        device_tap(*p, sleep_after=1.5)
+        ui = get_ui_tree()
+        
+    holding_tab = find_element_center(ui, "tv_holding") or find_element_center(ui, "持仓")
+    if holding_tab:
+        logger.info(f"Tapping '持仓' tab at {holding_tab}")
+        device_tap(*holding_tab, sleep_after=3)
+    else:
+        logger.warning("Could not find '持仓' tab programmatically. Replaying trajectory...")
+        replay_page(['交易', '持仓'])
+        time.sleep(3)
+    
+    summary = {
+        'floating_pnl': 0.0,
+        'account_assets': 0.0,
+        'market_cap': 0.0,
+        'position_percent': '0.00%',
+        'available': 0.0,
+        'withdrawable': 0.0
+    }
+    positions = {}  # dict of name -> (market_cap, open, available, current_price, cost, floating_profit, floating_loss_percentage)
+    
+    for scroll_idx in range(12):  # Scroll max 12 times to load all positions
+        ui = get_ui_tree()
+        
+        # Check if we should stop scrolling (only on iterations > 0)
+        if scroll_idx > 0:
+            current_screen_names = set()
+            for line in ui.split('\n'):
+                if 'item_main_content' in line:
+                    match = re.search(r'item_main_content", "([^市]+)市值', line)
+                    if match:
+                        current_screen_names.add(match.group(1))
+            if current_screen_names and current_screen_names.issubset(set(positions.keys())):
+                logger.info("Scroll reached bottom of position list (no new stock positions visible).")
+                break
+        
+        # Parse summary on the first screen
+        if summary['account_assets'] == 0.0:
+            for line in ui.split('\n'):
+                if 'tv_profile_loss_value' in line:
+                    match = re.search(r'tv_profile_loss_value", "([^"]+)"', line)
+                    if match: summary['floating_pnl'] = float(match.group(1))
+                elif 'tv_total_assert_value' in line:
+                    match = re.search(r'tv_total_assert_value", "([^"]+)"', line)
+                    if match: summary['account_assets'] = float(match.group(1))
+                elif 'tv_all_value' in line:
+                    match = re.search(r'tv_all_value", "([^"]+)"', line)
+                    if match: summary['market_cap'] = float(match.group(1))
+                elif 'tv_current_position' in line:
+                    match = re.search(r'tv_current_position", "([^"]+)"', line)
+                    if match: summary['position_percent'] = match.group(1)
+                elif 'tv_available' in line:
+                    match = re.search(r'tv_available", "([^"]+)"', line)
+                    if match: summary['available'] = float(match.group(1))
+                elif 'tv_desirable' in line or 'tv_withdraw_value' in line:
+                    match = re.search(r'tv_desirable", "([^"]+)"|tv_withdraw_value", "([^"]+)"', line)
+                    val = match.group(1) or match.group(2) if match else None
+                    if val: summary['withdrawable'] = float(val)
+            logger.info(f"Extracted summary: {summary}")
+        
+        # Parse positions using the detailed content description regex
+        for line in ui.split('\n'):
+            if 'item_main_content' in line:
+                match = re.search(r'item_main_content", "([^市]+)市值([\d.+-]+)元持仓(\d+)可用(\d+)现价([\d.+-]+)元成本([\d.+-]+)元浮动盈亏([\d.+-]+)元浮动盈亏比例([\d.+-]+%)', line)
+                if match:
+                    name, market_cap, holdings, available, price, cost, pnl, pnl_percent = match.groups()
+                    positions[name] = (float(market_cap), int(holdings), int(available), float(price), float(cost), float(pnl), pnl_percent)
+        
+        logger.info("Scrolling down position list...")
+        device_swipe(720, 2000, 720, 500, sleep_after=1.5)
+        
+    # Serialize to CSV
+    lines1 = ["floating_profit_loss,account_assets,market_cap,positions,available,desirable"]
+    lines1.append(f"{summary['floating_pnl']},{summary['account_assets']},{summary['market_cap']},{summary['position_percent']},{summary['available']},{summary['withdrawable']}")
+    
+    lines2 = ["name,market_cap,open,available,current_price,cost,floating_profit,floating_loss_percentage"]
+    for name, val in positions.items():
+        lines2.append(f"{name},{val[0]},{val[1]},{val[2]},{val[3]},{val[4]},{val[5]},{val[6]}")
+        
+    return "\n".join(lines1) + "\n\n" + "\n".join(lines2)
+
+
+
+
+async def get_order_from_app_smart_order_page_structured(
+    config: MobileConfig, llm: GoogleGenAI, tools: AndroidDriver
+) -> str:
+    """
+    Get real-time smart order data from mobile guotai app smart order page.
+    """
+    logger.info("Navigating to smart order page...")
+    goto_homepage()
+    ui = get_ui_tree()
+    trading_tab_center = find_element_center(ui, "btm_text3") or find_element_center(ui, "bottom_menu_button3") or (720, 2880)
+    device_tap(*trading_tab_center, sleep_after=3)
+    
+    ui = get_ui_tree()
+    p = find_element_center(ui, "我知道了")
+    if p:
+        device_tap(*p, sleep_after=1.5)
+        ui = get_ui_tree()
+        
+    center = find_element_center(ui, "运行中") or find_element_center(ui, "今日触发")
+    if not center:
+        # Fall back to replay page if direct tap fails
+        logger.warning("Could not navigate directly. Replaying macro trajectory...")
+        replay_page(['智能订单', '查看详情'])
+    else:
+        device_tap(*center, sleep_after=3)
+        ui = get_ui_tree()
+        center_details = find_element_center(ui, "查看详情")
+        if center_details:
+            device_tap(*center_details, sleep_after=3)
+            
+    orders = {}  # dict of order_number -> dict of order details
+
+    async def scrape_tab(tab_name: str):
+        logger.info(f"Tapping tab '{tab_name}'...")
+        ui = get_ui_tree()
+        tab_btn = find_element_center(ui, tab_name)
+        if tab_btn:
+            device_tap(*tab_btn, sleep_after=3)
+        else:
+            logger.warning(f"Could not find tab '{tab_name}' programmatically.")
+            return
+
+        for scroll_idx in range(12):  # Scroll max 12 times to load all orders for this tab
+            ui = get_ui_tree()
+            lines = ui.split('\n')
+            
+            # Check if we should stop scrolling based on visible orders
+            current_screen_orders = set()
+            for k, line in enumerate(lines):
+                if '订单编号' in line and k + 1 < len(lines):
+                    on_match = re.search(r'View: "([^"]+)"', lines[k+1])
+                    if on_match:
+                        current_screen_orders.add(on_match.group(1).strip())
+            
+            if not current_screen_orders:
+                logger.info(f"No smart orders visible on screen for tab '{tab_name}'.")
+                break
+                
+            if scroll_idx > 0 and current_screen_orders.issubset(set(orders.keys())):
+                logger.info(f"Scroll reached bottom of tab '{tab_name}' (no new orders visible).")
+                break
+            
+            i = 0
+            while i < len(lines):
+                line = lines[i]
+                if 'TextView' in line and ('到价' in line or '止盈' in line or '止损' in line):
+                    name = None
+                    code = None
+                    trigger_condition = None
+                    buy_or_sell_price_type = None
+                    buy_or_sell_quantity = None
+                    valid_until = None
+                    order_number = None
+                    reason_of_ending = None
+                    
+                    # Scan up to 40 lines inside this card block
+                    card_lines = lines[i:min(i + 40, len(lines))]
+                    for j, cline in enumerate(card_lines):
+                        if not code:
+                            code_match = re.search(r'View: "(\d{6})"', cline)
+                            if code_match:
+                                code = code_match.group(1)
+                                for k in range(j - 1, -1, -1):
+                                    prev_line = card_lines[k]
+                                    if 'View: "' in prev_line and '到价' not in prev_line and '止盈' not in prev_line and '止损' not in prev_line:
+                                        name_match = re.search(r'View: "([^"]+)"', prev_line)
+                                        if name_match and not name_match.group(1).isdigit():
+                                            name = name_match.group(1)
+                                            break
+                                            
+                        if '触发条件' in cline and j + 1 < len(card_lines):
+                            tc_match = re.search(r'View: "([^"]+)"', card_lines[j+1])
+                            if tc_match: trigger_condition = tc_match.group(1).replace('\n', ' ')
+                            
+                        if ('价格' in cline) and j + 1 < len(card_lines):
+                            pt_match = re.search(r'View: "([^"]+)"', card_lines[j+1])
+                            if pt_match: buy_or_sell_price_type = pt_match.group(1)
+                            
+                        if ('数量' in cline) and j + 1 < len(card_lines):
+                            qty_match = re.search(r'View: "([^"]+)"', card_lines[j+1])
+                            if qty_match:
+                                qty_str = qty_match.group(1)
+                                qty_num = re.search(r'(\d+)', qty_str)
+                                if qty_num: buy_or_sell_quantity = float(qty_num.group(1))
+                                
+                        if '有效期至' in cline and j + 1 < len(card_lines):
+                            vu_match = re.search(r'View: "([^"]+)"', card_lines[j+1])
+                            if vu_match: valid_until = vu_match.group(1)
+                            
+                        if '订单编号' in cline and j + 1 < len(card_lines):
+                            on_match = re.search(r'View: "([^"]+)"', card_lines[j+1])
+                            if on_match: order_number = on_match.group(1)
+                            
+                        if '结束原因' in cline:
+                            re_match = re.search(r'TextView: "结束原因：([^"]+)"', cline) or re.search(r'结束原因：([^"]+)', cline)
+                            if re_match: reason_of_ending = re_match.group(1)
+                    
+                    if order_number:
+                        orders[order_number] = {
+                            'name': name or "未知",
+                            'code': code or "000000",
+                            'trigger_condition': trigger_condition or "",
+                            'buy_or_sell_price_type': buy_or_sell_price_type or "",
+                            'buy_or_sell_quantity': buy_or_sell_quantity or 0.0,
+                            'valid_until': valid_until or "",
+                            'order_number': order_number,
+                            'reason_of_ending': reason_of_ending or ""
+                        }
+                        i += j  # Skip parsed block
+                i += 1
+                
+            if "全部加载完成" in ui or "没有更多" in ui:
+                logger.info(f"Reached bottom of smart orders list on tab '{tab_name}'.")
+                break
+                
+            logger.info(f"Scrolling down smart orders list on tab '{tab_name}'...")
+            device_swipe(720, 2000, 720, 500, sleep_after=1.5)
+
+    # Scrape all 3 tabs
+    await scrape_tab("今日已触发")
+    await scrape_tab("运行中")
+    await scrape_tab("已结束")
+
+    # Serialize to CSV
+    lines = ["name,code,trigger_condition,buy_or_sell_price_type,buy_or_sell_quantity,valid_until,order_number,reason_of_ending"]
+    for o in orders.values():
+        lines.append(f"{o['name']},{o['code']},{o['trigger_condition']},{o['buy_or_sell_price_type']},{o['buy_or_sell_quantity']},{o['valid_until']},{o['order_number']},{o['reason_of_ending']}")
+    return "\n".join(lines)
+
+
+async def get_transactions_from_app_history_page_structured(
+    config: MobileConfig, llm: GoogleGenAI, tools: AndroidDriver
+) -> str:
+    """
+    Get transaction history from mobile guotai app history page.
+    """
+    logger.info("Navigating to history transactions page...")
+    goto_homepage()
+    ui = get_ui_tree()
+    trading_tab_center = find_element_center(ui, "btm_text3") or find_element_center(ui, "bottom_menu_button3") or (720, 2880)
+    device_tap(*trading_tab_center, sleep_after=3)
+    
+    ui = get_ui_tree()
+    p = find_element_center(ui, "我知道了")
+    if p:
+        device_tap(*p, sleep_after=1.5)
+        ui = get_ui_tree()
+        
+    center_history = find_element_center(ui, "历史成交")
+    if not center_history:
+        # Fall back to scrolling or typical coordinate
+        device_swipe(720, 2000, 720, 500, sleep_after=2)
+        ui = get_ui_tree()
+        center_history = find_element_center(ui, "历史成交") or (180, 1317)
+        
+    device_tap(*center_history, sleep_after=3)
+    
+    transactions = {}  # key -> tuple
+    last_ui = ""
+    stop_scrolling = False
+    
+    for scroll_idx in range(12):  # Scroll max 12 times
+        if stop_scrolling:
+            break
+        ui = get_ui_tree()
+        initial_count = len(transactions)
+        
+        rows = []
+        for line in ui.split('\n'):
+            match = re.search(r'View: "android\.view\.View" - \(0,(\d+),480,(\d+)\)', line)
+            if match:
+                y1, y2 = int(match.group(1)), int(match.group(2))
+                if y1 > 500:  # Skip the name/time header row
+                    rows.append((y1, y2))
+                    
+        for y1, y2 in rows:
+            name = ""
+            time_str = ""
+            price = 0.0
+            quantity = 0
+            tx_type = ""
+            amount = 0.0
+            
+            for line in ui.split('\n'):
+                m_bounds = re.search(r'\((\d+),(\d+),(\d+),(\d+)\)', line)
+                if m_bounds:
+                    cx = (int(m_bounds.group(1)) + int(m_bounds.group(3))) // 2
+                    cy = (int(m_bounds.group(2)) + int(m_bounds.group(4))) // 2
+                    if y1 <= cy <= y2:
+                        match_txt = re.search(r'View: "([^"]+)"|TextView: "[^"]*", "([^"]+)"|TextView: "([^"]+)"', line)
+                        if match_txt:
+                            text = (match_txt.group(1) or match_txt.group(2) or match_txt.group(3)).strip()
+                            if not text or text == "android.view.View":
+                                continue
+                                
+                            if cx < 480:
+                                if re.match(r'\d{2}/\d{2} \d{2}:\d{2}:\d{2}', text):
+                                    time_str = text
+                                else:
+                                    name = text
+                            elif 480 <= cx < 800:
+                                price = parse_number(text)
+                            elif 800 <= cx < 1040:
+                                quantity = int(parse_number(text))
+                            elif 1040 <= cx < 1440:
+                                if text in ["证券买入", "证券卖出", "买入", "卖出"]:
+                                    tx_type = text
+                                else:
+                                    amount = parse_number(text)
+                                    
+            if name and time_str:
+                current_year = datetime.now().year
+                if len(time_str) == 14:  # "06/23 10:35:56"
+                    tx_date = f"{current_year}-{time_str[0:2]}-{time_str[3:5]} {time_str[6:]}"
+                else:
+                    tx_date = time_str
+                    
+                # Check if it belongs to current month (e.g. "2026-06")
+                current_month_prefix = f"{current_year:04d}-{datetime.now().month:02d}"
+                if not tx_date.startswith(current_month_prefix):
+                    logger.info(f"Reached transaction from previous month: {tx_date}. Discarding and stopping.")
+                    stop_scrolling = True
+                    break
+                    
+                key = f"{tx_date}_{name}_{tx_type}_{price}_{quantity}"
+                transactions[key] = (tx_date, name, tx_type, price, quantity, amount)
+                
+        if "没有更多" in ui or "暂无数据" in ui:
+            logger.info("Reached bottom of transaction history list.")
+            break
+            
+        if scroll_idx > 0 and len(transactions) == initial_count:
+            logger.info("Scroll reached bottom of transaction history list (no new transactions found).")
+            break
+        
+        logger.info("Scrolling down history transactions list...")
+        device_swipe(720, 2000, 720, 500, sleep_after=1.5)
+        
+    # Serialize to CSV
+    lines = ["成交时间,名称,买卖类型,成交价,成交量,成交金额"]
+    for val in transactions.values():
+        lines.append(f"{val[0]},{val[1]},{val[2]},{val[3]},{val[4]},{val[5]}")
+    return "\n".join(lines)
+
+
+# ==========================================
+# 2. Database Helpers & Logic
+# ==========================================
+
+def get_stock_code_by_name(name: str, user_id: int = 1) -> str:
+    """Query database to find stock code for a given stock name."""
+    with DB.cursor() as cursor:
+        # 1. Search in current holdings
+        row = cursor.execute("SELECT code FROM holding_stocks WHERE user_id = ? AND name = ?", (user_id, name)).fetchone()
+        if row:
+            return row[0]
+        # 2. Search in smart orders
+        row = cursor.execute("SELECT code FROM smart_orders WHERE user_id = ? AND name = ?", (user_id, name)).fetchone()
+        if row:
+            return row[0]
+        # 3. Search in existing transactions
+        row = cursor.execute("SELECT code FROM transactions WHERE user_id = ? AND name = ?", (user_id, name)).fetchone()
+        if row:
+            return row[0]
+    return ""
+
+
+def sync_transactions_to_db(transactions_data: str, user_id: int = 1) -> dict:
+    """
+    Sync transaction history from mobile app to database.
+    """
+    if not transactions_data:
+        return {'success': True, 'message': 'No transaction data to sync', 'added': 0}
+        
+    header, transaction_rows = parse_csv_data(transactions_data)
+    added_count = 0
+    
+    with DB.cursor() as cursor:
+        for row in transaction_rows:
+            if len(row) < 6:
+                continue
+            tx_date = row[0].strip()
+            name = normalize_stock_name(row[1])
+            tx_type = row[2].strip()
+            price = parse_number(row[3])
+            quantity = int(parse_number(row[4]))
+            amount = parse_number(row[5])
+            
+            # Normalize type: map '证券买入', '买入', 'buy' to 'buy'
+            if tx_type in ['证券买入', '买入', 'buy']:
+                norm_type = 'buy'
+            elif tx_type in ['证券卖出', '卖出', 'sell']:
+                norm_type = 'sell'
+            else:
+                norm_type = tx_type.lower()
+                
+            # Try to resolve code
+            code = get_stock_code_by_name(name, user_id)
+            if not code:
+                name_clean, ext_code = extract_stock_code(name)
+                if ext_code:
+                    code = ext_code
+                    name = name_clean
+                else:
+                    code = "000000"  # fallback if still unknown
+                    
+            # Check if this exact transaction already exists to avoid duplication
+            cursor.execute("""
+                SELECT id FROM transactions
+                WHERE user_id = ? AND name = ? AND transaction_type = ? 
+                  AND transaction_date = ? AND price = ? AND quantity = ? AND amount = ?
+            """, (user_id, name, norm_type, tx_date, price, quantity, amount))
+            
+            if cursor.fetchone() is None:
+                cursor.execute("""
+                    INSERT INTO transactions (user_id, code, name, transaction_type, transaction_date, price, quantity, amount)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (user_id, code, name, norm_type, tx_date, price, quantity, amount))
+                added_count += 1
+                
+    return {
+        'success': True,
+        'message': f"Synced transactions: {added_count} new transactions added",
+        'added': added_count
+    }
+
+
+# ==========================================
+# 3. Main Orchestration Flow
+# ==========================================
+
+async def cron_sync_app_to_db(check_trading_day_and_time: bool = True) -> dict:
+    """Cron job to sync app data using structured extractors to database."""
+    # Not trading day, exit directly
+    date = str(datetime.now().date())
+    is_trading_day = calendar.is_trading_day(date)
+    if check_trading_day_and_time and not is_trading_day:
+        logger.info(f"Today {date} is not a trading day. Exiting cron job.")
+        return {'skipped': True, 'reason': 'Not a trading day'}
+
+    # Market open times and refresh interval
+    market_open_times_refresh_interval = get_market_open_times_refresh_interval()
+    now = datetime.now()
+    start1, end1, start2, end2, refresh_interval = market_open_times_refresh_interval.split(',')
+    
+    start1_time = datetime.strptime(f"{date} {start1.strip()}", "%Y-%m-%d %H:%M:%S")
+    end1_time = datetime.strptime(f"{date} {end1.strip()}", "%Y-%m-%d %H:%M:%S")
+    start2_time = datetime.strptime(f"{date} {start2.strip()}", "%Y-%m-%d %H:%M:%S")
+    
+    if check_trading_day_and_time and (now < start1_time or (end1.strip() and start2.strip() and now > end1_time and now < start2_time)):
+        logger.info(f"Current time {now} is before market open time {start1_time} or in break period. Exiting.")
+        return {'skipped': True, 'reason': 'Outside trading hours'}
+        
+    end2_time = datetime.strptime(f"{date} {end2.strip()}", "%Y-%m-%d %H:%M:%S") + timedelta(hours=1)
+    if check_trading_day_and_time and now > end2_time:
+        logger.info(f"Current time {now} is after market close time. Exiting.")
+        return {'skipped': True, 'reason': 'After market close + 1 hour'}
+
+    logger.info("Starting cron job using ADB UI parsing extraction...")
+    tools, llm, config = await pre_requirements()
+    
+    # 1. Sync Index Quote Data
+    logger.info("Extracting indices and stock quotes...")
+    quote_csv = await get_index_stock_from_app_quote_page_structured(config=config, llm=llm, tools=tools)
+    result_quote = sync_index_quote_data_to_db(quote_csv, user_id=1)
+    if not result_quote.get('success'):
+        raise ValueError(f"sync_index_quote_data_to_db failed: {result_quote}")
+    logger.info(f"Synced indices & quotes: {result_quote}")
+
+    # 2. Sync Summary Position Data
+    logger.info("Extracting account summary and positions...")
+    position_csv = await get_summary_position_from_app_position_page_structured(config=config, llm=llm, tools=tools)
+    result_position = sync_summary_position_data_to_db(position_csv, user_id=1)
+    if not result_position.get('success'):
+        raise ValueError(f"sync_summary_position_data_to_db failed: {result_position}")
+    logger.info(f"Synced portfolio: {result_position}")
+    # 3. Sync Smart Orders
+    logger.info("Extracting smart orders...")
+    order_csv = await get_order_from_app_smart_order_page_structured(config=config, llm=llm, tools=tools)
+    result_order = sync_order_data_to_db(order_csv, user_id=1)
+    if not result_order.get('success'):
+        raise ValueError(f"sync_order_data_to_db failed: {result_order}")
+    logger.info(f"Synced smart orders: {result_order}")
+
+    # 4. Sync Transactions
+    logger.info("Extracting transaction history...")
+    tx_csv = await get_transactions_from_app_history_page_structured(config=config, llm=llm, tools=tools)
+    result_tx = sync_transactions_to_db(tx_csv, user_id=1)
+    if not result_tx.get('success'):
+        raise ValueError(f"sync_transactions_to_db failed: {result_tx}")
+    logger.info(f"Synced transactions: {result_tx}")
+
+    result = {
+        'quote_sync_result': result_quote,
+        'position_sync_result': result_position,
+        'order_sync_result': result_order,
+        'transaction_sync_result': result_tx
+    }
+    
+    summary_msg = (
+        "\n==================================================\n"
+        "             DATABASE SYNC SUMMARY\n"
+        "==================================================\n"
+        f"1. Quotes:       {result_quote.get('message', 'No message')}\n"
+        f"2. Portfolio:    {result_position.get('message', 'No message')}\n"
+        f"3. Smart Orders: {result_order.get('message', 'No message')}\n"
+        f"4. Transactions: {result_tx.get('message', 'No message')}\n"
+        "=================================================="
+    )
+    logger.info(summary_msg)
+    logger.info("Cron job completed successfully.")
+    return result
+
+
+if __name__ == "__main__":
+    login()
+    asyncio.run(cron_sync_app_to_db(check_trading_day_and_time=False))

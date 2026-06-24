@@ -536,6 +536,23 @@ tax        = price * quantity * 0.0005                # stamp duty
 net_proceeds = price * quantity - commission - tax
 ```
 
+### Backtest vs. Real-World Trading Gaps
+
+While the backtesting engine is designed to mirror real market conditions closely, there are a few important gaps:
+
+1. **STAR / ChiNext Minimum Quantity Rule**:
+   - *Real Market*: In Chinese A-shares, stocks starting with `30` (ChiNext) or `688` (STAR Market) have a minimum purchase quantity of **200 shares** (and increments of 1 share after that).
+   - *Backtest*: Unconditionally rounds buy quantities down to the nearest **100 shares** and allows a minimum purchase of 100 shares for STAR/ChiNext stocks. This would be rejected by a real broker.
+2. **Order Execution & Slippage**:
+   - *Real Market*: Intraday prices fluctuate continuously. Orders are executed using brokerage APIs or app interfaces (e.g. `即时买一价`) subject to queue delays and slippage.
+   - *Backtest*: Fills buy orders exactly at the **open price** (assuming the stock didn't open at limit-up) and sells exactly at the **trigger price** (TP/SL) if hit, or at the open/close for cuts/expiry.
+3. **Double Trigger Scenario**:
+   - *Real Market*: If a stock's intraday high hits the TP and low hits the SL on the same day, the one that occurs first chronologically triggers.
+   - *Backtest*: If both are hit, the backtest defaults to assuming the TP was hit first, which can slightly overestimate performance on highly volatile days.
+4. **Market Session Automation**:
+   - *Real Market*: Execution in live trading is delegated to the Guotai broker app (smart orders trigger natively on their servers).
+   - *Backtest*: The market session runner in `trading/runner.py` is currently a `TODO` stub, meaning the simulation does not execute real-time market actions via ADB during the session. Instead, the pre-market phase creates/uploads smart orders, and the post-market phase syncs results.
+
 ---
 
 ## Data Providers

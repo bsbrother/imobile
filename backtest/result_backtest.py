@@ -246,17 +246,18 @@ def main():
             print(f"  Final:    ¥{last_end:,.0f}")
             print(f"  Return:   {total_return_pct:.2f}%")
             if index_data:
-                strat_ret = parse_percentage(index_data['strategy'])
+                # Use the script's own computed return (from daily reports)
+                # instead of the period report's rounded value for consistency
+                strat_ret = total_return_pct
                 sse_ret = parse_percentage(index_data['sse'])
                 csi300_ret = parse_percentage(index_data['csi300'])
                 csi500_ret = parse_percentage(index_data['csi500'])
-                if strat_ret is not None:
-                    if sse_ret is not None:
-                        print(f"  vs SSE:    +{strat_ret - sse_ret:.2f}% (strat {strat_ret:.2f}% - SSE {sse_ret:.2f}%)")
-                    if csi300_ret is not None:
-                        print(f"  vs CSI300:  +{strat_ret - csi300_ret:.2f}% (strat {strat_ret:.2f}% - CSI300 {csi300_ret:.2f}%)")
-                    if csi500_ret is not None:
-                        print(f"  vs CSI500:  +{strat_ret - csi500_ret:.2f}% (strat {strat_ret:.2f}% - CSI500 {csi500_ret:.2f}%)")
+                if sse_ret is not None:
+                    print(f"  vs SSE:    +{strat_ret - sse_ret:.2f}% (strat {strat_ret:.2f}% - SSE {sse_ret:.2f}%)")
+                if csi300_ret is not None:
+                    print(f"  vs CSI300:  +{strat_ret - csi300_ret:.2f}% (strat {strat_ret:.2f}% - CSI300 {csi300_ret:.2f}%)")
+                if csi500_ret is not None:
+                    print(f"  vs CSI500:  +{strat_ret - csi500_ret:.2f}% (strat {strat_ret:.2f}% - CSI500 {csi500_ret:.2f}%)")
 
 
 if __name__ == "__main__":

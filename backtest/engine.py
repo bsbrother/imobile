@@ -190,7 +190,7 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ', backtest_search: bo
     return pick_output_file
 
 
-def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, current_capital: float = 0.0) -> str:
+def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, current_capital: float = 0.0, app_positions: list = None, app_running_orders: list = None) -> str:
     """
     Create smart orders based on picked stocks for a specific date.
     # TODO:
@@ -227,43 +227,155 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
     holding_days = regime_data.get('max_hold_days', 4)
 
     with DB.cursor() as cursor:
-        cursor.execute("""
-            SELECT id, code, trigger_condition, valid_until, buy_or_sell_quantity, name, last_updated
-            FROM smart_orders
-            WHERE status='running' AND user_id=?
-        """, (user_id,))
-        for order in cursor.fetchall():
-            # the order is buy order.
-            if '触发买入' in order[2]:
-                # Cancel if expired OR if it's a stale buy order from previous days.
-                # Relaxed: Allow buy orders to persist for 2 days to avoid churning.
-                last_updated = datetime.strptime(order[6], '%Y-%m-%d %H:%M:%S') if isinstance(order[6], str) else order[6]
-                days_since_update = (datetime.strptime(this_date, '%Y%m%d') - last_updated).days
-
-                if this_date >= order[3] or days_since_update >= 2:
-                    no_buy_cancel_symbols.append(order[1])
-                    cursor.execute("""
-                        UPDATE smart_orders
-                        SET status='cancelled',
-                            reason_of_ending='order_expired_or_stale',
-                            last_updated=?
-                        WHERE id=? AND user_id=?
-                    """, (convert_to_datetime(this_date), order[0], user_id))
+        recovered_orders_list = []
+        if app_running_orders is not None:
+            # Sync from app directly
+            from trading.sync_app_to_db import get_stock_code_by_name
+            for order in app_running_orders:
+                if order.get('status') != '运行中':
                     continue
-            running_orders[order[1]] = {
-                'id': order[0],
-                'trigger_condition': order[2],
-                'valid_until': order[3],
-                'buy_or_sell_quantity': order[4],
-                'name': order[5]
-            }
+                if order.get('reason_of_ending'):
+                    continue
+                code = order['code']
+                if not code or code == '000000':
+                    code = get_stock_code_by_name(order['name'], user_id)
+                    if not code:
+                        continue
+                
+                trigger_condition = order['trigger_condition']
+                order_number = order['order_number']
+                valid_until = order['valid_until']
+                
+                # Check stale buy orders
+                if '触发买入' in trigger_condition:
+                    m_date = re.search(r'ORD_(\d{8})', order_number)
+                    last_updated_date = m_date.group(1) if m_date else this_date
+                    days_since_update = (datetime.strptime(this_date, '%Y%m%d') - datetime.strptime(last_updated_date, '%Y%m%d')).days
+                    
+                    if this_date >= valid_until.replace('-', '') or days_since_update >= 2:
+                        no_buy_cancel_symbols.append(code)
+                        continue
+                
+                running_orders[code] = {
+                    'id': order_number,
+                    'trigger_condition': trigger_condition,
+                    'valid_until': valid_until.replace('-', ''),
+                    'buy_or_sell_quantity': order['buy_or_sell_quantity'],
+                    'name': order['name']
+                }
+        else:
+            # Fallback to DB
+            cursor.execute("""
+                SELECT id, code, trigger_condition, valid_until, buy_or_sell_quantity, name, last_updated
+                FROM smart_orders
+                WHERE status='running' AND user_id=?
+            """, (user_id,))
+            for order in cursor.fetchall():
+                if '触发买入' in order[2]:
+                    last_updated = datetime.strptime(order[6], '%Y-%m-%d %H:%M:%S') if isinstance(order[6], str) else order[6]
+                    days_since_update = (datetime.strptime(this_date, '%Y%m%d') - last_updated).days
+    
+                    if this_date >= order[3] or days_since_update >= 2:
+                        no_buy_cancel_symbols.append(order[1])
+                        cursor.execute("""
+                            UPDATE smart_orders
+                            SET status='cancelled',
+                                reason_of_ending='order_expired_or_stale',
+                                last_updated=?
+                            WHERE id=? AND user_id=?
+                        """, (convert_to_datetime(this_date), order[0], user_id))
+                        continue
+                running_orders[order[1]] = {
+                    'id': order[0],
+                    'trigger_condition': order[2],
+                    'valid_until': order[3],
+                    'buy_or_sell_quantity': order[4],
+                    'name': order[5]
+                }
+        
+        if app_positions is not None:
+            from trading.sync_app_to_db import get_stock_code_by_name
+            take_profit_pct = regime_data.get('take_profit_pct', 0.10)
+            stop_loss_pct = regime_data.get('stop_loss_pct', 0.10)
+            for pos in app_positions:
+                pos_code = get_stock_code_by_name(pos['name'], user_id)
+                if not pos_code:
+                    continue # can't map code
+                    
+                h_holdings = pos['holdings']
+                if h_holdings <= 0:
+                    continue
+                    
+                h_cost = pos['cost']
+                h_current_price = pos['current_price']
+                if h_cost is None and h_current_price is None:
+                    continue
+                h_current_price = float(h_current_price) if h_current_price is not None else float(h_cost)
+                h_cost = float(h_cost) if h_cost is not None else float(h_current_price)
 
-        added_orders = adjusted_orders = prev_orders= 0
-        logger.info(f"Current running orders: {len(running_orders)}/{MAX_POSITIONS}")
+                # Find buy date from DB transactions (since app_positions doesn't have it easily)
+                cursor.execute("""
+                    SELECT MAX(transaction_date) FROM transactions
+                    WHERE code=? AND user_id=? AND transaction_type='buy'
+                """, (pos_code, user_id))
+                buy_date_row = cursor.fetchone()
+                buy_date = buy_date_row[0] if buy_date_row and buy_date_row[0] else None
+                
+                if buy_date:
+                    buy_date_str = buy_date.split(' ')[0].replace('-', '')
+                    valid_until = calendar.get_trading_days_after(buy_date_str, holding_days)
+                else:
+                    valid_until = calendar.get_trading_days_after(this_date, holding_days)
+
+                reason_of_ending = ''
+                if this_date >= valid_until:
+                    lose_price = h_current_price * 0.90
+                    profit_price = lose_price
+                    trigger_condition = f'股价>={lose_price:.2f}元'
+                    reason_of_ending = 'order_expired_before_sell'
+                else:
+                    profit_price = h_cost * (1 + take_profit_pct)
+                    lose_price = h_cost * (1 - stop_loss_pct)
+                    trigger_condition = f'股价>={profit_price:.2f}元(触发止盈),股价<={lose_price:.2f}元(触发止损)'
+
+                order_number = f"ORD_{this_date}_{pos_code}_{user_id}_recovered"
+                
+                cursor.execute("""
+                    INSERT OR REPLACE INTO smart_orders (user_id, code, name, trigger_condition,
+                    buy_or_sell_price_type, buy_or_sell_quantity, order_number,
+                    status, valid_until, reason_of_ending, last_updated)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    user_id, pos_code, pos['name'], trigger_condition,
+                    '即时买一价', h_holdings, order_number,
+                    'running', valid_until, reason_of_ending, convert_to_datetime(this_date)
+                ))
+
+                running_orders[pos_code] = {
+                    'id': order_number,
+                    'trigger_condition': trigger_condition,
+                    'valid_until': valid_until,
+                    'buy_or_sell_quantity': h_holdings,
+                    'name': pos['name']
+                }
+
+                recovered_orders_list.append({
+                    'symbol': pos_code,
+                    'name': pos['name'],
+                    'buy_price': round(h_current_price, 2),
+                    'buy_quantity': h_holdings,
+                    'current_price': round(h_current_price, 2),
+                    'sell_take_profit_price': round(profit_price, 2),
+                    'sell_stop_loss_price': round(lose_price, 2),
+                    'valid_until': valid_until
+                })
+
+        added_orders = adjusted_orders = prev_orders = 0
+        logger.info(f"Current running orders (including {len(recovered_orders_list)} recovered): {len(running_orders)}/{MAX_POSITIONS}")
         for order in data['smart_orders']:
             # Append to smart_orders table in shared/db/imobile.db
             if order['symbol'] not in running_orders:
-                if added_orders < (MAX_POSITIONS - len(running_orders)):
+                if added_orders < MAX_POSITIONS:
                     order_number = f"ORD_{this_date}_{order['symbol']}_{user_id}"
                     trigger_condition = f'股价<={order["buy_price"]}元(触发买入)'
                     valid_until = calendar.get_trading_days_after(this_date, holding_days)
@@ -396,8 +508,8 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
                     data['smart_orders'][i] = order
                     break
 
-        # Safely remove items without breaking enumeration
-        data['smart_orders'] = [o for o in data['smart_orders'] if o['symbol'] not in no_buy_cancel_symbols]
+        # Do NOT filter data['smart_orders'] here with no_buy_cancel_symbols, 
+        # as it would incorrectly remove fresh buy orders picked by cli.py today.
 
         # Add not in data['smart_orders'] but in previous smart output file into data['smart_orders'].
         prev_date = calendar.get_trading_days_before(this_date, 1)
@@ -435,9 +547,15 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
                 data['smart_orders'].append(order)
                 prev_orders += 1
 
+        # Finally, append any recovered orders that aren't already in data['smart_orders']
+        data_keys = [ o['symbol'] for o in data['smart_orders']]
+        for rec_order in recovered_orders_list:
+            if rec_order['symbol'] not in data_keys:
+                data['smart_orders'].append(rec_order)
+
     with open(smart_output_file, 'w') as f:
         json.dump(data, f)
-    logger.info(f"Added {added_orders}, adjusted {adjusted_orders}, previous {prev_orders} smart orders in db.")
+    logger.info(f"Added {added_orders}, adjusted {adjusted_orders}, previous {prev_orders}, recovered {len(recovered_orders_list)} smart orders in db.")
     return smart_output_file
 
 
@@ -1967,7 +2085,7 @@ def discover_working_search_providers():
         )
 
 
-def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=None, user_id: int = 1, src: str = 'ts_7AZ', resume: bool = False, backtest_search: bool = True, backtest_ai: bool = True, is_live: bool = False):
+def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=None, user_id: int = 1, src: str = 'ts_7AZ', resume: bool = False, backtest_search: bool = True, backtest_ai: bool = True, is_live: bool = False, app_cash: float = None, app_positions: list = None, app_running_orders: list = None):
     """
     Pick stocks, create smart orders and trading for the specified date range.
 
@@ -2048,8 +2166,7 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
             sells = cursor.fetchall()
             for row in sells:
                 notes = row[0]
-                # Try parsing P&L from notes (format: "... P&L: ¥123.45 (12.34%)")
-                if 'P&L: ¥' in notes:
+                if notes and 'P&L: ¥' in notes:
                     try:
                         pnl_val = float(notes.split('P&L: ¥')[1].split(' ')[0])
                         cumulative_realized_pnl += pnl_val
@@ -2073,12 +2190,15 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
             today_str = datetime.now().strftime('%Y%m%d')
             if check_date >= today_str:
                 # Target date is today/future: get real cash directly from app homepage
-                real_cash = None
-                try:
-                    from utils.tools import get_available_cash_from_homepage
-                    real_cash = get_available_cash_from_homepage()
-                except Exception as e:
-                    logger.error(f"[{this_date}] Live mode: Failed to get real cash from app: {e}. Falling back to DB summary_account.")
+                if app_cash is not None:
+                    real_cash = app_cash
+                    logger.info(f"[{this_date}] Live mode: Using app_cash from arguments: ¥{real_cash:,.2f}")
+                else:
+                    try:
+                        from utils.tools import get_available_cash_from_homepage
+                        real_cash = get_available_cash_from_homepage()
+                    except Exception as e:
+                        logger.error(f"[{this_date}] Live mode: Failed to get real cash from app: {e}. Falling back to DB summary_account.")
                 
                 if real_cash is not None:
                     current_capital = real_cash
@@ -2115,8 +2235,17 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
         else:
             logger.info(f"[{this_date}] Cumulative Realized P&L: ¥{cumulative_realized_pnl:,.2f}, Total Equity (Cash+Holdings): ¥{current_portfolio_nav:,.2f}, Avail Cash: ¥{current_capital:,.2f}")
 
+        pass_app_positions = app_positions if (is_live and this_date >= today) else None
+        pass_app_running_orders = app_running_orders if (is_live and this_date >= today) else None
+
         # Step 2: Create smart orders from picks and save to database
-        smart_output_file = create_smart_orders_from_picks(pick_output_file, user_id=user_id, current_capital=current_capital)
+        smart_output_file = create_smart_orders_from_picks(
+            pick_output_file, 
+            user_id=user_id, 
+            current_capital=current_capital,
+            app_positions=app_positions,
+            app_running_orders=app_running_orders
+        )
 
         # Step 3: Analyze orders and generate reports
         analyzer = OrderAnalyzer(smart_orders_file=smart_output_file, user_id=user_id)

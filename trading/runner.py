@@ -67,6 +67,61 @@ async def run_daily_trading(this_date, phase, user_id, dry_run, app_package_name
     logger.info(f"Starting {phase} for {this_date} (user={user_id}, dry_run={dry_run})")
 
     if phase == 'pre-market':
+        logger.info("Extracting live app state before generating orders...")
+        from trading.guotai import pre_requirements, parse_csv_data
+        from trading.sync_app_to_db import (
+            get_summary_position_from_app_position_page_structured,
+            get_order_from_app_smart_order_page_structured
+        )
+
+        tools, llm, config = await pre_requirements(app_package_name)
+        
+        # 1. Fetch Positions & Cash
+        logger.info("Fetching cash and positions from App...")
+        pos_csv = await get_summary_position_from_app_position_page_structured(config, llm, tools)
+        
+        app_cash = 0.0
+        app_positions = []
+        if pos_csv:
+            sections = pos_csv.strip().split('\n\n')
+            if len(sections) > 0:
+                header, summary_rows = parse_csv_data(sections[0])
+                if summary_rows:
+                    app_cash = float(summary_rows[0][4]) # available cash
+            if len(sections) > 1:
+                pos_header, pos_rows = parse_csv_data(sections[1])
+                for row in pos_rows:
+                    app_positions.append({
+                        'name': row[0],
+                        'holdings': int(row[2]),
+                        'available': int(row[3]),
+                        'current_price': float(row[4]),
+                        'cost': float(row[5])
+                    })
+
+        # 2. Fetch Running Orders
+        logger.info("Fetching running orders from App...")
+        order_csv = await get_order_from_app_smart_order_page_structured(
+            config, llm, tools, target_tabs=["运行中"]
+        )
+        app_running_orders = []
+        if order_csv:
+            ord_header, ord_rows = parse_csv_data(order_csv)
+            for row in ord_rows:
+                app_running_orders.append({
+                    'name': row[0],
+                    'code': row[1],
+                    'trigger_condition': row[2],
+                    'buy_or_sell_price_type': row[3],
+                    'buy_or_sell_quantity': float(row[4]),
+                    'valid_until': row[5],
+                    'order_number': row[6],
+                    'reason_of_ending': row[7] if len(row) > 7 else '',
+                    'status': row[8] if len(row) > 8 else '运行中'
+                })
+
+        logger.info(f"App data extracted: Cash: {app_cash}, Positions: {len(app_positions)}, Running Orders: {len(app_running_orders)}")
+
         # Pick stocks and create smart orders
         logger.info("Picking stocks and creating smart orders...")
         try:
@@ -79,7 +134,51 @@ async def run_daily_trading(this_date, phase, user_id, dry_run, app_package_name
                 backtest_ai=False,
                 resume=False,
                 is_live=True,
+                app_cash=app_cash,
+                app_positions=app_positions,
+                app_running_orders=app_running_orders
             )
+            import json
+            smart_output_file = os.path.join(_daily_dir, f'smart_orders_{this_date}.json')
+            if os.path.exists(smart_output_file):
+                with open(smart_output_file, 'r') as f:
+                    data = json.load(f)
+                
+                market_pattern = data.get('market_pattern', 'normal')
+                max_positions = data.get('portfolio_config', {}).get('max_positions', 10)
+                initial_cash = data.get('portfolio_config', {}).get('initial_cash', app_cash)
+                per_slot_cash = initial_cash / max_positions if max_positions else 0
+                
+                new_buy_orders_count = data.get('total_orders', 0)
+                total_allocated = data.get('portfolio_config', {}).get('total_allocated', 0.0)
+                
+                all_orders = data.get('smart_orders', [])
+                buy_orders = all_orders[:new_buy_orders_count]
+                tp_sl_orders = all_orders[new_buy_orders_count:]
+                
+                summary_lines = []
+                summary_lines.append(f"Created {smart_output_file}:")
+                summary_lines.append(f"Market Regime: {market_pattern.upper()} MAX_POSITIONS: {max_positions}")
+                summary_lines.append(f"Total_Cash: {initial_cash:.2f}       Per_Slot_Cash: {per_slot_cash:.2f}")
+                summary_lines.append(f"Running_Orders_In_APP: {len(app_running_orders) if app_running_orders else 0}")
+                summary_lines.append(f"Orders: {len(all_orders)}")
+                
+                summary_lines.append(f"Buy_Orders list: total {new_buy_orders_count} sum {total_allocated:.2f}")
+                for o in buy_orders:
+                    summary_lines.append(f"{o['symbol']}_{o['name']}, {o['buy_price']}, {o['buy_quantity']}")
+                
+                skipped_buy_orders = data.get('skipped_buy_orders', [])
+                if skipped_buy_orders:
+                    summary_lines.append(f"Buy Orders Skip List: no enogh cash")
+                    for o in skipped_buy_orders:
+                        summary_lines.append(f"{o['symbol']}_{o['name']}, {o['buy_price']}, {o['remaining_cash']:.2f}")
+
+                summary_lines.append(f"TP&SL_Orders list: total {len(tp_sl_orders)}")
+                for o in tp_sl_orders:
+                    summary_lines.append(f"{o['symbol']}_{o['name']}, {o['sell_take_profit_price']}, {o['sell_stop_loss_price']}, {o['buy_quantity']}")
+                
+                logger.info("\n" + "\n".join(summary_lines))
+
             logger.info("✅ Pre-market stock picking + smart orders complete")
         except Exception as e:
             logger.error(f"❌ Pre-market failed: {e}")
@@ -91,9 +190,9 @@ async def run_daily_trading(this_date, phase, user_id, dry_run, app_package_name
         # TODO: call order execution
 
     elif phase == 'post-market':
-        # Sync results from mobile app to DB
-        logger.info("Syncing post-market data...")
-        await cron_sync_app_to_db(check_trading_day_and_time=False)
+        # Removed auto background sync as requested by user.
+        # Only trading/runner.py --sync-only or trading/sync_app_to_db.py should sync.
+        logger.info("Post-market phase completed. Data sync is manual or via --sync-only.")
 
     return {
         "status": "ok",

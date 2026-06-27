@@ -181,6 +181,11 @@ def create_parser() -> argparse.ArgumentParser:
         type=float,
         help='Override initial cash for position sizing (used for compounding)'
     )
+    analyze_parser.add_argument(
+        '--remaining-slots',
+        type=int,
+        help='Number of slots remaining for new orders'
+    )
     analyze_parser.add_argument('--date', type=str, help='Target trading date (YYYY-MM-DD or YYYYMMDD)')
 
     subparsers.add_parser('version', help='Show version information')
@@ -591,6 +596,7 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                                        config_path: Optional[str] = None,
                                        output_file: Optional[str] = None,
                                        initial_cash: Optional[float] = None,
+                                       remaining_slots: Optional[int] = None,
                                        base_date: Optional[str] = None) -> Dict[str, Any]:
     """
     Analyze picked stocks and generate smart orders with entry/exit prices and quantities.
@@ -713,8 +719,9 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
         logger.info(f"Fetching historical data from {start_date} to {end_date}")
         # Analyze each stock and generate smart orders
         smart_orders = []
+        skipped_buy_orders = []
         remaining_cash = float(initial_cash)
-        remaining_slots = int(max_positions)
+        remaining_slots = remaining_slots if remaining_slots is not None else int(max_positions)
 
         for symbol in symbols:
             try:
@@ -814,60 +821,49 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
 
                 if remaining_slots <= 0 or remaining_cash <= 0:
                     logger.info(f"Skip {symbol}: no remaining cash/slots for new positions.")
+                    skipped_buy_orders.append({
+                        "symbol": symbol,
+                            "name": data_provider.latest.get('name', ''),
+                        "buy_price": buy_price,
+                        "remaining_cash": remaining_cash
+                    })
                     continue
 
-                # Parse the dynamic rank or position in symbols
-                try:
-                    rank_idx = symbols.index(symbol) + 1
-                except ValueError:
-                    rank_idx = remaining_slots
-
-                if equal_weight:
-                    # Score-weighted allocation: higher CANSLIM score → more capital
-                    _use_score_weight = os.getenv('POS_SCORE_WEIGHT', 'false').lower() in ('true', '1', 'yes')
-                    if _use_score_weight and symbol in symbol_scores:
-                        _score = symbol_scores.get(symbol, 4)
-                        _total_score = sum(symbol_scores.values())
-                        if _total_score > 0:
-                            position_value = remaining_cash * (_score / _total_score)
-                        else:
-                            position_value = remaining_cash / remaining_slots
-                    else:
-                        # Default rank-weighted: Rank 1=25%, Rank 2=20%, Rank 3=15%, rest equal
-                        if rank_idx == 1 and remaining_slots >= 4:
-                            position_value = remaining_cash * 0.25
-                        elif rank_idx == 2 and remaining_slots >= 3:
-                            position_value = remaining_cash * 0.22
-                        elif rank_idx == 3 and remaining_slots >= 2:
-                            position_value = remaining_cash * 0.18
-                        else:
-                            position_value = remaining_cash / remaining_slots
-                else:
-                    position_value = remaining_cash / remaining_slots
-
-                # Adjust for risk (stop loss distance)
-                risk_per_share = buy_price - sell_stop_loss
-                if risk_per_share > 0:
-                    # Risk-based position sizing: don't risk more than 5% of portfolio per position (relaxed for higher returns)
-                    max_risk_amount = remaining_cash * 0.05
-                    risk_adjusted_shares = int(max_risk_amount / risk_per_share)
-                    value_based_shares = int(position_value / buy_price)
-                    buy_quantity = min(risk_adjusted_shares, value_based_shares)
-                else:
-                    buy_quantity = int(position_value / buy_price)
-
-                # Ensure minimum lot size (100 shares in China A-shares, 200 shares for STAR/ChiNext)
                 is_star_chinext = symbol.startswith('3') or symbol.startswith('688')
                 min_qty = 200 if is_star_chinext else 100
-                buy_quantity = (buy_quantity // 100) * 100
 
-                # Ensure at least minimum lot when affordable; otherwise skip
-                if buy_quantity < min_qty:
+                per_slot_cash = float(initial_cash) / max_positions
+
+                if (per_slot_cash / buy_price) >= min_qty:
+                    buy_quantity = (int(per_slot_cash / buy_price) // min_qty) * min_qty
+                elif (per_slot_cash * 2 / buy_price) >= min_qty:
+                    buy_quantity = (int(per_slot_cash * 2 / buy_price) // min_qty) * min_qty
+                elif (remaining_cash / buy_price) >= min_qty:
+                    buy_quantity = min_qty
+                else:
                     logger.info(
-                        f"Skip {symbol}: computed position too small (qty={buy_quantity}, min={min_qty}) "
+                        f"Skip {symbol}: remain cash not enough for buy MIN_QUANTITY (qty=0, min={min_qty}) "
                         f"for buy_price={buy_price:.2f}, remaining_cash={remaining_cash:.2f}."
                     )
+                    skipped_buy_orders.append({
+                        "symbol": symbol,
+                        "name": latest.get('name', ''),
+                        "buy_price": buy_price,
+                        "remaining_cash": remaining_cash
+                    })
                     continue
+                    
+                if buy_quantity * buy_price > remaining_cash:
+                    buy_quantity = (int(remaining_cash / buy_price) // min_qty) * min_qty
+                    if buy_quantity < min_qty:
+                        logger.info(f"Skip {symbol}: adjusted qty=0 due to remaining_cash={remaining_cash:.2f}")
+                        skipped_buy_orders.append({
+                            "symbol": symbol,
+                            "name": latest.get('name', ''),
+                            "buy_price": buy_price,
+                            "remaining_cash": remaining_cash
+                        })
+                        continue
 
                 # Calculate expected metrics
                 potential_gain_pct = ((sell_take_profit - buy_price) / buy_price) * 100
@@ -928,18 +924,16 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
             'analysis_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'target_trading_date': target_trading_date,
             'market_pattern': market_pattern,
-            'regime_data': regime_data,
-            'strategy_config': {
-                'profit_target_pct': take_profit_ratio * 100,
-                'stop_loss_pct': stop_loss_ratio * 100,
-                'max_position_pct': strategy_config.get('position_sizing', {}).get('max_position_pct', 0.15)
-            },
+            'base_date': base_date,
+            'target_trading_date': target_trading_date,
             'portfolio_config': {
                 'initial_cash': initial_cash,
                 'max_positions': max_positions,
-                'total_allocated': sum(order['position_value'] for order in smart_orders)
+                'total_allocated': float(initial_cash - remaining_cash)
             },
+            'regime_data': regime_data,
             'total_orders': len(smart_orders),
+            'skipped_buy_orders': skipped_buy_orders,
             'smart_orders': smart_orders
         }
 
@@ -1007,16 +1001,14 @@ def main():
 
         elif args.command == 'analyze':
             # Analyze stocks and generate smart orders
-            symbols_list = []
-            if hasattr(args, 'symbols') and args.symbols:
-                symbols_list = [s.strip() for s in args.symbols.split(',')]
-
+            symbols = args.symbols.split(',') if args.symbols else []
             analyze_stocks_and_generate_orders(
                 stocks_file=args.stocks_file if hasattr(args, 'stocks_file') else None,
-                symbols=symbols_list,
+                symbols=symbols,
                 config_path=args.config if hasattr(args, 'config') else None,
                 output_file=args.output if hasattr(args, 'output') else None,
                 initial_cash=args.initial_cash if hasattr(args, 'initial_cash') else None,
+                remaining_slots=args.remaining_slots if hasattr(args, 'remaining_slots') else None,
                 base_date=args.date if hasattr(args, 'date') else None
             )
 

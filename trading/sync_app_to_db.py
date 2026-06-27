@@ -25,6 +25,7 @@ from trading.guotai import (
     parse_number,
     parse_percentage,
     normalize_stock_name,
+    clean_stock_name,
     extract_stock_code,
     sync_index_quote_data_to_db,
     sync_summary_position_data_to_db,
@@ -328,7 +329,7 @@ async def get_summary_position_from_app_position_page_structured(
 
 
 async def get_order_from_app_smart_order_page_structured(
-    config: MobileConfig, llm: GoogleGenAI, tools: AndroidDriver
+    config: MobileConfig, llm: GoogleGenAI, tools: AndroidDriver, target_tabs: list = None
 ) -> str:
     """
     Get real-time smart order data from mobile guotai app smart order page.
@@ -372,6 +373,7 @@ async def get_order_from_app_smart_order_page_structured(
 
         tab_orders = set()  # Track orders seen in this tab session
         stop_tab_scrolling = False
+        empty_scrolls = 0
         for scroll_idx in range(40):  # Scroll max 40 times to load all orders for this tab
             if stop_tab_scrolling:
                 break
@@ -391,8 +393,12 @@ async def get_order_from_app_smart_order_page_structured(
                 break
                 
             if scroll_idx > 0 and current_screen_orders.issubset(tab_orders):
-                logger.info(f"Scroll reached bottom of tab '{tab_name}' (no new orders visible in this tab).")
-                break
+                empty_scrolls += 1
+                if empty_scrolls >= 2:
+                    logger.info(f"Scroll reached bottom of tab '{tab_name}' (no new orders visible in this tab).")
+                    break
+            else:
+                empty_scrolls = 0
             
             i = 0
             while i < len(lines):
@@ -471,7 +477,8 @@ async def get_order_from_app_smart_order_page_structured(
                                 'buy_or_sell_quantity': buy_or_sell_quantity or 0.0,
                                 'valid_until': valid_until or "",
                                 'order_number': order_number,
-                                'reason_of_ending': reason_of_ending or ""
+                                'reason_of_ending': reason_of_ending or "",
+                                'status': tab_name
                             }
                         tab_orders.add(order_number)
                         i += j  # Skip parsed block
@@ -484,15 +491,17 @@ async def get_order_from_app_smart_order_page_structured(
             logger.info(f"Scrolling down smart orders list on tab '{tab_name}'...")
             device_swipe(720, 2000, 720, 500, sleep_after=1.5)
 
-    # Scrape all 3 tabs
-    await scrape_tab("今日已触发")
-    await scrape_tab("运行中")
-    await scrape_tab("已结束")
+    # Scrape target tabs
+    if target_tabs is None:
+        target_tabs = ["今日已触发", "运行中", "已结束"]
+    
+    for tab in target_tabs:
+        await scrape_tab(tab)
 
     # Serialize to CSV
-    lines = ["name,code,trigger_condition,buy_or_sell_price_type,buy_or_sell_quantity,valid_until,order_number,reason_of_ending"]
+    lines = ["name,code,trigger_condition,buy_or_sell_price_type,buy_or_sell_quantity,valid_until,order_number,reason_of_ending,status"]
     for o in orders.values():
-        lines.append(f"{o['name']},{o['code']},{o['trigger_condition']},{o['buy_or_sell_price_type']},{o['buy_or_sell_quantity']},{o['valid_until']},{o['order_number']},{o['reason_of_ending']}")
+        lines.append(f"{o['name']},{o['code']},{o['trigger_condition']},{o['buy_or_sell_price_type']},{o['buy_or_sell_quantity']},{o['valid_until']},{o['order_number']},{o['reason_of_ending']},{o['status']}")
     return "\n".join(lines)
 
 
@@ -523,6 +532,25 @@ async def get_transactions_from_app_history_page_structured(
         
     device_tap(*center_history, sleep_after=3)
     
+    # Ensure we are in the "Month" view so we can scroll through the whole year
+    ui = get_ui_tree()
+    thirty_days = find_element_center(ui, "近30天")
+    if thirty_days:
+        # Check if it's already in month view (e.g. shows "2026年06月")
+        already_month_view = False
+        for line in ui.split('\n'):
+            if '年' in line and '月' in line:
+                m_bounds = re.search(r'\((\d+),(\d+),(\d+),(\d+)\)', line)
+                if m_bounds:
+                    cy = (int(m_bounds.group(2)) + int(m_bounds.group(4))) // 2
+                    if 290 <= cy <= 410:  # Same height as tabs
+                        already_month_view = True
+                        break
+        
+        if not already_month_view:
+            logger.info("Switching to month view to load full year transactions...")
+            device_tap(thirty_days[0] + 450, thirty_days[1], sleep_after=3)
+    
     transactions = {}  # key -> tuple
     last_ui = ""
     stop_scrolling = False
@@ -538,7 +566,7 @@ async def get_transactions_from_app_history_page_structured(
             match = re.search(r'View: "android\.view\.View" - \(0,(\d+),480,(\d+)\)', line)
             if match:
                 y1, y2 = int(match.group(1)), int(match.group(2))
-                if y1 > 500:  # Skip the name/time header row
+                if y1 > 200:  # Skip the top filter tabs
                     rows.append((y1, y2))
                     
         for y1, y2 in rows:
@@ -593,6 +621,9 @@ async def get_transactions_from_app_history_page_structured(
                 key = f"{tx_date}_{name}_{tx_type}_{price}_{quantity}"
                 transactions[key] = (tx_date, name, tx_type, price, quantity, amount)
                 
+        if stop_scrolling:
+            break
+            
         if "没有更多" in ui or "暂无数据" in ui:
             logger.info("Reached bottom of transaction history list.")
             break
@@ -602,7 +633,7 @@ async def get_transactions_from_app_history_page_structured(
             break
         
         logger.info("Scrolling down history transactions list...")
-        device_swipe(720, 2000, 720, 500, sleep_after=1.5)
+        device_swipe(720, 1800, 720, 800, sleep_after=1.5)
         
     # Serialize to CSV
     lines = ["成交时间,名称,买卖类型,成交价,成交量,成交金额"]
@@ -629,7 +660,7 @@ def init_stock_index_map():
             with open(json_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 for item in data:
-                    if len(item) >= 3:
+                    if len(item) >= 7 and item[6] == 'CN':
                         code = item[1]
                         name = normalize_stock_name(item[2])
                         _stock_name_to_code_map[name] = code
@@ -640,22 +671,40 @@ def init_stock_index_map():
 def get_stock_code_by_name(name: str, user_id: int = 1) -> str:
     """Query database or json index to find stock code for a given stock name."""
     init_stock_index_map()
+    
+    # 1. Exact match in index map
     if name in _stock_name_to_code_map:
         return _stock_name_to_code_map[name]
         
+    # 2. Cleaned name match in index map
+    cleaned_name = clean_stock_name(name)
+    if cleaned_name in _stock_name_to_code_map:
+        return _stock_name_to_code_map[cleaned_name]
+        
     with DB.cursor() as cursor:
-        # 1. Search in current holdings
-        row = cursor.execute("SELECT code FROM holding_stocks WHERE user_id = ? AND name = ?", (user_id, name)).fetchone()
-        if row:
-            return row[0]
-        # 2. Search in smart orders
-        row = cursor.execute("SELECT code FROM smart_orders WHERE user_id = ? AND name = ?", (user_id, name)).fetchone()
-        if row:
-            return row[0]
-        # 3. Search in existing transactions
-        row = cursor.execute("SELECT code FROM transactions WHERE user_id = ? AND name = ?", (user_id, name)).fetchone()
-        if row and row[0] != "000000":
-            return row[0]
+        # 3. Search in current holdings (exact and cleaned)
+        for n in [name, cleaned_name]:
+            row = cursor.execute("SELECT code FROM holding_stocks WHERE user_id = ? AND name = ?", (user_id, n)).fetchone()
+            if row:
+                return row[0]
+                
+        # 4. Search in smart orders (exact and cleaned)
+        for n in [name, cleaned_name]:
+            row = cursor.execute("SELECT code FROM smart_orders WHERE user_id = ? AND name = ?", (user_id, n)).fetchone()
+            if row:
+                return row[0]
+                
+        # 5. Search in existing transactions (exact and cleaned)
+        for n in [name, cleaned_name]:
+            row = cursor.execute("SELECT code FROM transactions WHERE user_id = ? AND name = ?", (user_id, n)).fetchone()
+            if row and row[0] != "000000":
+                return row[0]
+                
+        # 6. Check all keys in the index map for a cleaned match
+        for k, v in _stock_name_to_code_map.items():
+            if clean_stock_name(k) == cleaned_name:
+                return v
+                
     return ""
 
 
@@ -668,6 +717,9 @@ def sync_transactions_to_db(transactions_data: str, user_id: int = 1) -> dict:
         
     header, transaction_rows = parse_csv_data(transactions_data)
     added_count = 0
+    valid_tx_ids = set()
+    current_year = datetime.now().year
+    year_start = f"{current_year}-01-01 00:00:00"
     
     with DB.cursor() as cursor:
         for row in transaction_rows:
@@ -697,39 +749,79 @@ def sync_transactions_to_db(transactions_data: str, user_id: int = 1) -> dict:
             
             # Update older records with '000000' in database tables if a valid code is resolved
             if code and code != "000000":
-                cursor.execute("""
-                    UPDATE transactions
-                    SET code = ?
-                    WHERE user_id = ? AND name = ? AND code = '000000'
-                """, (code, user_id, name))
-                cursor.execute("""
-                    UPDATE holding_stocks
-                    SET code = ?
-                    WHERE user_id = ? AND name = ? AND code = '000000'
-                """, (code, user_id, name))
-                cursor.execute("""
-                    UPDATE smart_orders
-                    SET code = ?
-                    WHERE user_id = ? AND name = ? AND code = '000000'
-                """, (code, user_id, name))
+                cleaned_target = clean_stock_name(name)
+                # 1. Transactions
+                rows = cursor.execute("SELECT id, name FROM transactions WHERE user_id = ? AND code = '000000'", (user_id,)).fetchall()
+                for r_id, r_name in rows:
+                    if r_name == name or clean_stock_name(r_name) == cleaned_target:
+                        cursor.execute("UPDATE transactions SET code = ? WHERE id = ?", (code, r_id))
+                # 2. Holdings
+                rows = cursor.execute("SELECT name FROM holding_stocks WHERE user_id = ? AND code = '000000'", (user_id,)).fetchall()
+                for (r_name,) in rows:
+                    if r_name == name or clean_stock_name(r_name) == cleaned_target:
+                        cursor.execute("UPDATE holding_stocks SET code = ? WHERE user_id = ? AND name = ?", (code, user_id, r_name))
+                # 3. Smart orders
+                rows = cursor.execute("SELECT order_number, name FROM smart_orders WHERE user_id = ? AND code = '000000'", (user_id,)).fetchall()
+                for r_ord_num, r_name in rows:
+                    if r_name == name or clean_stock_name(r_name) == cleaned_target:
+                        cursor.execute("UPDATE smart_orders SET code = ? WHERE order_number = ?", (code, r_ord_num))
                     
             # Check if this exact transaction already exists to avoid duplication
-            cursor.execute("""
-                SELECT id FROM transactions
-                WHERE user_id = ? AND name = ? AND transaction_type = ? 
-                  AND transaction_date = ? AND price = ? AND quantity = ? AND amount = ?
-            """, (user_id, name, norm_type, tx_date, price, quantity, amount))
+            # Prioritize matching by code if code is valid (not '000000'), otherwise match by name
+            tx_row = None
+            if code and code != "000000":
+                tx_row = cursor.execute("""
+                    SELECT id FROM transactions
+                    WHERE user_id = ? AND code = ? AND transaction_type = ? 
+                      AND transaction_date = ? AND price = ? AND quantity = ? AND amount = ?
+                """, (user_id, code, norm_type, tx_date, price, quantity, amount)).fetchone()
+            else:
+                cleaned_target = clean_stock_name(name)
+                candidates = cursor.execute("""
+                    SELECT id, name FROM transactions
+                    WHERE user_id = ? AND transaction_type = ? 
+                      AND transaction_date = ? AND price = ? AND quantity = ? AND amount = ?
+                """, (user_id, norm_type, tx_date, price, quantity, amount)).fetchall()
+                for r_id, r_name in candidates:
+                    if r_name == name or clean_stock_name(r_name) == cleaned_target:
+                        tx_row = (r_id,)
+                        break
             
-            if cursor.fetchone() is None:
+            if tx_row is None:
                 cursor.execute("""
                     INSERT INTO transactions (user_id, code, name, transaction_type, transaction_date, price, quantity, amount)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """, (user_id, code, name, norm_type, tx_date, price, quantity, amount))
+                new_id = cursor.lastrowid
+                valid_tx_ids.add(new_id)
                 added_count += 1
+            else:
+                valid_tx_ids.add(tx_row[0])
+                # Update the name in case the name prefix has changed (e.g. ST changes)
+                cursor.execute("""
+                    UPDATE transactions
+                    SET name = ?
+                    WHERE id = ?
+                """, (name, tx_row[0]))
+                
+        # Delete orphaned transactions for the current year
+        if valid_tx_ids:
+            placeholders = ','.join(['?'] * len(valid_tx_ids))
+            cursor.execute(f"""
+                DELETE FROM transactions 
+                WHERE user_id = ? AND transaction_date >= ? AND id NOT IN ({placeholders})
+            """, [user_id, year_start] + list(valid_tx_ids))
+            deleted_count = cursor.rowcount
+        else:
+            cursor.execute("""
+                DELETE FROM transactions 
+                WHERE user_id = ? AND transaction_date >= ?
+            """, (user_id, year_start))
+            deleted_count = cursor.rowcount
                 
     return {
         'success': True,
-        'message': f"Synced transactions: {added_count} new transactions added",
+        'message': f"Synced transactions: {added_count} added, {deleted_count} orphaned removed",
         'added': added_count
     }
 

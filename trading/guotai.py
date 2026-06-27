@@ -556,6 +556,17 @@ def normalize_stock_name(name: str) -> str:
     return unicodedata.normalize('NFKC', name)
 
 
+def clean_stock_name(name: str) -> str:
+    """Clean stock name by removing prefixes/suffixes (e.g., *ST, ST, N, U, W, V)."""
+    if not name:
+        return ""
+    # Strip common prefixes (case-insensitive)
+    name = re.sub(r'^(\*ST|ST|NST|PT|N|C|R|kr|KR|S|XD|XR|DR)\s*', '', name, flags=re.IGNORECASE)
+    # Strip common suffixes in parentheses or at the end
+    name = re.sub(r'\s*(\(U\)|\(W\)|\(V\)|U|W|V)$', '', name, flags=re.IGNORECASE)
+    return name
+
+
 def sync_index_quote_data_to_db(quote_data: Optional[str] = None, user_id: int = 1) -> Dict:
     """Sync real-time index and stock quote data from mobile app to database.
 
@@ -667,28 +678,64 @@ def sync_index_quote_data_to_db(quote_data: Optional[str] = None, user_id: int =
             # Track this stock code
             source_stock_codes.add(stock_code)
 
-            # First try to update by name (in case stock exists with different code format)
-            cursor.execute("""
-                UPDATE holding_stocks
-                SET code = ?,
-                    current_price = ?,
-                    change = ?,
-                    change_percent = ?,
-                    last_updated = ?
-                WHERE user_id = ? AND name = ?
-            """, (stock_code, current_price, change_amount, change_percent, current_time, user_id, stock_name))
+            # Match holding stock by code, name, or cleaned name
+            db_holdings = cursor.execute("SELECT code, name FROM holding_stocks WHERE user_id = ?", (user_id,)).fetchall()
+            matched_db_code = None
+            matched_db_name = None
 
-            if cursor.rowcount == 0:
-                # If no match by name, try upsert by code
+            # 1. Match by code
+            for db_code, db_name in db_holdings:
+                if db_code == stock_code:
+                    matched_db_code = db_code
+                    matched_db_name = db_name
+                    break
+
+            # 2. Match by exact name
+            if not matched_db_code:
+                for db_code, db_name in db_holdings:
+                    if db_name == stock_name:
+                        matched_db_code = db_code
+                        matched_db_name = db_name
+                        break
+
+            # 3. Match by cleaned name
+            if not matched_db_code:
+                cleaned_target = clean_stock_name(stock_name)
+                for db_code, db_name in db_holdings:
+                    if clean_stock_name(db_name) == cleaned_target:
+                        matched_db_code = db_code
+                        matched_db_name = db_name
+                        break
+
+            if matched_db_code:
+                # Update existing record
+                if matched_db_code != '000000':
+                    cursor.execute("""
+                        UPDATE holding_stocks
+                        SET code = ?,
+                            name = ?,
+                            current_price = ?,
+                            change = ?,
+                            change_percent = ?,
+                            last_updated = ?
+                        WHERE user_id = ? AND code = ?
+                    """, (stock_code, stock_name, current_price, change_amount, change_percent, current_time, user_id, matched_db_code))
+                else:
+                    cursor.execute("""
+                        UPDATE holding_stocks
+                        SET code = ?,
+                            name = ?,
+                            current_price = ?,
+                            change = ?,
+                            change_percent = ?,
+                            last_updated = ?
+                        WHERE user_id = ? AND name = ?
+                    """, (stock_code, stock_name, current_price, change_amount, change_percent, current_time, user_id, matched_db_name))
+            else:
+                # Insert new record
                 cursor.execute("""
                     INSERT INTO holding_stocks (user_id, code, name, current_price, change, change_percent, last_updated)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(user_id, code) DO UPDATE SET
-                        name = excluded.name,
-                        current_price = excluded.current_price,
-                        change = excluded.change,
-                        change_percent = excluded.change_percent,
-                        last_updated = excluded.last_updated
                 """, (user_id, stock_code, stock_name, current_price, change_amount, change_percent, current_time))
 
             result['stocks_updated'] += 1
@@ -794,6 +841,40 @@ def sync_summary_position_data_to_db(position_data: Optional[str] = None, user_i
         result['total_updated'] = True
         result['message'].append(f"Updated portfolio summary: Total Assets={account_assets}, Market Value={market_cap}")
 
+        # Fetch current holdings from DB to match in memory
+        db_holdings = cursor.execute("SELECT code, name FROM holding_stocks WHERE user_id = ?", (user_id,)).fetchall()
+
+        # Load code resolution map
+        db_codes = {}
+        # 1. From stocks.index.json
+        import json
+        json_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "stocks.index.json")
+        if os.path.exists(json_path):
+            try:
+                with open(json_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    for item in data:
+                        if len(item) >= 7 and item[6] == 'CN':
+                            db_codes[normalize_stock_name(item[2])] = item[1]
+            except Exception as e:
+                logger.warning(f"Failed to load stocks.index.json in position sync: {e}")
+        # 2. From database tables
+        for row_tx in cursor.execute("SELECT name, code FROM transactions WHERE code != '000000'").fetchall():
+            db_codes[row_tx[0]] = row_tx[1]
+        for row_so in cursor.execute("SELECT name, code FROM smart_orders WHERE code != '000000'").fetchall():
+            db_codes[row_so[0]] = row_so[1]
+        for row_hs in cursor.execute("SELECT name, code FROM holding_stocks WHERE code != '000000'").fetchall():
+            db_codes[row_hs[0]] = row_hs[1]
+
+        def resolve_code(name_to_lookup: str) -> str:
+            if name_to_lookup in db_codes:
+                return db_codes[name_to_lookup]
+            cleaned_target = clean_stock_name(name_to_lookup)
+            for name_key, code_val in db_codes.items():
+                if clean_stock_name(name_key) == cleaned_target:
+                    return code_val
+            return ""
+
         # Section 2: Stock positions
         header, position_rows = parse_csv_data(sections[1])
         for row in position_rows:
@@ -814,22 +895,74 @@ def sync_summary_position_data_to_db(position_data: Optional[str] = None, user_i
             # Track this stock name
             source_stock_names.add(stock_name)
 
-            # Try to update existing stock by name
-            cursor.execute("""
-                UPDATE holding_stocks
-                SET market_value = ?,
-                    holdings = ?,
-                    available_shares = ?,
-                    current_price = ?,
-                    cost_basis_diluted = ?,
-                    cost_basis_total = ?,
-                    pnl_float = ?,
-                    pnl_float_percent = ?,
-                    last_updated = ?
-                WHERE user_id = ? AND name = ?
-            """, (market_value, holdings, available_shares, current_price,
-                cost_basis, cost_basis, pnl_float, pnl_float_percent,
-                current_time, user_id, stock_name))
+            # Match holding stock by code, name, or cleaned name
+            matched_db_code = None
+            matched_db_name = None
+
+            resolved_code = resolve_code(stock_name)
+
+            # 1. Match by resolved code
+            if resolved_code and resolved_code != "000000":
+                for db_code, db_name in db_holdings:
+                    if db_code == resolved_code:
+                        matched_db_code = db_code
+                        matched_db_name = db_name
+                        break
+
+            # 2. Match by exact name
+            if not matched_db_code:
+                for db_code, db_name in db_holdings:
+                    if db_name == stock_name:
+                        matched_db_code = db_code
+                        matched_db_name = db_name
+                        break
+
+            # 3. Match by cleaned name
+            if not matched_db_code:
+                cleaned_target = clean_stock_name(stock_name)
+                for db_code, db_name in db_holdings:
+                    if clean_stock_name(db_name) == cleaned_target:
+                        matched_db_code = db_code
+                        matched_db_name = db_name
+                        break
+
+            if matched_db_code:
+                # Update existing record
+                if matched_db_code != '000000':
+                    cursor.execute("""
+                        UPDATE holding_stocks
+                        SET name = ?,
+                            market_value = ?,
+                            holdings = ?,
+                            available_shares = ?,
+                            current_price = ?,
+                            cost_basis_diluted = ?,
+                            cost_basis_total = ?,
+                            pnl_float = ?,
+                            pnl_float_percent = ?,
+                            last_updated = ?
+                        WHERE user_id = ? AND code = ?
+                    """, (stock_name, market_value, holdings, available_shares, current_price,
+                        cost_basis, cost_basis, pnl_float, pnl_float_percent,
+                        current_time, user_id, matched_db_code))
+                else:
+                    cursor.execute("""
+                        UPDATE holding_stocks
+                        SET name = ?,
+                            market_value = ?,
+                            holdings = ?,
+                            available_shares = ?,
+                            current_price = ?,
+                            cost_basis_diluted = ?,
+                            cost_basis_total = ?,
+                            pnl_float = ?,
+                            pnl_float_percent = ?,
+                            last_updated = ?
+                        WHERE user_id = ? AND name = ?
+                    """, (stock_name, market_value, holdings, available_shares, current_price,
+                        cost_basis, cost_basis, pnl_float, pnl_float_percent,
+                        current_time, user_id, matched_db_name))
+                result['stocks_updated'] += 1
 
             # If stock doesn't exist, we can optionally insert it (though position data lacks code)
             # For now, we only update existing stocks as per original logic
@@ -980,400 +1113,3 @@ async def get_transactions_from_app_history_page(config: MobileConfig, llm: Goog
     if not result.success or not result.reason:
         raise ValueError(f"❌ Goal get transactions not completed: {result.reason}")
     return get_format_output(result.reason.strip())
-
-
-async def cron_sync_app_to_db(check_trading_day_and_time: bool = True) -> dict:
-    """Cron job to sync app data to database.
-
-    $ crontab -l # m h  dom mon dow   command
-    # Runs every 30 minutes on weekdays (Mon-Fri) between market open hours(9:30-11:30,13:00-15:00), 11:30-13:00 or after market close + 1 hour(16:00) not included.
-    30 9   * * 1-5 export PYENV_ROOT=$HOME/.pyenv/; export PATH=$PYENV_ROOT/bin:$PATH/; cd $HOME/apps/imobile; source venv/bin/activate; nohup $HOME/apps/imobile/trading/guotai.py >> /tmp/cron_guotai_sync.log 2>&1 &
-    0,30 10-11 * * 1-5 export PYENV_ROOT=$HOME/.pyenv/; export PATH=$PYENV_ROOT/bin:$PATH/; cd $HOME/apps/imobile; source venv/bin/activate; nohup $HOME/apps/imobile/trading/guotai.py >> /tmp/cron_guotai_sync.log 2>&1 &
-    0,30 13-14 * * 1-5 export PYENV_ROOT=$HOME/.pyenv/; export PATH=$PYENV_ROOT/bin:$PATH/; cd $HOME/apps/imobile; source venv/bin/activate; nohup $HOME/apps/imobile/trading/guotai.py >> /tmp/cron_guotai_sync.log 2>&1 &
-    0,30 15  * * 1-5 export PYENV_ROOT=$HOME/.pyenv/; export PATH=$PYENV_ROOT/bin:$PATH/; cd $HOME/apps/imobile; source venv/bin/activate; nohup $HOME/apps/imobile/trading/guotai.py >> /tmp/cron_guotai_sync.log 2>&1 &
-    0    16  * * 1-5 export PYENV_ROOT=$HOME/.pyenv/; export PATH=$PYENV_ROOT/bin:$PATH/; cd $HOME/apps/imobile; source venv/bin/activate; nohup $HOME/apps/imobile/trading/guotai.py >> /tmp/cron_guotai_sync.log 2>&1 &
-    """
-    # TODO:
-    # - Fixed principal(本金) = 300000, When withdraw or deposit, principal will change, need manual adjust.
-    # - After trading date 15:30
-    #   - 登录 ->交易 ->当日盈亏 ->summary_account: today_pnl, today_pnl_percent
-
-    # Not trading day, exit directly
-    date = str(datetime.now().date())
-    is_trading_day = calendar.is_trading_day(date)
-    if check_trading_day_and_time and not is_trading_day:
-        logger.info(f"Today {date} is not a trading day. Exiting cron job.")
-        return {'skipped': True, 'reason': 'Not a trading day'}
-
-    # Market open times and refresh interval: 09:30:00,11:30:00,13:00:00,15:00:00,15 minutes
-    market_open_times_refresh_interval = get_market_open_times_refresh_interval()
-    now = datetime.now()
-    start1, end1, start2, end2, refresh_interval = market_open_times_refresh_interval.split(',')
-    # Before market open time or in end1--start2, exit directly
-    start1_time = datetime.strptime(f"{date} {start1.strip()}", "%Y-%m-%d %H:%M:%S")
-    end1_time = datetime.strptime(f"{date} {end1.strip()}", "%Y-%m-%d %H:%M:%S")
-    start2_time = datetime.strptime(f"{date} {start2.strip()}", "%Y-%m-%d %H:%M:%S")
-    if check_trading_day_and_time and (now < start1_time or (end1.strip() and start2.strip() and now > end1_time and now < start2_time)):
-        logger.info(f"Current time {now} is before market open time {start1_time} or in the break period {end1_time} - {start2_time}. Exiting cron job.")
-        return {'skipped': True, 'reason': 'Outside trading hours'}
-    # After market close time + 1 hours, exit directly
-    end2_time = datetime.strptime(f"{date} {end2.strip()}", "%Y-%m-%d %H:%M:%S") + timedelta(hours=1)
-    if check_trading_day_and_time and now > end2_time:
-        logger.info(f"Current time {now} is after market close time {end2_time}. Exiting cron job.")
-        return {'skipped': True, 'reason': 'After market close + 1 hour'}
-
-    logger.info("Starting cron job to sync app data to database...")
-    tools, llm, config = await pre_requirements()
-    logger.info("Navigation complete, starting data extraction...")
-
-    # 1. Sync Index Quote Data
-    quote_data = await get_index_stock_from_app_quote_page(config=config, llm=llm, tools=tools)
-    result_quote = sync_index_quote_data_to_db(quote_data, user_id=1)
-    if not result_quote.get('success'):
-        logger.error(f'Error in sync_index_quote_data_to_db: {result_quote}')
-        raise ValueError(f"sync_index_quote_data_to_db failed: {result_quote.get('message') or result_quote.get('error')}")
-    logger.info(f'sync_index_quote_data_to_db done, result: {result_quote}')
-
-    # 2. Sync Summary Position Data
-    position_data = await get_summary_position_from_app_position_page(config=config, llm=llm, tools=tools)
-    result_position = sync_summary_position_data_to_db(position_data, user_id=1)
-    if not result_position.get('success'):
-        logger.error(f'Error in sync_summary_position_data_to_db: {result_position}')
-        raise ValueError(f"sync_summary_position_data_to_db failed: {result_position.get('message') or result_position.get('error')}")
-    logger.info(f'sync_summary_position_data_to_db done, result: {result_position}')
-
-    result_order = {}
-
-    result = {
-        'quote_sync_result': result_quote,
-        'position_sync_result': result_position,
-        'order_sync_result': result_order
-    }
-    logger.info("Cron job to sync app data to database completed.\nResult: {}".format(result))
-    return result
-
-
-if __name__ == "__main__":
-    """
-    close_app()
-    open_app()
-    restart_app()
-    goto_homepage()
-    login()
-
-    if verify_screen_contains(["行情", "交易", "我的"]):
-        logger.info('Bottom Navigation bar is visiable(maybe at homepage).')
-    else:
-        logger.warning('Bottom Navigation bar is NOT visiable.')
-    """
-    login()
-    asyncio.run(cron_sync_app_to_db(check_trading_day_and_time=False))
-
-"""
-# 2026.6.21
-# Because on-screen keyboard input problemss cause not easy to create relate replay templates.
-# Replace by trading/order_xx.py.
-
-async def add_order_by_replay_template(app_extractor: AppDataExtractor, order: SmartOrder = None, buy_or_sell: str = "buy"):
-    '''
-    Add a smart order to the app using replay template.
-    1. Read template macro
-    2. Replace Code, Price, Quantity with order values
-       (Dynamically generate keypad taps for Price/Quantity)
-    3. Save to temp and replay
-    '''
-    if not order:
-        raise ValueError("â Order not provided.")
-    if buy_or_sell == "buy":
-        ORDER_TEMPLATE = 'trajectories/order_buy/macro.json'
-    elif buy_or_sell == "sell":
-        ORDER_TEMPLATE = 'trajectories/order_sell/macro.json'
-    else:
-        raise ValueError("â Invalid buy_or_sell value: {buy_or_sell}")
-
-    logger.info(f"   Creating {buy_or_sell} order: {order}")
-    if not os.path.exists(ORDER_TEMPLATE):
-        raise ValueError(f"â Order template not found: {ORDER_TEMPLATE}")
-
-    # Extract order details
-    # SmartOrder: code, trigger_condition (contains price), buy_or_sell_quantity
-    stock_code = order.code
-    qty = str(int(order.buy_or_sell_quantity))
-
-    # Parse Price from trigger_condition
-    # Format: "è¡ä»·>=12.30å(è§¦åä¹°å¥)" or "è¡ä»·>=12.30å(è§¦åæ­¢ç),..."
-    # We need the trigger price.
-    import re
-    price = profit_price = lose_price = "0"
-    if 'è§¦åä¹°å¥' in order.trigger_condition:
-        # Buy order
-        m = re.search(r'è¡ä»·>=([\d\.]+)å', order.trigger_condition)
-        if m: price = m.group(1)
-    elif 'è§¦åæ­¢ç' in order.trigger_condition and 'è§¦åæ­¢æ' in order.trigger_condition:
-        #profit_price = order.trigger_condition.split(',')[0].split('>=')[1].replace('å(è§¦åæ­¢ç)', '')
-        #lose_price = order.trigger_condition.split(',')[1].split('<=')[1].replace('å(è§¦åæ­¢æ)', '')
-        m = re.search(r'è¡ä»·>=([\d\.]+)å', order.trigger_condition)
-        if m: profit_price = m.group(1)
-        m = re.search(r'è¡ä»·<=([\d\.]+)å', order.trigger_condition)
-        if m: lose_price = m.group(1)
-    else:
-        raise ValueError(f"â Invalid trigger condition: {order.trigger_condition}")
-
-    # Load template
-    with open(ORDER_TEMPLATE, 'r') as f:
-        macro_data = json.load(f)
-
-    actions = macro_data.get('actions', [])
-    new_actions = []
-
-    # Helper to find keypad coordinates from known mapping
-    # Based on trajectories/keypad_num_button_mapping.md
-    keypad_map = {
-        '1': {'x': 179, 'y': 2295, 'element_index': 87, 'type': 'TapActionEvent', 'action_type': 'tap', 'element_text': '1'},
-        '2': {'x': 539, 'y': 2295, 'element_index': 91, 'type': 'TapActionEvent', 'action_type': 'tap', 'element_text': '2'},
-        '3': {'x': 900, 'y': 2295, 'element_index': 95, 'type': 'TapActionEvent', 'action_type': 'tap', 'element_text': '3'},
-        '4': {'x': 179, 'y': 2487, 'element_index': 88, 'type': 'TapActionEvent', 'action_type': 'tap', 'element_text': '4'},
-        '5': {'x': 539, 'y': 2487, 'element_index': 92, 'type': 'TapActionEvent', 'action_type': 'tap', 'element_text': '5'},
-        '6': {'x': 900, 'y': 2487, 'element_index': 96, 'type': 'TapActionEvent', 'action_type': 'tap', 'element_text': '6'},
-        '7': {'x': 179, 'y': 2679, 'element_index': 89, 'type': 'TapActionEvent', 'action_type': 'tap', 'element_text': '7'},
-        '8': {'x': 539, 'y': 2679, 'element_index': 93, 'type': 'TapActionEvent', 'action_type': 'tap', 'element_text': '8'},
-        '9': {'x': 900, 'y': 2679, 'element_index': 97, 'type': 'TapActionEvent', 'action_type': 'tap', 'element_text': '9'},
-        '0': {'x': 539, 'y': 2870, 'element_index': 94, 'type': 'TapActionEvent', 'action_type': 'tap', 'element_text': '0'},
-        '.': {'x': 900, 'y': 2870, 'element_index': 98, 'type': 'TapActionEvent', 'action_type': 'tap', 'element_text': '.'},
-    }
-
-    iterator = iter(actions)
-    digit_group_count = 0
-    skipping_digits = False
-
-    while True:
-        try:
-            action = next(iterator)
-        except StopIteration:
-            break
-
-        # 1. Replace Code Input
-        if action.get('type') == 'InputTextActionEvent':
-            action['text'] = stock_code
-            action['description'] = f"Input text: '{stock_code}'"
-            new_actions.append(action)
-            skipping_digits = False # reset just in case
-            continue
-
-        # 2. Check for Digit Event (Price/Qty)
-        # Check against string representations of digits
-        txt = str(action.get('element_text', ''))
-        is_digit = action.get('type') == 'TapActionEvent' and txt in ['0','1','2','3','4','5','6','7','8','9','.']
-
-        if is_digit:
-            if skipping_digits:
-                continue # Skip old digits in current group
-            else:
-                # Start of a NEW digit group
-                digit_group_count += 1
-                skipping_digits = True # Start skipping subsequent old digits
-
-                # Determine value to insert based on order type
-                # BUY template: 2 digit groups (Price, Quantity)
-                # SELL template: 3 digit groups (TP Price, SL Price, Quantity)
-                val_to_insert = None
-                field_name = "Unknown"
-
-                if buy_or_sell == "buy":
-                    if digit_group_count == 1:
-                        val_to_insert = price
-                        field_name = "Price"
-                    elif digit_group_count == 2:
-                        val_to_insert = qty
-                        field_name = "Quantity"
-                elif buy_or_sell == "sell":
-                    if digit_group_count == 1:
-                        val_to_insert = profit_price
-                        field_name = "TP Price"
-                    elif digit_group_count == 2:
-                        val_to_insert = lose_price
-                        field_name = "SL Price"
-                    elif digit_group_count == 3:
-                        val_to_insert = qty
-                        field_name = "Quantity"
-
-                if val_to_insert is None:
-                    logger.warning(f"â ï¸ Found unexpected digit group #{digit_group_count}. Keeping original.")
-                    new_actions.append(action)
-                    skipping_digits = False
-                    continue
-
-                logger.info(f"   Replacing Group #{digit_group_count} ({field_name}) with {val_to_insert}")
-
-                # Insert new sequence
-                for char in str(val_to_insert):
-                    if char in keypad_map:
-                        tap = keypad_map[char].copy()
-                        tap['description'] = f"Tap element '{char}' for {field_name}"
-                        new_actions.append(tap)
-                        '''
-                        # Add wait
-                        new_actions.append({
-                            "type": "WaitEvent",
-                            "action_type": "wait",
-                            "description": "Wait 0.2s",
-                            "duration": 0.2
-                        })
-                        '''
-                    else:
-                        logger.warning(f"âš ï¸  Digit '{char}' not found in keypad map. Skipping.")
-
-        elif action.get('type') == 'WaitEvent':
-            if skipping_digits:
-                continue # Skip waits inside the old digit sequence
-            else:
-                new_actions.append(action)
-
-        else:
-            # Non-digit, non-wait action (e.g. Tap Confirm, Swipe, Tap Box)
-            # This marks the end of a digit skipping sequence
-            skipping_digits = False
-            new_actions.append(action)
-
-    macro_data['actions'] = new_actions
-
-    # Save to temp
-    temp_dir = f"trajectories/temp_order_{int(random.random()*10000)}"
-    os.makedirs(temp_dir, exist_ok=True)
-    temp_file = os.path.join(temp_dir, 'macro.json')
-    with open(temp_file, 'w') as f:
-        json.dump(macro_data, f, indent=2)
-    if buy_or_sell == "buy":
-        logger.info(f"   ð Replaying BUY macro for {stock_code} Price={price} Qty={qty}...")
-    else:
-        logger.info(f"   ð Replaying SELL macro for {stock_code} TP={profit_price} SL={lose_price} Qty={qty}...")
-
-    try:
-        subprocess.run(f"droidrun macro replay {temp_dir} --delay 6", shell=True)
-        time.sleep(random.randint(8, 15)) # random 6-12 seconds
-        add_ok = await check_result_by_screenshot("ç»æè¯¦æ")
-        if not add_ok:
-            import pdb;pdb.set_trace()
-            #raise Exception("â Add order failed")
-        # Exit order page, go back to homepage
-        subprocess.run("adb shell input keyevent KEYCODE_BACK", shell=True)
-        subprocess.run("adb shell input keyevent KEYCODE_BACK", shell=True)
-        time.sleep(2)
-    except Exception as e:
-        raise Exception(f"â Error replaying macro: {e}")
-    finally:
-        # Cleanup
-        if os.path.exists(temp_dir):
-            shutil.rmtree(temp_dir)
-
-async def _order_crud(self, orders: list) -> bool:
-    '''Create, update or stop smart orders in Guotai app.
-
-    Args:
-        orders: Smart orders to create, update or stop
-
-    Returns:
-        bool: True if operations completed successfully
-    '''
-    self.config.agent.max_steps = 25
-    for order in orders:
-        if isinstance(order, dict):
-            code, name, trigger, commission_method, qty, valid = [order[k] for k in order]
-        else:
-            code, name, trigger, commission_method, qty, valid = order
-        code = code.split('.')[0]
-        if 'è§¦åä¹°å¥' in trigger or 'è§¦åååº' in trigger:
-            price = float(trigger.split('>=')[1].split('å')[0])
-            if 'è§¦åä¹°å¥' in trigger:
-                order_type = "å°ä»·ä¹°å¥"
-            else:
-                order_type = "å°ä»·ååº"
-            goal = f'''If not on 'æºè½è®¢å' page, tap system BACK until 'äº¤æ' visible on the bottom navigation bar, then tap 'äº¤æ', then tap 'æºè½è®¢å'.
-1. Tap "{order_type}", waiting util "{order_type}" page show. Tap on the text box with "è¯·è¾å¥è¡ç¥¨ä»£ç æåç§°", waiting util "éæ©è¡ç¥¨" page show. Tap on the text box with "è¯·è¾å¥è¡ç¥¨ä»£ç æåç§°", type "{code}" into the focused text field, wait 6 seconds then tap on "æç´¢ç»æ" below line which has "{code}", wait 6 seconds.
-2. Tap "è¾å¥è§¦åä»·æ ¼" 2 times, with a 2-second interval each time, then tap on the text box "è¾å¥è§¦åä»·æ ¼". Waiting until the keypad visiable, enter the "{price}" by tapping the corresponding buttons on the keypad and then tap "ç¡®å®".
-3. Tap on the radio button with text "å½è¡ä»·â¥ {price} è§¦åå§æ".
-4. Tap on the "è¯·éæ©å§ææ¹å¼". Not need select anything, just swipe((1321, 1985), (1321, 1985)) in short duration, then tap index 92.
-5. Repeat previous step until the "å§ææ¹å¼" field got value, then continue next step.
-6. Swipe up until "æææè³" visiable. If "è¯·è¾å¥ [ä¹°å¥/ååº] æ°é" pop-up then tap "ç¡®å®" to close it.
-7. Tap "ä¹°å¥æ°é", 2 times, with a 2-second interval each time, then tap on the text box "ä¹°å¥æ°é". Waiting until the keypad visiable, remove older value and enter the "{qty}" by tapping the corresponding buttons on the keypad and then tap "ç¡®å®".
-8. Tap "è¯·éæ©ä¸åæ¹å¼" right side the radio button with text "èªå¨ä¸å".
-9. Tap "æææè³" below text box, then tap the date "{valid[-2:]}", then swipe((1321, 1156), (1321, 1156)) in short duration, then tap index 93,
-10. Repeat previous step unitl the "æææè³" field go value, then continue next step.
-11. Tap "åå»ºè®¢å", then tap on the "ç¡®å®".
-        '''
-        elif 'æ­¢çæ­¢æ' in trigger:
-            tp_price = float(trigger.split('è§¦å')[1].split('å')[0])
-            ls_price = float(trigger.split('è§¦å')[1].split('å')[0])
-            order_type = "æ­¢çæ­¢æ"
-            goal = f'''
-        '''
-        else:
-            raise ValueError(f"â Invalid trigger: {trigger}")
-        agent = get_agent(config=self.config, llm=self.llm, driver=self.driver, goal=goal)
-        try_num = 0
-        while try_num < 3:
-            result = await agent.run(save_trajectory='none')
-            if result.success:
-                break
-            try_num += 1
-        if not result.success:
-            raise ValueError(f"â try {try_num} times, but Goal get orders not completed: {result.reason}")
-        logger.info(f"   â Order {code} ({name}) trigger={trigger} qty={qty} until={valid} added successfully")
-        break
-
-    return True
-
-@staticmethod
-async def status_order_in_app(order: SmartOrder) -> str:
-    '''Check the status of the order in the app.
-
-    Args:
-        order: Smart order to check
-
-    Returns:
-        str: The status of the order in the app
-            - 'need_add': order not exist in app
-            - 'need_update': order is running in app but trigger or quantity not match
-            - 'need_stop': order is running in app but not in orders
-    '''
-    return True
-
-async def stop_order_in_app(self, order_code: str, order_name: str) -> bool:
-    '''Stop (cancel) a running smart order in the Guotai app.
-
-    Navigate to smart order list â find order by code â tap stop.
-    The app's smart order page has 'è¿è¡ä¸­' tab listing active orders.
-    Each order card has a 'åæ­¢' (stop) button.
-
-    Args:
-        order_code: Stock code (e.g., '002415')
-        order_name: Stock name for logging
-
-    Returns:
-        bool: True if order was stopped successfully
-    '''
-    code = order_code.split('.')[0]
-    logger.info(f"   ð Stopping order {code} ({order_name}) in app...")
-
-    goal = f'''If not on 'æºè½è®¢å' page, tap system BACK until 'äº¤æ' visible on the bottom navigation bar, then tap 'äº¤æ', then tap 'æºè½è®¢å'.
-1. In the smart order page, tap 'è¿è¡ä¸­' tab to see running orders.
-2. Find the order card that contains stock code "{code}" or name "{order_name}".
-3. Tap the 'åæ­¢' button on that order card.
-4. If a confirmation dialog appears, tap 'ç¡®å®' to confirm stopping the order.
-5. Verify the order status changed (no longer in 'è¿è¡ä¸­' list or shows 'å·²åæ­¢').
-    '''
-    self.config.agent.max_steps = 25
-    agent = get_agent(config=self.config, llm=self.llm, driver=self.driver, goal=goal)
-
-    try_num = 0
-    while try_num < 3:
-        result = await agent.run(save_trajectory='none')
-        if result.success:
-            logger.info(f"   â Order {code} ({order_name}) stopped successfully")
-            return True
-        try_num += 1
-        logger.warning(f"   â ï¸ Attempt {try_num}/3 to stop order {code} failed: {result.reason}")
-
-    logger.error(f"   â Failed to stop order {code} ({order_name}) after 3 attempts")
-    return False
-"""

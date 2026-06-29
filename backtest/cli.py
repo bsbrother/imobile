@@ -591,6 +591,20 @@ def pick_next_trading_date_stocks(config_path: Optional[str] = None,
         raise IBacktestError(f"Stock picking failed: {str(e)}")
 
 
+def _get_sse_change_pct(base_date: str) -> float | None:
+    """Get SSE Composite change % for the most recent trading session."""
+    try:
+        from ..utils.trading_calendar import calendar
+        prev = calendar.get_trading_days_before(base_date, 1)
+        df = data_provider.get_index_data('000001.SH', prev, base_date)
+        if len(df) >= 2:
+            return ((float(df.iloc[-1]['close']) - float(df.iloc[-2]['close']))
+                    / float(df.iloc[-2]['close'])) * 100
+    except Exception:
+        pass
+    return None
+
+
 def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                                        symbols: List[str] = [],
                                        config_path: Optional[str] = None,
@@ -774,13 +788,15 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                 latest_atr = atr.iloc[-1] if not pd.isna(atr.iloc[-1]) else close_price * 0.02
 
                 # Calculate buy price (entry point)
-                # Use lower Bollinger Band or recent support, adjusted for RSI
-                if latest_rsi < 30:  # Oversold
+                # Use lower Bollinger Band or recent support, adjusted for RSI.
+                # Goal: get fills at better-than-close prices; avoid unfilled orders
+                #       in bullish markets where CANSLIM stocks rarely drop to close.
+                if latest_rsi < 30:  # Oversold — deep discount
                     buy_price = min(close_price * 0.98, latest_lower)
-                elif latest_rsi < 50:  # Mild weakness
+                elif latest_rsi < 50:  # Mild weakness — moderate discount
                     buy_price = min(close_price * 0.99, latest_middle * 0.98)
-                else:  # Normal or strong
-                    buy_price = close_price  # Market price
+                else:  # Normal or strong — slight discount for better entry + fill
+                    buy_price = min(close_price * 0.995, latest_middle * 0.99)
 
                 buy_price = max(buy_price, recent_low * 0.99)  # Don't go below recent support
                 buy_price = round(buy_price, 2)
@@ -817,7 +833,17 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                     # Ensure it's not higher than yesterday's close in Bear market
                     if regime == 'bear':
                         buy_price = min(buy_price, close_price * 0.99)
-                    pass # Keep calculated buy_price from lines above
+                    
+                    # If SSE is strongly bullish (>0.5%) even in normal regime,
+                    # apply a mild gap-up so orders still fill. CANSLIM stocks in
+                    # a rising market rarely drop to their previous close.
+                    sse_change = _get_sse_change_pct(base_date) if base_date else None
+                    if sse_change is not None and sse_change > 0.5:
+                        is_wide_limit = symbol.startswith('3') or symbol.startswith('688')
+                        max_gap = 0.03 if is_wide_limit else 0.02  # mild 2-3% gap
+                        buy_price = round(close_price * (1 + max_gap), 2)
+                        logger.debug(f"{symbol}: bullish SSE ({sse_change:+.1f}%), "
+                                     f"gap-up entry: {buy_price}")
 
                 # Use pre-calculated regime ratios
                 # stop_loss_ratio and take_profit_ratio are already set outside the loop
@@ -848,11 +874,14 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                 min_qty = 200 if is_star_chinext else 100
 
                 per_slot_cash = float(initial_cash) / max_positions
+                # Max 25% of capital per position to avoid concentration (e.g. 中际旭创 at 59%)
+                max_position_cash = float(initial_cash) * 0.25
+                effective_slot_cash = min(per_slot_cash, max_position_cash)
 
-                if (per_slot_cash / buy_price) >= min_qty:
-                    buy_quantity = (int(per_slot_cash / buy_price) // min_qty) * min_qty
-                elif (per_slot_cash * 2 / buy_price) >= min_qty:
-                    buy_quantity = (int(per_slot_cash * 2 / buy_price) // min_qty) * min_qty
+                if (effective_slot_cash / buy_price) >= min_qty:
+                    buy_quantity = (int(effective_slot_cash / buy_price) // min_qty) * min_qty
+                elif (effective_slot_cash * 2 / buy_price) >= min_qty:
+                    buy_quantity = (int(effective_slot_cash * 2 / buy_price) // min_qty) * min_qty
                 elif (remaining_cash / buy_price) >= min_qty:
                     buy_quantity = min_qty
                 else:

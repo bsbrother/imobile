@@ -324,8 +324,24 @@ def set_valid_until_today(ui_text: str) -> None:
             center = (center[0], max(center[1] - 50, 100))
         
         if not picker_opened:
-            logger.error("Date picker failed to open. valid_until will keep default.")
-            return
+            logger.warning("Standard tap failed. Trying known coordinates as fallback...")
+            known_positions = [
+                (400, 1701), (500, 1701), (225, 1701),  # BUY form
+                (400, 1550), (500, 1550),                # TP/SL form
+                (400, 1768), (400, 2900),                # Alt positions
+            ]
+            for x, y in known_positions:
+                logger.info(f"Fallback: tapping date value at ({x}, {y})")
+                device_tap(x, y, sleep_after=2.0)
+                picker_ui = get_ui_tree()
+                if '确定' in picker_ui or '年' in picker_ui:
+                    logger.info(f"Date picker opened via fallback ({x}, {y})")
+                    picker_opened = True
+                    break
+                logger.warning(f"No picker at fallback ({x}, {y})")
+            if not picker_opened:
+                logger.error("Date picker failed to open at all positions.")
+                return
 
     # ── Tap the target day number on the calendar grid ──
     day_tapped = False

@@ -287,10 +287,10 @@ def set_valid_until_today(ui_text: str) -> None:
         #   Form partially initialized: (1200, 2900) — date label at bottom
         #   Date VALUE is to the left of the label (~x=500-800), not the label itself
         known_positions = [
-            (500, 1701), (400, 1701), (300, 1701),  # BUY form — date value area
-            (500, 1550), (400, 1550), (300, 1550),  # TP/SL form
-            (500, 1768), (400, 1768),               # Alt BUY positions
-            (700, 2900), (500, 2900),               # Uninitialized form date area
+            (225, 1701), (500, 1701), (400, 1701),  # BUY form — from morning log + value area
+            (225, 1550), (500, 1550), (400, 1550),  # TP/SL form
+            (225, 1768), (400, 1768),                # Alt BUY Y
+            (500, 2900), (700, 2900),                # Uninitialized form
         ]
         for x, y in known_positions:
             logger.info(f"WebView: tapping date value at ({x}, {y})")

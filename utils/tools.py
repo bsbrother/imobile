@@ -282,16 +282,20 @@ def set_valid_until_today(ui_text: str) -> None:
     # If UI-tree failed (WebView gives zero bounds), use known coordinates
     picker_opened = False
     if not center or center == (0, 0):
-        # Try two known positions: BUY form date (225, 1701) and TP/SL form date (225, 1550)
+        # Try known positions: BUY form date value (400, 1701), TP/SL form date value (400, 1550)
+        # The label '有效期至' is at x~225 but the clickable DATE VALUE is further right (~x=400)
         for known_y in [1701, 1550, 1600, 1750]:
-            logger.info(f"WebView workaround: tapping date field at known position (225, {known_y})")
-            device_tap(225, known_y, sleep_after=2.0)
-            picker_ui = get_ui_tree()
-            if '确定' in picker_ui or '年' in picker_ui:
-                logger.info(f"Date picker opened via known coordinate (225, {known_y})")
-                picker_opened = True
+            for known_x in [400, 350, 300, 450]:
+                logger.info(f"WebView workaround: tapping date value at ({known_x}, {known_y})")
+                device_tap(known_x, known_y, sleep_after=2.0)
+                picker_ui = get_ui_tree()
+                if '确定' in picker_ui or '年' in picker_ui:
+                    logger.info(f"Date picker opened via ({known_x}, {known_y})")
+                    picker_opened = True
+                    break
+            if picker_opened:
                 break
-            logger.warning(f"Picker did not open at Y={known_y}. Trying next...")
+            logger.warning(f"No picker at Y={known_y}. Trying next Y...")
         
         if not picker_opened:
             logger.error("Date picker failed to open at all known coordinates.")

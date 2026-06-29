@@ -183,8 +183,22 @@ async def main(submit: bool = False):
     buy_orders = []
     remaining_cash = app_cash
 
+    # Build set of already-held stock codes (strip suffix for matching)
+    held_codes = set()
+    for pos in app_positions:
+        code = pos.get('code', '')
+        held_codes.add(code)
+        held_codes.add(code.split('.')[0])  # strip .SZ/.SH suffix
+
     for o in cli_orders:
         sym = o['symbol']
+        code_clean = sym.replace('.SZ','').replace('.SH','').replace('.BJ','')
+        
+        # Skip if already held — don't extend holding_days by re-buying
+        if sym in held_codes or code_clean in held_codes:
+            logger.info(f"  SKIP {sym} {o['name']}: already held")
+            continue
+        
         min_qty = 200 if (sym.startswith('3') or sym.startswith('688')) else 100
         min_cost = o['buy_price'] * min_qty
 

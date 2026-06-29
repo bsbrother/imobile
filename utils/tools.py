@@ -221,20 +221,53 @@ def check_duplicate_orders(code: str) -> None:
 
 
 def set_valid_until_today(ui_text: str) -> None:
-    """Select '今天' as the monitoring end date."""
+    """Set valid_until to 1 trading day: today if pre-market, next trading day if post-market.
+    
+    Instead of tapping the generic '今天' button (which may not be present),
+    taps the specific day number on the calendar grid.
+    
+    Logic:
+      - Pre-market (before 09:30): target = today's trading date → 1 trading day
+      - Post-market (after 15:00):  target = next trading day  → 1 trading day
+      - In between:                 target = today's trading date
+    
+    The Guotai date picker shows a month grid with day numbers (1-31).
+    We find the target day number and tap it, then confirm.
+    """
+    from datetime import datetime
+    now = datetime.now()
+    
+    # Determine target date: 1 trading day from now
+    from backtest.utils.trading_calendar import calendar
+    today_str = now.strftime('%Y%m%d')
+    
+    if now.hour < 15:
+        # Pre-market or market hours: use today
+        target_date_str = today_str
+    else:
+        # Post-market (after 15:00): use next trading day
+        target_date_str = calendar.get_trading_days_after(today_str, 1)
+    
+    target_day = int(target_date_str[6:8])  # DD part
+    
+    logger.info(f"set_valid_until: now={now:%H:%M}, target_date={target_date_str}, "
+                f"target_day={target_day} (1 trading day)")
+    
+    # ── Find and tap the date field ──
     center = None
     for attempt in range(5):
         ui_text = get_ui_tree()
         center = find_element_center(ui_text, '监控截止') or find_element_center(ui_text, '有效期至')
         if center:
+            logger.info(f"Found date label at {center}")
             break
-        # Try to find a date pattern
         for line in ui_text.split('\n'):
             if re.search(r'\d{4}-\d{2}-\d{2}', line):
                 match = re.search(r'\((\d+),(\d+),(\d+),(\d+)\)', line)
                 if match:
                     x1, y1, x2, y2 = int(match.group(1)), int(match.group(2)), int(match.group(3)), int(match.group(4))
                     center = ((x1 + x2) // 2, (y1 + y2) // 2)
+                    logger.info(f"Found date value at {center} from pattern match")
                     break
         if center:
             break
@@ -242,31 +275,94 @@ def set_valid_until_today(ui_text: str) -> None:
         time.sleep(1)
 
     if not center:
-        logger.warning("Could not find date field, using typical coordinates (900, 1830)")
-        center = (900, 1830)
-        
-    logger.info(f"Tapping date field to open date picker: {center}")
-    device_tap(*center, sleep_after=1.5)
+        logger.warning("Could not find date field. Skipping valid_until set.")
+        return
+
+    # ── Open the date picker ──
+    picker_opened = False
+    for retry in range(3):
+        logger.info(f"Tapping date field to open date picker: {center} (attempt {retry+1}/3)")
+        device_tap(*center, sleep_after=2.0)
+
+        picker_ui = get_ui_tree()
+        has_confirm = '确定' in picker_ui
+        has_year = '年' in picker_ui
+        has_picker = has_confirm or has_year
+
+        if has_picker:
+            logger.info(f"Date picker opened (confirm={'yes' if has_confirm else 'no'}, year={'yes' if has_year else 'no'})")
+            picker_opened = True
+            break
+        else:
+            logger.warning("Date picker did not open. Retrying with Y offset -50...")
+            center = (center[0], max(center[1] - 50, 100))
+
+    if not picker_opened:
+        logger.error("Date picker failed to open after 3 attempts. valid_until will keep default.")
+        return
+
+    # ── Tap the target day number on the calendar grid ──
+    day_tapped = False
+    target_day_str = str(target_day)
     
-    # Tap "今天" button
     for attempt in range(5):
         picker_ui = get_ui_tree()
-        today_center = find_element_center(picker_ui, '今天')
-        if today_center:
-            logger.info(f"Tapping '今天' button at {today_center}")
-            device_tap(*today_center, sleep_after=1.0)
-            break
-        time.sleep(0.5)
+        # Find the day button. Day numbers appear as their own TextView elements
+        # in the calendar grid. We need exact match for the day number.
+        day_center = find_element_center(picker_ui, target_day_str)
         
-    # Tap "确定" button of date picker
+        if day_center:
+            logger.info(f"Tapping day '{target_day_str}' on calendar at {day_center}")
+            device_tap(*day_center, sleep_after=1.0)
+            day_tapped = True
+            break
+        
+        # If not found, try with quoted match
+        day_center = find_element_center(picker_ui, f'"{target_day_str}"')
+        if day_center:
+            logger.info(f"Tapping day '{target_day_str}' (quoted) at {day_center}")
+            device_tap(*day_center, sleep_after=1.0)
+            day_tapped = True
+            break
+            
+        logger.info(f"Waiting for day '{target_day_str}' to appear in picker...")
+        time.sleep(0.5)
+
+    if not day_tapped:
+        # Fallback: try tapping '今天' if specific day not found
+        logger.warning(f"Could not find day '{target_day_str}'. Trying '今天' fallback...")
+        for attempt in range(3):
+            picker_ui = get_ui_tree()
+            today_center = find_element_center(picker_ui, '今天')
+            if today_center:
+                logger.info(f"Tapping '今天' fallback at {today_center}")
+                device_tap(*today_center, sleep_after=1.0)
+                day_tapped = True
+                break
+            time.sleep(0.5)
+
+    # ── Tap "确定" to confirm ──
+    confirm_tapped = False
     for attempt in range(5):
         picker_ui = get_ui_tree()
-        confirm_center = find_button_center(picker_ui, '确定') or find_element_center(picker_ui, '确定')
+        confirm_center = (find_button_center(picker_ui, '确定')
+                          or find_element_center(picker_ui, '确定')
+                          or find_element_center(picker_ui, '确认')
+                          or find_button_center(picker_ui, '确认'))
         if confirm_center:
-            logger.info(f"Tapping date picker confirm button '确定' at {confirm_center}")
+            logger.info(f"Tapping date picker confirm '确定' at {confirm_center}")
             device_tap(*confirm_center, sleep_after=1.5)
+            confirm_tapped = True
             break
         time.sleep(0.5)
+
+    if not confirm_tapped:
+        logger.warning("Could not find '确定' button. Date picker may still be open.")
+
+    if day_tapped and confirm_tapped:
+        logger.info(f"valid_until set to {target_date_str} ({target_day}th, 1 trading day) successfully.")
+    else:
+        logger.warning(f"valid_until may NOT be set correctly (day={'yes' if day_tapped else 'no'}, confirm={'yes' if confirm_tapped else 'no'})")
 
 
 def set_order_method(ui_text: str) -> None:

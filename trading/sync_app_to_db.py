@@ -506,10 +506,15 @@ async def get_order_from_app_smart_order_page_structured(
 
 
 async def get_transactions_from_app_history_page_structured(
-    config: MobileConfig, llm: GoogleGenAI, tools: AndroidDriver
+    config: MobileConfig, llm: GoogleGenAI, tools: AndroidDriver,
+    stop_before_date: str | None = None
 ) -> str:
     """
     Get transaction history from mobile guotai app history page.
+    
+    Args:
+        stop_before_date: If set (format 'YYYY-MM-DD'), stop scrolling when
+                          transactions before this date are found.
     """
     logger.info("Navigating to history transactions page...")
     goto_homepage()
@@ -617,6 +622,14 @@ async def get_transactions_from_app_history_page_structured(
                     logger.info(f"Reached transaction before current year start: {tx_date}. Discarding and stopping.")
                     stop_scrolling = True
                     break
+
+                # Check if transaction is before the stop_before_date cutoff
+                if stop_before_date:
+                    tx_date_prefix = tx_date[:10]  # "YYYY-MM-DD"
+                    if tx_date_prefix < stop_before_date:
+                        logger.info(f"Reached transaction before cutoff {stop_before_date}: {tx_date}. Stopping.")
+                        stop_scrolling = True
+                        break
                     
                 key = f"{tx_date}_{name}_{tx_type}_{price}_{quantity}"
                 transactions[key] = (tx_date, name, tx_type, price, quantity, amount)
@@ -708,10 +721,20 @@ def get_stock_code_by_name(name: str, user_id: int = 1) -> str:
     return ""
 
 
-def sync_transactions_to_db(transactions_data: str, user_id: int = 1) -> dict:
+def sync_transactions_to_db(transactions_data: str, user_id: int = 1, cutoff_date: str | None = None) -> dict:
     """
     Sync transaction history from mobile app to database.
+    
+    Args:
+        transactions_data: CSV data from app
+        user_id: User ID
+        cutoff_date: If set (format 'YYYY-MM-DD'), only sync transactions on/after this date.
+                     Older records are kept (not deleted). If None, uses global _sync_cutoff_date.
     """
+    global _sync_cutoff_date
+    if cutoff_date is None:
+        cutoff_date = _sync_cutoff_date  # may still be None
+    
     if not transactions_data:
         return {'success': True, 'message': 'No transaction data to sync', 'added': 0}
         
@@ -720,6 +743,9 @@ def sync_transactions_to_db(transactions_data: str, user_id: int = 1) -> dict:
     valid_tx_ids = set()
     current_year = datetime.now().year
     year_start = f"{current_year}-01-01 00:00:00"
+    
+    # Determine deletion boundary: cutoff_date or year_start
+    delete_boundary = cutoff_date + " 00:00:00" if cutoff_date else year_start
     
     with DB.cursor() as cursor:
         for row in transaction_rows:
@@ -804,19 +830,19 @@ def sync_transactions_to_db(transactions_data: str, user_id: int = 1) -> dict:
                     WHERE id = ?
                 """, (name, tx_row[0]))
                 
-        # Delete orphaned transactions for the current year
+        # Delete orphaned transactions from the cutoff date onwards
         if valid_tx_ids:
             placeholders = ','.join(['?'] * len(valid_tx_ids))
             cursor.execute(f"""
                 DELETE FROM transactions 
                 WHERE user_id = ? AND transaction_date >= ? AND id NOT IN ({placeholders})
-            """, [user_id, year_start] + list(valid_tx_ids))
+            """, [user_id, delete_boundary] + list(valid_tx_ids))
             deleted_count = cursor.rowcount
         else:
             cursor.execute("""
                 DELETE FROM transactions 
                 WHERE user_id = ? AND transaction_date >= ?
-            """, (user_id, year_start))
+            """, (user_id, delete_boundary))
             deleted_count = cursor.rowcount
                 
     return {
@@ -827,7 +853,206 @@ def sync_transactions_to_db(transactions_data: str, user_id: int = 1) -> dict:
 
 
 # ==========================================
-# 3. Main Orchestration Flow
+# 3. App vs DB Check (self-contained — fetches from app directly)
+# ==========================================
+
+# Incremental sync cutoff: only sync data on or after this date.
+# Default reads from .env START_REAL_TRADING_DATE (2026-06-29).
+# Can be overridden by set_sync_cutoff_date() (e.g. for pre-start init).
+_sync_cutoff_date: str | None = os.getenv('START_REAL_TRADING_DATE')
+
+
+def set_sync_cutoff_date(date_str: str | None):
+    """Override the cutoff date for incremental sync. Only data >= this date is synced.
+    Set to None to sync all data. Format: 'YYYY-MM-DD'.
+    
+    Call without arguments to reset to the .env default.
+    """
+    global _sync_cutoff_date
+    if date_str is None:
+        _sync_cutoff_date = os.getenv('START_REAL_TRADING_DATE')
+    else:
+        _sync_cutoff_date = date_str
+    if _sync_cutoff_date:
+        logger.info(f"Incremental sync cutoff set to: {_sync_cutoff_date}")
+    else:
+        logger.info("Incremental sync cutoff cleared (full sync).")
+
+
+async def check_app_vs_db(user_id: int = 1) -> dict:
+    """Fetch current state from the broker app and compare against DB.
+    
+    Fetches positions (cash, holdings count), running orders count,
+    and transaction count from the app, then compares each against
+    the corresponding DB table.
+    
+    Returns:
+        dict with:
+          - db_matches_app: bool — True if all tables match
+          - mismatches: list[str] — human-readable descriptions of each mismatch
+          - db_state: dict — DB counts (cash, holdings, running_orders, tx_count)
+          - app_state: dict — App counts (positions, running_orders, tx_count)
+          - app_cash: float | None — available cash from app (¥)
+          - app_positions: list[dict] — position records from app
+          - app_running_orders: list[dict] — running order records from app
+    """
+    from shared.db.db import DB
+    from trading.guotai import pre_requirements as _pre_req, parse_csv_data
+
+    result = {
+        'db_matches_app': True,
+        'mismatches': [],
+        'db_state': {},
+        'app_state': {},
+        'app_cash': None,
+        'app_positions': [],
+        'app_running_orders': [],
+    }
+
+    # ── Fetch app state ──
+    tools, llm, config = await _pre_req()
+    app_positions_count = 0
+    app_running_orders_count = 0
+    app_tx_count = 0
+
+    # 1. Positions → summary_account.cash + holding_stocks count
+    try:
+        pos_csv = await get_summary_position_from_app_position_page_structured(config, llm, tools)
+        if pos_csv:
+            sections = pos_csv.strip().split('\n\n')
+            if sections:
+                header, summary_rows = parse_csv_data(sections[0])
+                if summary_rows:
+                    result['app_cash'] = float(summary_rows[0][4])
+                    result['app_state']['cash'] = result['app_cash']
+            if len(sections) > 1:
+                _, pos_rows = parse_csv_data(sections[1])
+                app_positions_count = len(pos_rows)
+                for row in pos_rows:
+                    result['app_positions'].append({
+                        'name': row[0], 'market_cap': float(row[1]) if len(row) > 1 else 0,
+                        'holdings': int(row[2]) if len(row) > 2 else 0,
+                        'available': int(row[3]) if len(row) > 3 else 0,
+                        'current_price': float(row[4]) if len(row) > 4 else 0,
+                        'cost': float(row[5]) if len(row) > 5 else 0,
+                    })
+    except Exception as e:
+        logger.error(f"Failed to fetch positions from app: {e}")
+
+    # 2. Running orders → smart_orders count
+    try:
+        order_csv = await get_order_from_app_smart_order_page_structured(
+            config, llm, tools, target_tabs=["运行中"]
+        )
+        if order_csv:
+            _, ord_rows = parse_csv_data(order_csv)
+            app_running_orders_count = len(ord_rows)
+            for row in ord_rows:
+                result['app_running_orders'].append({
+                    'name': row[0], 'code': row[1],
+                    'trigger_condition': row[2],
+                    'buy_or_sell_price_type': row[3],
+                    'buy_or_sell_quantity': float(row[4]),
+                    'valid_until': row[5],
+                    'order_number': row[6],
+                    'reason_of_ending': row[7] if len(row) > 7 else '',
+                    'status': row[8] if len(row) > 8 else '运行中',
+                })
+    except Exception as e:
+        logger.error(f"Failed to fetch orders from app: {e}")
+
+    # 3. Transactions count
+    try:
+        tx_csv = await get_transactions_from_app_history_page_structured(config, llm, tools)
+        if tx_csv:
+            _, tx_rows = parse_csv_data(tx_csv)
+            app_tx_count = len(tx_rows)
+    except Exception as e:
+        logger.error(f"Failed to fetch transactions from app: {e}")
+
+    result['app_state']['holdings'] = app_positions_count
+    result['app_state']['running_orders'] = app_running_orders_count
+    result['app_state']['transactions'] = app_tx_count
+
+    # ── Compare against DB ──
+    with DB.cursor() as cursor:
+        # 1. summary_account — cash
+        db_cash_row = cursor.execute(
+            "SELECT cash, total_assets, position_percent FROM summary_account WHERE user_id=?",
+            (user_id,)
+        ).fetchone()
+        db_cash = float(db_cash_row[0]) if db_cash_row and db_cash_row[0] else 0.0
+        db_assets = float(db_cash_row[1]) if db_cash_row and db_cash_row[1] else 0.0
+        result['db_state']['cash'] = db_cash
+        result['db_state']['total_assets'] = db_assets
+
+        if result['app_cash'] is not None:
+            cash_diff_pct = abs(db_cash - result['app_cash']) / max(result['app_cash'], 1.0)
+            if cash_diff_pct > 0.01:
+                result['db_matches_app'] = False
+                result['mismatches'].append(
+                    f'summary_account.cash: DB=¥{db_cash:,.2f} vs App=¥{result["app_cash"]:,.2f} ({cash_diff_pct:.2%} diff)'
+                )
+
+        # 2. holding_stocks — count
+        db_holdings = cursor.execute(
+            "SELECT COUNT(*) FROM holding_stocks WHERE user_id=? AND holdings > 0",
+            (user_id,)
+        ).fetchone()[0]
+        result['db_state']['holdings'] = db_holdings
+        if db_holdings != app_positions_count:
+            result['db_matches_app'] = False
+            result['mismatches'].append(
+                f'holding_stocks: DB={db_holdings} vs App={app_positions_count}'
+            )
+
+        # 3. smart_orders — running orders count
+        db_running = cursor.execute(
+            "SELECT COUNT(*) FROM smart_orders WHERE status='running' AND user_id=?",
+            (user_id,)
+        ).fetchone()[0]
+        db_total_orders = cursor.execute(
+            "SELECT COUNT(*) FROM smart_orders WHERE user_id=?",
+            (user_id,)
+        ).fetchone()[0]
+        result['db_state']['running_orders'] = db_running
+        result['db_state']['total_orders'] = db_total_orders
+        if db_running != app_running_orders_count:
+            result['db_matches_app'] = False
+            result['mismatches'].append(
+                f'smart_orders(running): DB={db_running} vs App={app_running_orders_count}'
+            )
+
+        # 4. transactions — count
+        current_year = datetime.now().year
+        tx_boundary = f"{_sync_cutoff_date} 00:00:00" if _sync_cutoff_date else f"{current_year}-01-01 00:00:00"
+        db_tx_count = cursor.execute(
+            "SELECT COUNT(*) FROM transactions WHERE user_id=? AND transaction_date >= ?",
+            (user_id, tx_boundary)
+        ).fetchone()[0]
+        result['db_state']['transactions'] = db_tx_count
+        if app_tx_count > 0 and db_tx_count != app_tx_count:
+            result['db_matches_app'] = False
+            result['mismatches'].append(
+                f'transactions: DB={db_tx_count} vs App={app_tx_count}'
+            )
+
+    # ── Log results ──
+    logger.info(f"DB  state: Cash=¥{db_cash:,.2f}, Holdings={db_holdings}, "
+                f"RunningOrders={db_running}, TX={db_tx_count}")
+    logger.info(f"App state: Cash=¥{result['app_cash'] or 0:,.2f}, Holdings={app_positions_count}, "
+                f"RunningOrders={app_running_orders_count}, TX={app_tx_count}")
+
+    if result['db_matches_app']:
+        logger.info("✅ DB matches App — all tables in sync.")
+    else:
+        logger.warning(f"❌ DB vs App MISMATCH: {', '.join(result['mismatches'])}")
+
+    return result
+
+
+# ==========================================
+# 4. Main Orchestration Flow
 # ==========================================
 
 async def cron_sync_app_to_db(check_trading_day_and_time: bool = True) -> dict:
@@ -868,10 +1093,18 @@ async def cron_sync_app_to_db(check_trading_day_and_time: bool = True) -> dict:
     position_csv = await get_summary_position_from_app_position_page_structured(config=config, llm=llm, tools=tools)
     
     logger.info("Extracting smart orders from app...")
-    order_csv = await get_order_from_app_smart_order_page_structured(config=config, llm=llm, tools=tools)
+    # Only scrape running + triggered tabs; skip 已结束 (historical orders
+    # can be enormous and cause timeouts on first sync)
+    order_csv = await get_order_from_app_smart_order_page_structured(
+        config=config, llm=llm, tools=tools,
+        target_tabs=["今日已触发", "运行中"]
+    )
     
     logger.info("Extracting transaction history from app...")
-    tx_csv = await get_transactions_from_app_history_page_structured(config=config, llm=llm, tools=tools)
+    tx_csv = await get_transactions_from_app_history_page_structured(
+        config=config, llm=llm, tools=tools,
+        stop_before_date=_sync_cutoff_date
+    )
     
     # 2. Pre-save app counts
     pos_count = 0
@@ -905,13 +1138,22 @@ async def cron_sync_app_to_db(check_trading_day_and_time: bool = True) -> dict:
     logger.info(f"Synced portfolio: {result_position}")
         
     logger.info("Syncing order data to DB...")
-    result_order = sync_order_data_to_db(order_csv, user_id=1)
-    if not result_order.get('success'):
-        raise ValueError(f"sync_order_data_to_db failed: {result_order}")
-    logger.info(f"Synced smart orders: {result_order}")
+    # Check if order data has actual rows (not just header)
+    _has_orders = False
+    if order_csv:
+        _ord_header, _ord_rows = parse_csv_data(order_csv)
+        _has_orders = len(_ord_rows) > 0
+    if _has_orders:
+        result_order = sync_order_data_to_db(order_csv, user_id=1)
+        if not result_order.get('success'):
+            raise ValueError(f"sync_order_data_to_db failed: {result_order}")
+        logger.info(f"Synced smart orders: {result_order}")
+    else:
+        result_order = {'success': True, 'message': 'No orders to sync (app had 0 orders)'}
+        logger.info("No smart orders in app — skipping order sync.")
         
     logger.info("Syncing transactions to DB...")
-    result_tx = sync_transactions_to_db(tx_csv, user_id=1)
+    result_tx = sync_transactions_to_db(tx_csv, user_id=1, cutoff_date=_sync_cutoff_date)
     if not result_tx.get('success'):
         raise ValueError(f"sync_transactions_to_db failed: {result_tx}")
     logger.info(f"Synced transactions: {result_tx}")
@@ -921,9 +1163,11 @@ async def cron_sync_app_to_db(check_trading_day_and_time: bool = True) -> dict:
         db_holdings = cursor.execute("SELECT COUNT(*) FROM holding_stocks").fetchone()[0]
         db_orders = cursor.execute("SELECT COUNT(*) FROM smart_orders").fetchone()[0]
         current_year = datetime.now().year
+        # Use cutoff date for transaction count if set
+        tx_boundary = f"{_sync_cutoff_date} 00:00:00" if _sync_cutoff_date else f"{current_year}-01-01 00:00:00"
         db_transactions = cursor.execute(
             "SELECT COUNT(*) FROM transactions WHERE transaction_date >= ?",
-            (f"{current_year}-01-01 00:00:00",)
+            (tx_boundary,)
         ).fetchone()[0]
 
     # 5. Run shared/db/sql.sh

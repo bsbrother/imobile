@@ -147,11 +147,25 @@ def create_tp_sl_order(code: str, tp_price: str, sl_price: str, quantity: str, s
     time.sleep(2)
     ui_text = get_ui_tree()
     center = find_element_center(ui_text, '止盈止损')
+    
+    # Scroll to find it — the button is at the bottom of the order creation area
     if not center:
-        # try scrolling to find it
-        device_swipe(720, 1500, 720, 500, sleep_after=1.5)
-        ui_text = get_ui_tree()
-        center = find_element_center(ui_text, '止盈止损')
+        for _ in range(5):
+            device_swipe(720, 2000, 720, 500, sleep_after=1.5)
+            ui_text = get_ui_tree()
+            center = find_element_center(ui_text, '止盈止损')
+            if center:
+                break
+    
+    # If still not found, try tapping '新建订单' first to reveal creation options
+    if not center:
+        logger.warning("'止盈止损' not found directly. Trying via '新建订单'...")
+        new_center = find_element_center(ui_text, '新建订单')
+        if new_center:
+            device_tap(*new_center, sleep_after=2)
+            ui_text = get_ui_tree()
+            center = find_element_center(ui_text, '止盈止损')
+    
     if not center:
         raise RuntimeError("Cannot find '止盈止损' button on smart order page")
     logger.info(f"Tapping '止盈止损' at {center}")

@@ -114,11 +114,25 @@ def create_buy_order(code: str, price: str, quantity: str, submit: bool = False,
     time.sleep(2)
     ui_text = get_ui_tree()
     center = find_element_center(ui_text, '到价买入')
+    
+    # Scroll down to find it — the button is at the bottom of the order creation area
     if not center:
-        # try scrolling to find it
-        device_swipe(720, 1500, 720, 500, sleep_after=1.5)
-        ui_text = get_ui_tree()
-        center = find_element_center(ui_text, '到价买入')
+        for _ in range(5):
+            device_swipe(720, 2000, 720, 500, sleep_after=1.5)
+            ui_text = get_ui_tree()
+            center = find_element_center(ui_text, '到价买入')
+            if center:
+                break
+    
+    # If still not found, try tapping '新建订单' first to reveal creation options
+    if not center:
+        logger.warning("'到价买入' not found directly. Trying via '新建订单'...")
+        new_center = find_element_center(ui_text, '新建订单')
+        if new_center:
+            device_tap(*new_center, sleep_after=2)
+            ui_text = get_ui_tree()
+            center = find_element_center(ui_text, '到价买入')
+    
     if not center:
         raise RuntimeError("Cannot find '到价买入' button on smart order page")
     logger.info(f"Tapping '到价买入' at {center}")

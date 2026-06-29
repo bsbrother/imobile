@@ -591,3 +591,46 @@ class SQLiteDataCache:
         # Show final cache statistics
         stats = self.get_cache_stats()
         logger.info(f"Final cache stats: {stats['total_entries']} entries, {stats['unique_symbols']} symbols, {stats['db_size_mb']} MB")
+
+    def invalidate_recent(self, data_type: str = 'ohlcv_data', days: int = 3):
+        """Remove cached data for the most recent N trading days.
+        
+        Use before pre-market or backtest to ensure fresh OHLCV data.
+        Only drops ohlcv_data by default; trading calendar and basic info
+        caches (pickle files) are not affected.
+        
+        Args:
+            data_type: Type of data to invalidate (default 'ohlcv_data')
+            days: Number of most recent trading days to purge
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                # Get the N most recent distinct trade_dates
+                cursor.execute(
+                    """SELECT DISTINCT trade_date FROM daily_data
+                       WHERE data_type = ?
+                       ORDER BY trade_date DESC LIMIT ?""",
+                    (data_type, days)
+                )
+                recent_dates = [row[0] for row in cursor.fetchall()]
+                if not recent_dates:
+                    logger.info(f"No recent {data_type} entries to invalidate.")
+                    return 0
+                
+                placeholders = ','.join(['?'] * len(recent_dates))
+                cursor.execute(
+                    f"""DELETE FROM daily_data
+                        WHERE data_type = ? AND trade_date IN ({placeholders})""",
+                    [data_type] + recent_dates
+                )
+                deleted = cursor.rowcount
+                conn.commit()
+                logger.info(
+                    f"Invalidated {deleted} {data_type} cache entries "
+                    f"for {len(recent_dates)} recent trading dates: {recent_dates}"
+                )
+                return deleted
+        except Exception as e:
+            logger.error(f"Failed to invalidate recent cache: {e}")
+            return 0

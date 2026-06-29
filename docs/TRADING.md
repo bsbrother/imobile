@@ -1,39 +1,208 @@
 # Trading Module — iMobile A-Shares Automated Trading
 
-The `trading/` module is the **live-trading** subsystem of iMobile. It automates Chinese A-Share market operations by driving the [国泰海通君弘 (Guotai Junan)](https://www.gtja.com/) broker Android app via ADB + AI vision agents, and syncs real-time market data into the local SQLite database for the web dashboard.
+The `trading/` module is the **live-trading** subsystem of iMobile. It automates Chinese A-Share market operations by driving the 国泰海通君弘 (Guotai Junan) broker Android app via ADB + AI vision agents, and syncs real-time market data into the local SQLite database for the web dashboard.
 
 ---
 
 ## Table of Contents
 
-- [Main Features](#main-features)
+- [Step-by-Step Process](#step-by-step-process)
 - [Module Structure](#module-structure)
 - [Architecture](#architecture)
 - [Pre-Requirements](#pre-requirements)
 - [Environment Variables](#environment-variables)
 - [Usage](#usage)
-- [Trading Phases](#trading-phases)
-- [Crontab Scheduling](#crontab-scheduling)
 - [Data Sync Pipeline](#data-sync-pipeline)
 - [Trajectory Replay](#trajectory-replay)
-- [Key Classes & Functions](#key-classes--functions)
 - [Error Handling & Retries](#error-handling--retries)
-- [Logging](#logging)
+- [Crontab Scheduling](#crontab-scheduling)
 
 ---
 
-## Main Features
+## Step-by-Step Process
 
-| Feature | Description |
-|---|---|
-| **Mobile ADB automation** | Controls the Guotai Android app on a real device or emulator via ADB + DroidRun Portal |
-| **AI vision navigation** | Uses Gemini LLM (vision-enabled) to navigate UI, read on-screen data, and fill forms |
-| **Trajectory replay** | Pre-recorded tap sequences replay for fast, deterministic navigation; falls back to live agent on miss |
-| **Real-time data extraction** | Extracts market indices, portfolio positions, and smart orders from the broker app |
-| **DB sync** | Syncs extracted data (quotes, positions, orders) into SQLite (`imobile.db`) for the Reflex dashboard |
-| **Daily trading phases** | Structured pre-market / market / post-market workflow with cron scheduling |
-| **Stock picking integration** | Calls `backtest/engine.py` (`pick_orders_trading`) in pre-market to generate smart orders |
-| **Structured data models** | Pydantic models for all extracted data (transactions, positions, quotes, orders) |
+The entire trading workflow is orchestrated by `trading/runner.py → run_daily_trading()`. It splits the daily trading cycle into three distinct phases:
+
+### Phase Router (`main()`)
+
+```
+python trading/runner.py [date] [--phase pre-market|market|post-market|auto|all]
+  │
+  ├── cleanup_empty_trajectories() — purge empty trajectory dirs
+  ├── login() — set GUOTAI_ACCOUNT, GUOTAI_PASSWORD env vars
+  │
+  ├── If --sync-only → cron_sync_app_to_db(check_trading_day_and_time=False)
+  │
+  └── Else: run_daily_trading(this_date, phase, user_id, dry_run, submit, package_name)
+        │
+        ├── Check trading calendar → if non-trading day, advance to next trading day
+        ├── Auto-detect phase by current time:
+        │     < 09:30 → pre-market
+        │     09:30-15:00 → market
+        │     > 15:00 → post-market
+        ├── For each phase: check time guard, then run phase function
+        └── Return status JSON summary
+```
+
+---
+
+### Phase 1: Pre-Market (`run_pre_market`) — Before 09:30
+
+```
+Step 1.1: Sync Check (check_and_sync_app_to_db)
+  │
+  ├── Query DB state: cash, holdings count, running orders count
+  ├── If running orders > 0 → stale orders from yesterday
+  │     → cron_sync_app_to_db(check_trading_day_and_time=False)
+  │     → cleans up by syncing real app state back to DB
+  └── If clean (0 running orders) → skip, proceed
+
+Step 1.2: Fetch App State (unless --dry-run)
+  │
+  ├── pre_requirements(package_name)
+  │     ├── Get ADB device connectivity via mobilerun AndroidDriver
+  │     ├── Create LLM: GoogleGenAI with gemini-3.1-flash-lite-preview (free tier)
+  │     ├── Create MobileAgent config:
+  │     │     max_steps=60, vision=True, reasoning=True
+  │     │     after_sleep_action=1.5s between taps
+  │     └── Return (tools, llm, config)
+  │
+  ├── Fetch POSITIONS from app:
+  │     get_summary_position_from_app_position_page_structured(config, llm, tools)
+  │       ├── MobileAgent navigates to 我的持仓 (My Holdings) page
+  │       ├── AI reads screen → extracts CSV sections
+  │       ├── Section 1: Account summary (cash, total assets, floating P&L)
+  │       └── Section 2: Holdings list (name, code, holdings, price, cost)
+  │
+  ├── Fetch RUNNING ORDERS from app:
+  │     get_order_from_app_smart_order_page_structured(config, llm, tools, tabs=["运行中"])
+  │       ├── MobileAgent navigates to smart order page
+  │       ├── Switch to 运行中 (Running) tab
+  │       └── Extracts: name, code, trigger_condition, quantity, valid_until, order_number
+  │
+  └── Parse into structured lists: app_cash, app_positions[], app_running_orders[]
+
+Step 1.3: Stock Picking + Order Generation
+  │
+  └── pick_orders_trading(start_date, end_date, user_id, src='ts_7AZ',
+                          is_live=True, backtest_search=False, backtest_ai=False,
+                          app_cash, app_positions, app_running_orders)
+        │
+        └── (Full 7-phase backtest pipeline from backtest/engine.py — see BACKTEST.md)
+              ├── Market regime detection
+              ├── ts_7AZ CANSLIM stock picking
+              ├── Capital calculation (uses real app_cash)
+              ├── Smart order generation (buy / TP/SL)
+              └── Writes to backtest/results/daily/
+                    pick_stocks_YYYYMMDD.json
+                    smart_orders_YYYYMMDD.json
+
+Step 1.4: Summary Logging
+  │
+  ├── Log regime, count of BUY orders, count of TP/SL orders
+  └── Log each order: symbol, name, buy_price, TP, SL, quantity
+
+Step 1.5: Submit to App (only with --submit flag)
+  │
+  ├── Parse smart_orders JSON
+  ├── Separate: BUY orders (first N), TP/SL orders (rest)
+  ├── For each BUY order:
+  │     create_buy_order(code, price, quantity, submit=True)
+  │       └── ADB taps through app UI to submit buy order
+  ├── For each TP/SL order:
+  │     create_tp_sl_order(code, tp_price, sl_price, quantity, submit=True)
+  │       └── ADB taps through app UI to set TP/SL conditions
+  └── Note: Without --submit, orders stay in DB only
+
+Step 1.6: Cleanup
+  └── OrderAnalyzer is NOT run — no daily report generation for live trades
+      (requires historical OHLCV close prices, unavailable on day-of)
+```
+
+**Key difference from backtest mode:**
+- `is_live=True` → uses real `imobile.db`, not test DB
+- `backtest_search=False, backtest_ai=False` → pure technical analysis, no LLM calls during picking
+- Real cash from app homepage overrides simulated capital
+- No daily/period P&L reports generated (those use historical OHLCV)
+
+---
+
+### Phase 2: Market (`run_market`) — 09:30 to 15:00
+
+```
+Backtest model (for reference):
+  └── OrderAnalyzer.check_order_execution()
+        Matches OHLCV data against trigger conditions (buy_price, TP, SL)
+        to simulate what would have executed. This is how the 56.40%
+        backtest return was achieved.
+
+Real trading model:
+  └── Broker Auto-Execution (server-side)
+        Smart orders submitted during pre-market are auto-executed by
+        Guotai Junan's server-side trigger system. The app monitors
+        conditions on the broker's servers — no local polling needed.
+
+        This is a FUNDAMENTAL architectural difference:
+        - Backtest: deterministic OHLCV matching → 100% execution fidelity
+        - Real: broker triggers → fills depend on market liquidity, queue
+          position, and exchange matching rules
+
+Step 2.1: Mid-Day Sync (optional, for monitoring)
+  │
+  └── cron_sync_app_to_db(check_trading_day_and_time=False)
+        ├── Open broker app via ADB + trajectory replay
+        ├── Navigate to 行情 (Quotes) page → extract index + stock prices
+        ├── Navigate to 我的持仓 (My Holdings) → extract positions
+        ├── Navigate to 条件单 (Smart Orders) → extract order status
+        └── Sync all data into DB tables
+
+Key difference from backtest:
+  - Backtest calls check_order_execution() to simulate fills from OHLCV
+  - Real trading does NOT call check_order_execution() — broker handles it
+  - Order execution status is only known after syncing app→DB
+```
+
+---
+
+### Phase 3: Post-Market (`run_post_market`) — After 15:00
+
+```
+Step 3.1: Final Sync
+  │
+  └── cron_sync_app_to_db(check_trading_day_and_time=False)
+        └── Same full sync pipeline — captures final day-end state
+            (quotes, positions, order status, transactions)
+
+Step 3.2: Backtest-Style Analysis (NEW)
+  │
+  └── generate_trading_report(this_date, user_id)
+        ├── Read from production DB:
+        │     ├── summary_account: total_assets, cash, floating_pnl
+        │     ├── transactions: today's buys/sells with P&L from notes
+        │     ├── holding_stocks: current positions with cost/price/P&L
+        │     └── smart_orders: running order status
+        │
+        ├── Compute:
+        │     ├── Today realized P&L (from transaction notes)
+        │     ├── Total P&L (realized + unrealized)
+        │     ├── Benchmark comparison (SSE Composite today return)
+        │     ├── Position expiry analysis (days held vs max_hold)
+        │     └── Win/loss classification
+        │
+        ├── Generate Markdown report:
+        │     Account Summary, Transactions, Holdings
+        │     Position Expiry Analysis (⚠️ force-sell warnings)
+        │     Smart Orders status
+        │
+        └── Generate Suggestions:
+              1. Force-sell expired positions count + codes
+              2. Idle cash deployment recommendation
+              3. Winning positions — trail stops on re-pick
+              4. Losing positions — stop-loss or expiry status
+              5. Unfilled BUY orders carried over
+              6. Market context from SSE benchmark
+              → Write to backtest/results/daily/trading_report_YYYYMMDD.md
+```
 
 ---
 
@@ -41,416 +210,231 @@ The `trading/` module is the **live-trading** subsystem of iMobile. It automates
 
 ```
 trading/
-├── runner.py        # CLI entry point — orchestrates all trading phases
-├── guotai.py        # Guotai broker app integration: navigation, extraction, DB sync
-├── adb.py           # ADB device connectivity & app-existence checks
-├── extractors.py    # Pydantic data models + AppDataExtractor base class
-└── trajectory/      # Saved DroidRun tap-sequence recordings for replay
-    ├── 20260615_154834_2a088f21/
-    └── 20260615_162511_e92450d5/
+├── runner.py              # CLI entry — orchestrates all 3 trading phases
+├── guotai.py              # Guotai broker app integration: navigation, extraction, DB sync
+├── adb.py                 # ADB device connectivity & app checks
+├── report.py              # Post-market trading report generator
+├── sync_app_to_db.py      # Structured app→DB sync using MobileAgent + ADB
+├── extractors.py          # Pydantic data models + AppDataExtractor base class
+├── create_order_buy.py    # ADB-driven buy order submission
+├── create_order_sell.py   # ADB-driven sell order submission
+├── create_order_tp_sl.py  # ADB-driven TP/SL order submission
+├── stop_order.py          # ADB-driven stop order management
+└── trajectory/            # Pre-recorded tap sequences for replay
+    ├── index_quote/       # Nav: app → 行情 page
+    ├── order_page/        # Nav: app → 条件单 page
+    └── orders_detail/     # Timestamped recordings
 ```
 
 ### File Responsibilities
 
 #### `runner.py` — Main CLI Orchestrator
-
 - Entry point: `python trading/runner.py`
-- Parses CLI arguments (`date`, `--phase`, `--user-id`, `--dry-run`, `--sync-only`)
-- Checks trading calendar; skips non-trading days
-- Calls `run_daily_trading()` for the requested phase
-- Cleans up empty trajectory directories on startup
+- Parses CLI args, checks trading calendar
+- Routes to phase-specific functions
+- Handles --dry-run, --submit, --sync-only modes
 
 #### `guotai.py` — Broker App Integration
+- **App lifecycle**: `open_app()`, `close_app()`, `login()`, `goto_homepage()`, `pre_requirements()`
+- **Navigation**: AI-powered page navigation with trajectory replay fallback
+- **Data extraction**: CSV parsing from app screens via Gemini Vision + Levenshtein fuzzy matching
+- **DB sync**: `cron_sync_app_data_to_db()` — full quote/position/order sync with time guards
+- **GuotaiExtractor** class — structured extraction using Pydantic models
 
-Core module (~1 073 lines). Contains:
-
-- **App lifecycle**: `open_app()`, `close_app()`, `pre_requirements()`
-- **Navigation agents**: AI agents that tap through the app UI
-- **Data extraction**: `get_index_stock_from_app_quote_page()`, `get_summary_position_from_app_position_page()`, `get_order_from_app_smart_order_page()`
-- **DB sync**: `sync_index_quote_data_to_db()`, `sync_summary_position_data_to_db()`, `sync_order_data_to_db()`
-- **Cron job**: `cron_sync_app_data_to_db()` — full sync pipeline with market-hours guard
-- **`GuotaiExtractor`** class — structured data extractor using Pydantic output models
+#### `sync_app_to_db.py` — Structured Sync
+- Pure ADB UI parsers (no AI) for fast batch extraction
+- Structured extraction methods: `get_summary_position_from_app_position_page_structured()`, `get_order_from_app_smart_order_page_structured()`
+- Functions: `sync_index_quote_data_to_db()`, `sync_summary_position_data_to_db()`, `sync_order_data_to_db()`
 
 #### `adb.py` — ADB Utilities
+- Device discovery, connectivity checks
+- App package verification
 
-- `get_device_serials()` — list connected ADB devices
-- `get_device_connectivity()` — verify device + DroidRun Portal reachability
-- `check_app_exist()` — assert the broker app package is installed
+#### `report.py` — Trading Report Generator
+- Reads production DB tables
+- Generates Markdown report with account, transaction, and holding summaries
 
 #### `extractors.py` — Data Models
-
-Pydantic models returned by the MobileAgent:
-
-| Model | Fields |
-|---|---|
-| `ExtractTransaction` | name, transaction_date, price, quantity, transaction_type, amount |
-| `ExtractOrder` | name, code, trigger_condition, commission_method, buy_or_sell_quantity, valid_until, order_number, reason_of_ending |
-| `ExtractQuote` | indices `[{name, number, ratio}]`, stocks `[{name, code, latest_price, …}]` |
-| `ExtractPosition` | floating_profit_loss, account_assets, market_cap, positions_pct, available, desirable, holdings list |
+Pydantic models returned by MobileAgent:
+- `ExtractTransaction` — name, date, price, quantity, type, amount
+- `ExtractOrder` — name, code, trigger, quantity, valid_until, order_number
+- `ExtractQuote` — indices + stocks with price/change data
+- `ExtractPosition` — floating P&L, account assets, market cap, holdings
 
 ---
 
 ## Architecture
 
 ```
-Android Device / Genymotion Emulator
-        │  USB / TCP ADB
+Android Device / Genymotion Emulator (Google Pixel 6 Pro)
+        │  USB / TCP ADB (127.0.0.1:6555)
         ▼
-   ADB (adb.py)
-        │  AndroidDriver (mobilerun)
+   ADB (adb.py) → AndroidDriver (mobilerun)
+        │
         ▼
 DroidRun Portal (accessibility service on device)
         │  tap / swipe / screenshot commands
         ▼
  MobileAgent + Gemini Vision (guotai.py)
-        │  AI reads screen, navigates, extracts CSV data
+        │  AI reads screen, navigates app, extracts CSV data
+        │  Model: gemini-3.1-flash-lite-preview (free tier)
+        │  Max steps: 60 per task, vision=True, reasoning=True
         ▼
-  Data Parsing & Validation (guotai.py)
-        │  parse_csv_data / normalize / validate
+  Data Parsing & Validation (guotai.py → parse_csv_data)
+        │  Levenshtein fuzzy header matching (≤3 distance)
+        │  OCR screenshot extraction fallback (ocr_screenshot2file)
         ▼
   SQLite DB (shared/db/imobile.db)
-        │  market_indices, holding_stocks, summary_account, smart_orders
+        │  Tables: market_indices, holding_stocks, summary_account,
+        │          smart_orders, transactions
         ▼
   Reflex Web Dashboard (web/)
 ```
-
-The agent follows a **Goal → Planning → Execution → Reflection** loop (up to 60 steps). Vision is enabled (`ExecutorConfig(vision=True)`) so the model can read Chinese text and UI elements from screenshots.
-
----
-
-## Pre-Requirements
-
-### 1. Python Environment
-
-```bash
-cd ~/apps/imobile
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-Key packages used by the trading module:
-
-| Package | Purpose |
-|---|---|
-| `mobilerun` (DroidRun fork) | Android driver + MobileAgent orchestration |
-| `llama_index.llms.google_genai` | Gemini LLM interface for MobileAgent |
-| `python-dotenv` | `.env` loading |
-| `loguru` | Structured logging |
-| `Levenshtein` | Fuzzy CSV header matching |
-| `pydantic` | Structured output models |
-
-> **Note:** `mobilerun` / DroidRun with Google provider must be installed separately:
-> ```bash
-> pip install droidrun[google] -e utils/droidrun/.
-> ```
-
-### 2. Android Device or Emulator
-
-The trading module requires an Android device (physical or emulator, e.g. Genymotion) connected via ADB.
-
-```bash
-# Verify ADB sees the device
-adb devices
-
-# Verify DroidRun Portal connectivity
-droidrun ping
-```
-
-**DroidRun Portal setup on the device:**
-
-1. Install DroidRun Portal APK: `droidrun setup`
-2. Enable accessibility service: **Settings → Accessibility → DroidRun Portal → Enable**
-3. Confirm: `droidrun ping`
-
-### 3. Broker App Installed
-
-The 国泰海通君弘 app (`com.guotai.dazhihui`) must be installed on the device.
-
-```bash
-# Verify app is present
-adb shell pm list packages | grep guotai
-```
-
-### 4. `.env` Configuration
-
-Copy and populate the environment file (see [Environment Variables](#environment-variables) below).
-
-```bash
-cp .env.example .env
-# Edit .env
-```
-
----
-
-## Environment Variables
-
-The following variables are **required** for the trading module:
-
-| Variable | Required | Description |
-|---|---|---|
-| `GOOGLE_API_KEY` / `GEMINI_API_KEY` | ✅ | Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey) |
-| `GEMINI_MODEL` | ✅ | Model to use (default: `gemini-3.1-flash-lite-preview`) |
-| `GUOTAI_PACKAGE_NAME` | ✅ | Android package: `com.guotai.dazhihui` |
-| `GUOTAI_PASSWORD` | ✅ | Trading account PIN (6 digits) |
-| `DB_IMOBILE_FILE` | ✅ | Path to SQLite database (default: `./shared/db/imobile.db`) |
-| `LOG_LEVEL` | optional | `DEBUG` / `INFO` / `WARNING` / `ERROR` (default: `DEBUG`) |
-| `LOG_PATH` | optional | Log output directory (default: `/tmp/ibacktest_logs`) |
-| `GEMINI_THINKING_BUDGET` | optional | Thinking tokens: `-1` dynamic, `0` off (default: `0`) |
-
-Additional variables used indirectly (Tushare, search APIs, etc.) are documented in `.env`.
-
----
-
-## Usage
-
-### Run with Auto Phase Detection
-
-```bash
-python trading/runner.py
-```
-
-Detects the current time and automatically picks the appropriate phase.
-
-### Run a Specific Phase
-
-```bash
-# Pre-market: stock picking + smart order generation
-python trading/runner.py --phase pre-market
-
-# Market: monitor and execute pending smart orders
-python trading/runner.py --phase market
-
-# Post-market: sync mobile app data to DB
-python trading/runner.py --phase post-market
-
-# Run all phases sequentially
-python trading/runner.py --phase all
-```
-
-### Specify a Trading Date
-
-```bash
-python trading/runner.py 20260214 --phase pre-market
-```
-
-### Dry Run (no mobile app operations)
-
-```bash
-python trading/runner.py --dry-run
-```
-
-### Legacy Sync-Only Mode
-
-```bash
-# Only sync data from mobile app, no trading phases
-python trading/runner.py --sync-only
-```
-
-### Run the Cron Sync Directly
-
-```bash
-# Sync all data (quote, position, orders) from app to DB; no trading-time check
-python trading/guotai.py
-```
-
-This calls `cron_sync_app_data_to_db(check_trading_day_and_time=False)` directly.
-
----
-
-## Trading Phases
-
-### `pre-market`
-
-Runs before the market opens (typically ~09:00):
-
-1. Calls `pick_orders_trading()` from `backtest/engine.py` with `src='ts_7AZ'` (default CANSLIM strategy)
-2. Screens stocks across 7 CANSLIM factors with regime-based TP/SL from `config.json`
-3. Generates smart orders via `cli analyze`:
-   - **Bull regime:** `buy_price = close × (1 + clamp(0.5×ATR/close, min=2%, max=7%/13%))` — set above yesterday's close so the `股价 ≤ buy_price(触发买入)` trigger fires on a typical gap-up open without chasing near-limit-up prices. ChiNext (300) / STAR (688) use 13% cap; main board uses 7%.
-   - **Other regimes (bear/normal/volatile):** RSI / Bollinger Band / recent-support-based entry (conservative)
-4. Writes orders to DB (`smart_orders` table) and daily output to `backtest/results/daily/`
-5. Steps 3 (daily execution report) and 4 (period benchmark report) are **skipped automatically** when the target date is today or in the future — those steps require historical OHLCV data that doesn't exist yet for a future trading date.
-
-### `market`
-
-During trading session (09:30–11:30, 13:00–15:00):
-
-- Monitors and executes pending smart orders. Note that the live market session execution via ADB in `trading/runner.py` is currently a **`TODO` stub**. Instead, the system relies on the Guotai Junan broker app's native server-side trigger system: smart orders generated during `pre-market` are uploaded/synced to the app, and the broker's servers handle the live execution.
-- *A-Share Rule Difference*: The backtesting system does not enforce the real-market requirement that ChiNext (`30xxx`) and STAR Market (`688xxx`) stocks have a minimum buy quantity of **200 shares** (it rounds down to 100 shares unconditionally). Ensure your real-world sizing rules enforce the 200-shares floor to prevent order submission failures on the broker app.
-
-### `post-market`
-
-After market close:
-
-1. Runs `cron_sync_app_data_to_db(check_trading_day_and_time=False)`
-2. Opens the broker app via ADB
-3. Navigates to 我的持仓 (My Holdings)
-4. Extracts and syncs: market quotes, portfolio positions, smart orders
-5. Updates `market_indices`, `holding_stocks`, `summary_account`, `smart_orders` tables
-
----
-
-## Crontab Scheduling
-
-Add to `crontab -e` to automate trading on weekdays during market hours:
-
-```cron
-# Pre-market preparation (before open)
-0 9 * * 1-5 cd $HOME/apps/imobile && source .venv/bin/activate && python trading/runner.py --phase pre-market >> /tmp/cron_trading.log 2>&1 &
-
-# Market-hours data sync (every 30 min during session)
-30 9              * * 1-5 cd $HOME/apps/imobile && source .venv/bin/activate && python trading/runner.py >> /tmp/cron_trading.log 2>&1 &
-0,30 10-11        * * 1-5 cd $HOME/apps/imobile && source .venv/bin/activate && python trading/runner.py >> /tmp/cron_trading.log 2>&1 &
-0,30 13-14        * * 1-5 cd $HOME/apps/imobile && source .venv/bin/activate && python trading/runner.py >> /tmp/cron_trading.log 2>&1 &
-0,30 15           * * 1-5 cd $HOME/apps/imobile && source .venv/bin/activate && python trading/runner.py >> /tmp/cron_trading.log 2>&1 &
-
-# Post-market sync (1 hour after close)
-0 16              * * 1-5 cd $HOME/apps/imobile && source .venv/bin/activate && python trading/runner.py --phase post-market >> /tmp/cron_trading.log 2>&1 &
-```
-
-The `cron_sync_app_data_to_db()` function includes built-in time guards:
-- Skips if today is not a trading day
-- Skips before 09:30 or during lunch break (11:30–13:00)
-- Skips more than 1 hour after market close (after 16:00)
 
 ---
 
 ## Data Sync Pipeline
 
-Each sync cycle extracts three independent data sets from the app:
+Each sync cycle (called by all 3 phases) extracts three independent datasets:
 
 ```
-App Screen → MobileAgent (Gemini Vision)
-                │
-                ▼  CSV text output
-         get_index_stock_from_app_quote_page()
-                │  "index_name,index_number,index_ratio\n...\n\nname,code,price,..."
-                ▼
-         sync_index_quote_data_to_db()
-                │  Upserts market_indices + holding_stocks; removes orphans
-                ▼
-         SQLite: market_indices, holding_stocks (price/change columns)
+1. QUOTE SYNC
+   get_index_stock_from_app_quote_page()
+     └── Navigate to 行情 (Quotes) page
+     └── AI extracts CSV: indices (name, number, ratio) + stocks (name, code, price, change%)
+     └── sync_index_quote_data_to_db()
+           ├── UPSERT market_indices (current_value, change_percent)
+           ├── UPSERT holding_stocks (current_price, change columns)
+           └── DELETE orphans not present in latest data
 
-         get_summary_position_from_app_position_page()
-                │  "floating_profit_loss,account_assets,...\n\nname,market_cap,..."
-                ▼
-         sync_summary_position_data_to_db()
-                │  Upserts summary_account + holding_stocks (position columns)
-                ▼
-         SQLite: summary_account, holding_stocks (position/PnL columns)
+2. POSITION SYNC
+   get_summary_position_from_app_position_page()
+     └── Navigate to 我的持仓 (My Holdings)
+     └── AI extracts CSV: account summary + position details
+     └── sync_summary_position_data_to_db()
+           ├── UPSERT summary_account (total_assets, cash, floating_pnl)
+           ├── UPSERT holding_stocks (market_value, cost_basis, holdings)
+           └── DELETE orphaned positions
 
-         get_order_from_app_smart_order_page()
-                │  "name,code,trigger_condition,...\n..."
-                ▼
-         sync_order_data_to_db()
-                │  Upserts smart_orders; removes orphans
-                ▼
-         SQLite: smart_orders
+3. ORDER SYNC
+   get_order_from_app_smart_order_page()
+     └── Navigate to 条件单 (Smart Orders) → 3 tabs
+     └── AI extracts CSV from each tab: 运行中 / 已触发 / 已结束
+     └── sync_order_data_to_db()
+           ├── UPSERT smart_orders (trigger_condition, status, reason_of_ending)
+           └── DELETE orders not present in app (expired/cancelled remotely)
 ```
 
-Each step retries up to **3 times** on failure before aborting.
+**Retry policy:** Each step retries up to 3 times with 5-second delays on failure.
 
-### DB Tables Written
+**DB tables written:**
 
-| Table | Written by | Key data |
+| Table | Source | Key Columns |
 |---|---|---|
-| `market_indices` | `sync_index_quote_data_to_db` | index_code, current_value, change_percent |
-| `holding_stocks` | both quote & position sync | code, name, current_price, market_value, pnl_float, cost_basis |
-| `summary_account` | `sync_summary_position_data_to_db` | total_assets, total_market_value, cash, floating_pnl |
-| `smart_orders` | `sync_order_data_to_db` | trigger_condition, quantity, valid_until, reason_of_ending |
+| `market_indices` | Quote sync | index_code, current_value, change_percent |
+| `holding_stocks` | Quote + Position sync | code, name, current_price, market_value, cost_basis, pnl_float |
+| `summary_account` | Position sync | total_assets, total_market_value, cash, floating_pnl, position_percent |
+| `smart_orders` | Order sync | trigger_condition, buy_or_sell_quantity, status, valid_until, order_number, reason_of_ending |
 
 ---
 
 ## Trajectory Replay
 
-To avoid running the full AI agent every time (slower, costs API calls), the system can replay pre-recorded navigation sequences:
+To avoid running the full AI agent every time (faster, saves API costs), pre-recorded navigation sequences are replayed:
 
 ```python
-# Replays a trajectory matching keywords in its description
 replay_page(description=['行情', '我的持仓'])
 ```
 
-### Record a New Trajectory
-
+**Recording a new trajectory:**
 ```bash
-mobilerun run "Open '国泰海通君弘', then tap '行情', then tap '我的持仓'" \
+mobilerun run "Open 国泰海通君弘, tap 行情, tap 我的持仓" \
   --provider GoogleGenAI \
   --model gemini-3.1-flash-lite-preview \
   --save-trajectory step
 ```
 
-Trajectories are stored in `trading/trajectory/`. The replay function searches available trajectories by keyword and falls back to the live agent if no match is found.
+**Fallback:** If no matching trajectory is found, the MobileAgent runs live.
 
 ---
 
-## Key Classes & Functions
+## Pre-Requirements
 
-### `GuotaiExtractor` (in `guotai.py`)
+1. **Python environment** with `mobilerun` (DroidRun fork), `llama_index`, `google-genai`
+2. **Android device/emulator** connected via ADB with DroidRun Portal installed
+3. **国泰海通君弘 app** (`com.guotai.dazhihui`) installed
+4. **Gemini API key** in `.env` (GOOGLE_API_KEY or GEMINI_API_KEY)
+5. **Login credentials** in `.env` (GUOTAI_PACKAGE_NAME, GUOTAI_PASSWORD)
 
-Extends `AppDataExtractor`. Provides structured async methods:
+---
 
-```python
-extractor = GuotaiExtractor(config=config, llm=llm, driver=driver)
+## Environment Variables
 
-await extractor.open_app_login()          # Open app + login via trajectory replay
-await extractor.get_quotes()              # → ExtractQuote
-await extractor.get_positions()           # → ExtractPosition
-await extractor.get_transactions()        # → ExtractTransaction
-extractor.goto_homepage()                 # ADB force-stop + re-open app
+| Variable | Required | Description |
+|---|---|---|
+| `GOOGLE_API_KEY` / `GEMINI_API_KEY` | ✅ | Gemini API key (free tier: AI Studio) |
+| `GEMINI_MODEL` | optional | Model (default: `gemini-3.1-flash-lite-preview`) |
+| `GUOTAI_PACKAGE_NAME` | ✅ | Android package: `com.guotai.dazhihui` |
+| `GUOTAI_PASSWORD` | ✅ | Trading account PIN (6 digits) |
+| `DB_IMOBILE_FILE` | optional | Path to SQLite DB (default: `./shared/db/imobile.db`) |
+| `LOG_LEVEL` | optional | `DEBUG` / `INFO` / `WARNING` (default: `DEBUG`) |
+| `GEMINI_THINKING_BUDGET` | optional | Thinking tokens: `-1` dynamic, `0` off (default: `0`) |
+
+---
+
+## Usage
+
+```bash
+# Auto-detect phase by current time
+python trading/runner.py
+
+# Specific phase
+python trading/runner.py --phase pre-market
+python trading/runner.py --phase market
+python trading/runner.py --phase post-market
+
+# Specific date
+python trading/runner.py 20260627 --phase pre-market
+
+# Submit orders to broker app
+python trading/runner.py --phase pre-market --submit
+
+# Dry run (no mobile app operations)
+python trading/runner.py --dry-run
+
+# Legacy sync-only
+python trading/runner.py --sync-only
 ```
-
-### `cron_sync_app_data_to_db()` (in `guotai.py`)
-
-Full sync pipeline:
-
-```python
-result = await cron_sync_app_data_to_db(check_trading_day_and_time=True)
-# Returns: {quote_sync_result, position_sync_result, order_sync_result}
-```
-
-### `pre_requirements()` (in `guotai.py`)
-
-Initialises ADB connection + LLM + MobileConfig:
-
-```python
-tools, llm, config = await pre_requirements()
-```
-
-MobileAgent is configured with:
-- `max_steps=60` (reflects up to 60 UI actions per task)
-- `reasoning=True` (planning mode)
-- `vision=True` (screenshot-based navigation)
-- `after_sleep_action=1.5` seconds between actions
 
 ---
 
 ## Error Handling & Retries
 
-- Each data-extraction step retries up to **3 times** on failure, with 5-second delays
-- `get_format_output()` uses Levenshtein distance (≤ 3) for fuzzy CSV header matching, tolerating minor LLM formatting variations
-- All sync functions use `has_exceptions` flag with explicit validation before committing to DB
-- Orphaned DB records (present in DB but absent from latest app data) are **automatically deleted** on each sync cycle
+- Each data-extraction step retries **3 times** on failure, 5-second delays
+- `parse_csv_data()` uses Levenshtein distance (≤ 3) for fuzzy CSV header matching
+- All sync functions validate data before DB commit (`has_exceptions` flag)
+- Orphaned DB records auto-deleted on each sync cycle
+- Market-hours time guards prevent sync outside valid windows
 
 ---
 
-## Logging
+## Crontab Scheduling
 
-Logging is configured via `backtest/utils/logging_config.py`:
+```cron
+# Pre-market preparation
+0 9 * * 1-5 cd $HOME/apps/imobile && source .venv/bin/activate && python trading/runner.py --phase pre-market >> /tmp/cron_trading.log 2>&1
 
-```bash
-LOG_LEVEL=INFO    # .env
-LOG_PATH=./logs   # .env
+# Market-hours sync (every 30 min)
+0,30 9-11,13-14 * * 1-5 cd $HOME/apps/imobile && source .venv/bin/activate && python trading/runner.py >> /tmp/cron_trading.log 2>&1
+
+# Post-market sync
+0 16 * * 1-5 cd $HOME/apps/imobile && source .venv/bin/activate && python trading/runner.py --phase post-market >> /tmp/cron_trading.log 2>&1
 ```
-
-Cron output redirects to `/tmp/cron_trading.log`. Use `loguru` structured logs for production monitoring.
 
 ---
 
 ## Related Documentation
 
-- [README.md](../README.md) — Project overview & quick start
+- [BACKTEST.md](BACKTEST.md) — Full backtest pipeline (7 phases)
 - [ARCHITECTURE.md](../ARCHITECTURE.md) — Full system architecture
-- [A_Share_Market_Rules.md](A_Share_Market_Rules.md) — Chinese A-Share trading rules (T+1, circuit breakers, etc.)
-- [DATA_FLOW_DIAGRAM.txt](DATA_FLOW_DIAGRAM.txt) — Full data flow between subsystems
-- [TODO.md](TODO.md) — Planned features and known gaps
+- [A_Share_Market_Rules.md](A_Share_Market_Rules.md) — Chinese A-Share trading rules

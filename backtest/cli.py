@@ -651,7 +651,7 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
         
         logger.info(f"Target trading date for analysis: {target_trading_date}, Base date: {base_date}")
 
-        symbol_scores = {}  # default: no scores (for non-file symbol lists)
+        symbol_scores = {}
         if stocks_file:
             logger.info(f"Loading picked stocks from {stocks_file}")
             with open(stocks_file, 'r', encoding='utf-8') as f:
@@ -666,9 +666,24 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
             logger.info("Using provided symbols list for analysis, current date is today.")
             # Determine market pattern if not provided
             pattern_detector, _, strategy_manager = create_components()
+            # We will fetch index_df below, but for pattern detection in non-file mode we do it here if needed
             start_date = get_trading_days_before(base_date, lookback_days)
             index_df = data_provider.get_index_data('000300.SH', start_date, base_date)
             market_pattern = pattern_detector.detect_pattern(index_df, base_date)
+
+        # Always fetch index data for trend filtering using the correct base_date
+        start_date = get_trading_days_before(base_date, lookback_days)
+        index_df = data_provider.get_index_data('000300.SH', start_date, base_date)
+
+        # Index trend filter: skip all new buy orders if CSI 300 is below MA10
+        _index_filter = os.getenv('INDEX_TREND_FILTER', 'false').lower() in ('true', '1', 'yes')
+        if _index_filter and not index_df.empty and len(index_df) >= 10:
+            index_close = index_df['close']
+            ma10 = index_close.rolling(10).mean().iloc[-1]
+            latest_close = index_close.iloc[-1]
+            if latest_close < ma10:
+                logger.info(f"Market Index (CSI 300) is in a downtrend: Close ({latest_close:.2f}) < MA10 ({ma10:.2f}). Skipping all new BUY orders.")
+                symbols = []
 
         if not symbols:
             logger.warning("No symbols to analyze")

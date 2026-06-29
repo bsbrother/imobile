@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))) +
 import dotenv; dotenv.load_dotenv(os.path.expanduser('.env'), override=False)
 from loguru import logger
 
-THIS_DATE = '20260629'
+THIS_DATE = datetime.now().strftime('%Y%m%d')
 USER_ID = 1
 REPORT_PATH = 'backtest/results'
 VENV_PYTHON = '/home/kasm-user/apps/imobile/.venv/bin/python'

@@ -254,52 +254,69 @@ def set_valid_until_today(ui_text: str) -> None:
                 f"target_day={target_day} (1 trading day)")
     
     # ── Find and tap the date field ──
+    # The order form is a WebView — bounds are [0,0][0,0] for all elements.
+    # UI-tree search fails because find_element_center returns (0,0).
+    # Use known screen coordinates instead.
     center = None
-    for attempt in range(5):
+    
+    # Try UI-tree label first (may work on some pages)
+    for attempt in range(2):
         ui_text = get_ui_tree()
         center = find_element_center(ui_text, '监控截止') or find_element_center(ui_text, '有效期至')
-        if center:
-            logger.info(f"Found date label at {center}")
+        if center and center != (0, 0):
             break
+        # Also try date value pattern
         for line in ui_text.split('\n'):
-            if re.search(r'\d{4}-\d{2}-\d{2}', line):
-                match = re.search(r'\((\d+),(\d+),(\d+),(\d+)\)', line)
+            if re.search(r'\\d{4}-\\d{2}-\\d{2}', line):
+                match = re.search(r'\\((\\d+),(\\d+),(\\d+),(\\d+)\\)', line)
                 if match:
                     x1, y1, x2, y2 = int(match.group(1)), int(match.group(2)), int(match.group(3)), int(match.group(4))
-                    center = ((x1 + x2) // 2, (y1 + y2) // 2)
-                    logger.info(f"Found date value at {center} from pattern match")
-                    break
-        if center:
+                    c = ((x1 + x2) // 2, (y1 + y2) // 2)
+                    if c != (0, 0):
+                        center = c
+                        break
+        if center and center != (0, 0):
             break
-        logger.info("Waiting for date field to appear...")
-        time.sleep(1)
-
-    if not center:
-        logger.warning("Could not find date field. Skipping valid_until set.")
-        return
-
-    # ── Open the date picker ──
+        time.sleep(0.5)
+    
+    # If UI-tree failed (WebView gives zero bounds), use known coordinates
     picker_opened = False
-    for retry in range(3):
-        logger.info(f"Tapping date field to open date picker: {center} (attempt {retry+1}/3)")
-        device_tap(*center, sleep_after=2.0)
-
-        picker_ui = get_ui_tree()
-        has_confirm = '确定' in picker_ui
-        has_year = '年' in picker_ui
-        has_picker = has_confirm or has_year
-
-        if has_picker:
-            logger.info(f"Date picker opened (confirm={'yes' if has_confirm else 'no'}, year={'yes' if has_year else 'no'})")
-            picker_opened = True
-            break
-        else:
+    if not center or center == (0, 0):
+        # Try two known positions: BUY form date (225, 1701) and TP/SL form date (225, 1550)
+        for known_y in [1701, 1550, 1600, 1750]:
+            logger.info(f"WebView workaround: tapping date field at known position (225, {known_y})")
+            device_tap(225, known_y, sleep_after=2.0)
+            picker_ui = get_ui_tree()
+            if '确定' in picker_ui or '年' in picker_ui:
+                logger.info(f"Date picker opened via known coordinate (225, {known_y})")
+                picker_opened = True
+                break
+            logger.warning(f"Picker did not open at Y={known_y}. Trying next...")
+        
+        if not picker_opened:
+            logger.error("Date picker failed to open at all known coordinates.")
+            return
+        
+        # Picker is open — skip to day selection
+        pass  # fall through to day selection
+    
+    else:
+        # Standard flow: tap found element and verify picker opens
+        logger.info(f"Found date field at {center}")
+        for retry in range(3):
+            logger.info(f"Tapping date field: {center} (attempt {retry+1}/3)")
+            device_tap(*center, sleep_after=2.0)
+            picker_ui = get_ui_tree()
+            if '确定' in picker_ui or '年' in picker_ui:
+                logger.info("Date picker opened")
+                picker_opened = True
+                break
             logger.warning("Date picker did not open. Retrying with Y offset -50...")
             center = (center[0], max(center[1] - 50, 100))
-
-    if not picker_opened:
-        logger.error("Date picker failed to open after 3 attempts. valid_until will keep default.")
-        return
+        
+        if not picker_opened:
+            logger.error("Date picker failed to open. valid_until will keep default.")
+            return
 
     # ── Tap the target day number on the calendar grid ──
     day_tapped = False

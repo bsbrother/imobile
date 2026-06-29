@@ -288,7 +288,7 @@ async def main(submit: bool = False):
     total_buy_cost = sum(o['buy_price'] * o['buy_quantity'] for o in buy_orders)
 
     lines = [
-        f"# Pre-Market Report — 2026-06-29",
+        f"# Pre-Market Report — {THIS_DATE[:4]}-{THIS_DATE[4:6]}-{THIS_DATE[6:]}",
         "",
         f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
         f"**Strategy:** ts_7AZ (CANSLIM)",

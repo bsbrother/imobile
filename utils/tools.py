@@ -282,20 +282,25 @@ def set_valid_until_today(ui_text: str) -> None:
     # If UI-tree failed (WebView gives zero bounds), use known coordinates
     picker_opened = False
     if not center or center == (0, 0):
-        # Try known positions: BUY form date value (400, 1701), TP/SL form date value (400, 1550)
-        # The label '有效期至' is at x~225 but the clickable DATE VALUE is further right (~x=400)
-        for known_y in [1701, 1550, 1600, 1750]:
-            for known_x in [400, 350, 300, 450]:
-                logger.info(f"WebView workaround: tapping date value at ({known_x}, {known_y})")
-                device_tap(known_x, known_y, sleep_after=2.0)
-                picker_ui = get_ui_tree()
-                if '确定' in picker_ui or '年' in picker_ui:
-                    logger.info(f"Date picker opened via ({known_x}, {known_y})")
-                    picker_opened = True
-                    break
-            if picker_opened:
+        # Known positions: date field moves based on form state
+        #   Form fully initialized: (225, 1701) — BUY, (225, 1550) — TP/SL  
+        #   Form partially initialized: (1200, 2900) — date label at bottom
+        #   Date VALUE is to the left of the label (~x=500-800), not the label itself
+        known_positions = [
+            (500, 1701), (400, 1701), (300, 1701),  # BUY form — date value area
+            (500, 1550), (400, 1550), (300, 1550),  # TP/SL form
+            (500, 1768), (400, 1768),               # Alt BUY positions
+            (700, 2900), (500, 2900),               # Uninitialized form date area
+        ]
+        for x, y in known_positions:
+            logger.info(f"WebView: tapping date value at ({x}, {y})")
+            device_tap(x, y, sleep_after=2.0)
+            picker_ui = get_ui_tree()
+            if '确定' in picker_ui or '年' in picker_ui:
+                logger.info(f"Date picker opened via ({x}, {y})")
+                picker_opened = True
                 break
-            logger.warning(f"No picker at Y={known_y}. Trying next Y...")
+            logger.warning(f"No picker at ({x}, {y}). Trying next...")
         
         if not picker_opened:
             logger.error("Date picker failed to open at all known coordinates.")

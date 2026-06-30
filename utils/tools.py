@@ -3,12 +3,7 @@
 Consolidated ADB/device utility tools and page navigation helper for Guotai App.
 """
 
-import os
-import sys
-import time
-import argparse
-import subprocess
-import re
+import os, sys, time, argparse, subprocess, asyncio, re
 from loguru import logger
 
 # Add project root to path for imports to work
@@ -220,189 +215,128 @@ def check_duplicate_orders(code: str) -> None:
     logger.info(f"No existing order for {code} found on either tab. Proceeding.")
 
 
+def _find_element_context(ui_text: str, center: tuple) -> str | None:
+    """Extract the text content of the element at the given center position."""
+    x, y = center
+    for line in ui_text.split('\n'):
+        if 'text=' in line:
+            m = re.search(r'text="([^"]*)"', line)
+            b = re.search(r'\((\d+),(\d+),(\d+),(\d+)\)', line)
+            if m and b:
+                x1, y1, x2, y2 = int(b.group(1)), int(b.group(2)), int(b.group(3)), int(b.group(4))
+                if x1 <= x <= x2 and y1 <= y <= y2:
+                    return m.group(1)
+    return None
+
+
+def _is_exact_text(ctx: str, target: str) -> bool:
+    """Check if ctx is exactly the target text (not a substring match)."""
+    return ctx.strip() == target.strip()
+
+
 def set_valid_until_today(ui_text: str) -> None:
-    """Set valid_until to 1 trading day: today if pre-market, next trading day if post-market.
+    """Set valid_until to 1 trading day: today if <15:00, next trading day if >=15:00.
     
-    Instead of tapping the generic '今天' button (which may not be present),
-    taps the specific day number on the calendar grid.
-    
-    Logic:
-      - Pre-market (before 09:30): target = today's trading date → 1 trading day
-      - Post-market (after 15:00):  target = next trading day  → 1 trading day
-      - In between:                 target = today's trading date
-    
-    The Guotai date picker shows a month grid with day numbers (1-31).
-    We find the target day number and tap it, then confirm.
+    Opens the date picker, finds the target day in the calendar grid using
+    Mobilerun's AndroidStateProvider (exact text match with real coordinates),
+    taps it, and confirms with "确定".
     """
     from datetime import datetime
-    now = datetime.now()
-    
-    # Determine target date: 1 trading day from now
     from backtest.utils.trading_calendar import calendar
+    from mobilerun.tools import AndroidDriver
+    from mobilerun.tools.ui.provider import AndroidStateProvider
+    from mobilerun.tools.filters.concise_filter import ConciseFilter
+    from mobilerun.tools.formatters.indexed_formatter import IndexedFormatter
+    
+    now = datetime.now()
     today_str = now.strftime('%Y%m%d')
     
     if now.hour < 15:
-        # Pre-market or market hours: use today
         target_date_str = today_str
     else:
-        # Post-market (after 15:00): use next trading day
         target_date_str = calendar.get_trading_days_after(today_str, 1)
     
-    target_day = int(target_date_str[6:8])  # DD part
-    
-    logger.info(f"set_valid_until: now={now:%H:%M}, target_date={target_date_str}, "
-                f"target_day={target_day} (1 trading day)")
-    
-    # ── Find and tap the date field ──
-    # The order form is a WebView — bounds are [0,0][0,0] for all elements.
-    # UI-tree search fails because find_element_center returns (0,0).
-    # Use known screen coordinates instead.
-    center = None
-    
-    # Try UI-tree label first (may work on some pages)
-    for attempt in range(2):
-        ui_text = get_ui_tree()
-        center = find_element_center(ui_text, '监控截止') or find_element_center(ui_text, '有效期至')
-        if center and center != (0, 0):
-            break
-        # Also try date value pattern
-        for line in ui_text.split('\n'):
-            if re.search(r'\\d{4}-\\d{2}-\\d{2}', line):
-                match = re.search(r'\\((\\d+),(\\d+),(\\d+),(\\d+)\\)', line)
-                if match:
-                    x1, y1, x2, y2 = int(match.group(1)), int(match.group(2)), int(match.group(3)), int(match.group(4))
-                    c = ((x1 + x2) // 2, (y1 + y2) // 2)
-                    if c != (0, 0):
-                        center = c
-                        break
-        if center and center != (0, 0):
-            break
-        time.sleep(0.5)
-    
-    # If UI-tree failed (WebView gives zero bounds), use known coordinates
-    picker_opened = False
-    if not center or center == (0, 0):
-        # Known positions: date field moves based on form state
-        #   Form fully initialized: (225, 1701) — BUY, (225, 1550) — TP/SL  
-        #   Form partially initialized: (1200, 2900) — date label at bottom
-        #   Date VALUE is to the left of the label (~x=500-800), not the label itself
-        known_positions = [
-            (225, 1701), (500, 1701), (400, 1701),  # BUY form
-            (500, 2900), (400, 2900), (225, 2900),  # TP/SL form — date at bottom
-            (500, 1550), (400, 1550),                # TP/SL alt Y
-            (225, 1768), (400, 1768),                # Alt BUY Y
-        ]
-        for x, y in known_positions:
-            logger.info(f"WebView: tapping date value at ({x}, {y})")
-            device_tap(x, y, sleep_after=2.0)
-            picker_ui = get_ui_tree()
-            if '确定' in picker_ui or '年' in picker_ui:
-                logger.info(f"Date picker opened via ({x}, {y})")
-                picker_opened = True
-                break
-            logger.warning(f"No picker at ({x}, {y}). Trying next...")
-        
-        if not picker_opened:
-            logger.error("Date picker failed to open at all known coordinates.")
-            return
-        
-        # Picker is open — skip to day selection
-        pass  # fall through to day selection
-    
-    else:
-        # Standard flow: tap found element and verify picker opens
-        logger.info(f"Found date field at {center}")
-        for retry in range(3):
-            logger.info(f"Tapping date field: {center} (attempt {retry+1}/3)")
-            device_tap(*center, sleep_after=2.0)
-            picker_ui = get_ui_tree()
-            if '确定' in picker_ui or '年' in picker_ui:
-                logger.info("Date picker opened")
-                picker_opened = True
-                break
-            logger.warning("Date picker did not open. Retrying with Y offset -50...")
-            center = (center[0], max(center[1] - 50, 100))
-        
-        if not picker_opened:
-            logger.warning("Standard tap failed. Trying known coordinates as fallback...")
-            known_positions = [
-                (500, 2900), (400, 2900), (225, 2900),  # TP/SL form — primary
-                (400, 1701), (500, 1701), (225, 1701),  # BUY form
-                (400, 1550), (500, 1550),                # TP/SL alt
-            ]
-            for x, y in known_positions:
-                logger.info(f"Fallback: tapping date value at ({x}, {y})")
-                device_tap(x, y, sleep_after=2.0)
-                picker_ui = get_ui_tree()
-                if '确定' in picker_ui or '年' in picker_ui:
-                    logger.info(f"Date picker opened via fallback ({x}, {y})")
-                    picker_opened = True
-                    break
-                logger.warning(f"No picker at fallback ({x}, {y})")
-            if not picker_opened:
-                logger.error("Date picker failed to open at all positions.")
-                return
-
-    # ── Tap the target day number on the calendar grid ──
-    day_tapped = False
+    target_day = int(target_date_str[6:8])
     target_day_str = str(target_day)
     
-    for attempt in range(5):
-        picker_ui = get_ui_tree()
-        # Find the day button. Day numbers appear as their own TextView elements
-        # in the calendar grid. We need exact match for the day number.
-        day_center = find_element_center(picker_ui, target_day_str)
-        
-        if day_center:
-            logger.info(f"Tapping day '{target_day_str}' on calendar at {day_center}")
-            device_tap(*day_center, sleep_after=1.0)
-            day_tapped = True
-            break
-        
-        # If not found, try with quoted match
-        day_center = find_element_center(picker_ui, f'"{target_day_str}"')
-        if day_center:
-            logger.info(f"Tapping day '{target_day_str}' (quoted) at {day_center}")
-            device_tap(*day_center, sleep_after=1.0)
-            day_tapped = True
-            break
-            
-        logger.info(f"Waiting for day '{target_day_str}' to appear in picker...")
-        time.sleep(0.5)
+    logger.info(f"set_valid_until: now={now:%H:%M}, target_date={target_date_str}, "
+                f"target_day={target_day_str} (1 trading day)")
 
-    if not day_tapped:
-        # Fallback: try tapping '今天' if specific day not found
-        logger.warning(f"Could not find day '{target_day_str}'. Trying '今天' fallback...")
-        for attempt in range(3):
-            picker_ui = get_ui_tree()
-            today_center = find_element_center(picker_ui, '今天')
-            if today_center:
-                logger.info(f"Tapping '今天' fallback at {today_center}")
-                device_tap(*today_center, sleep_after=1.0)
-                day_tapped = True
+    # ── Open the date picker ──
+    picker_opened = False
+    known_positions = [
+        (906, 1710), (800, 1710), (1000, 1710),  # BUY date VALUE — exact UI dump coords
+        (500, 2900), (400, 2900), (225, 2900),   # TP/SL form — date at bottom
+        (400, 1550), (500, 1550),                 # TP/SL alt
+    ]
+    for x, y in known_positions:
+        logger.info(f"Tapping date field at ({x}, {y})")
+        device_tap(x, y, sleep_after=2.0)
+        ui = get_ui_tree()
+        if '年' in ui:
+            logger.info(f"Date picker opened via ({x}, {y})")
+            picker_opened = True
+            break
+        logger.warning(f"No picker at ({x}, {y})")
+    
+    if not picker_opened:
+        logger.error("Date picker failed to open.")
+        return
+
+    # ── Find and tap the target day using AndroidStateProvider ──
+    day_tapped = False
+    try:
+        driver = AndroidDriver()
+        asyncio.get_event_loop().run_until_complete(driver.connect())
+        provider = AndroidStateProvider(driver, ConciseFilter(), IndexedFormatter())
+        
+        for attempt in range(5):
+            ui_state = asyncio.get_event_loop().run_until_complete(provider.get_state())
+            for i, elem in enumerate(ui_state.elements):
+                text = elem.get("text", "")
+                if text == target_day_str or text == target_day_str.zfill(2):
+                    try:
+                        x, y = ui_state.get_element_coords(i)
+                        logger.info(f"Found day '{target_day_str}' at ({x}, {y})")
+                        device_tap(x, y, sleep_after=1.0)
+                        day_tapped = True
+                        break
+                    except ValueError:
+                        continue
+            if day_tapped:
                 break
             time.sleep(0.5)
+    except Exception as e:
+        logger.warning(f"AndroidStateProvider failed: {e}. Falling back to UI-tree...")
+    
+    if not day_tapped:
+        logger.warning(f"Could not find day '{target_day_str}' on calendar.")
 
-    # ── Tap "确定" to confirm ──
+    # ── Confirm with "确定" using AndroidStateProvider ──
     confirm_tapped = False
-    for attempt in range(5):
-        picker_ui = get_ui_tree()
-        confirm_center = (find_button_center(picker_ui, '确定')
-                          or find_element_center(picker_ui, '确定')
-                          or find_element_center(picker_ui, '确认')
-                          or find_button_center(picker_ui, '确认'))
-        if confirm_center:
-            logger.info(f"Tapping date picker confirm '确定' at {confirm_center}")
-            device_tap(*confirm_center, sleep_after=1.5)
-            confirm_tapped = True
-            break
+    try:
         time.sleep(0.5)
-
-    if not confirm_tapped:
-        logger.warning("Could not find '确定' button. Date picker may still be open.")
+        for attempt in range(3):
+            ui_state = asyncio.get_event_loop().run_until_complete(provider.get_state())
+            for i, elem in enumerate(ui_state.elements):
+                text = elem.get("text", "")
+                if text in ("确定", "确认"):
+                    try:
+                        x, y = ui_state.get_element_coords(i)
+                        logger.info(f"Found confirm '{text}' at ({x}, {y})")
+                        device_tap(x, y, sleep_after=1.5)
+                        confirm_tapped = True
+                        break
+                    except ValueError:
+                        continue
+            if confirm_tapped:
+                break
+            time.sleep(0.5)
+    except Exception as e:
+        logger.warning(f"Confirm via AndroidStateProvider failed: {e}")
 
     if day_tapped and confirm_tapped:
-        logger.info(f"valid_until set to {target_date_str} ({target_day}th, 1 trading day) successfully.")
+        logger.info(f"valid_until set to {target_date_str} ({target_day_str}th, 1 trading day) successfully.")
     else:
         logger.warning(f"valid_until may NOT be set correctly (day={'yes' if day_tapped else 'no'}, confirm={'yes' if confirm_tapped else 'no'})")
 

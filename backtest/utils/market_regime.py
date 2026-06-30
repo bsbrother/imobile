@@ -62,8 +62,8 @@ def detect_market_regime(date: str, index_code: str = '000001.SH') -> Dict[str, 
             # Bull market: Strong uptrend, low volatility, price above MA20
             if current_price > ma20 and current_price > ma60 > ma120 and volatility < 2.0:
                 regime = 'bull'
-            # Fast Bear Market / Correction: Price breaks below the 20-day MA and intermediate trend is weak
-            elif current_price < ma20 and (current_price < ma60 or trend_60d < 0):
+            # Fast Bear Market / Correction: Price breaks below the 20-day MA
+            elif current_price < ma20:
                 regime = 'bear'
             # Volatile market: High volatility regardless of trend
             elif volatility > 3.0:

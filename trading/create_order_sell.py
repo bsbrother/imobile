@@ -100,19 +100,19 @@ def create_sell_order(code: str, price: str, quantity: str, submit: bool = False
 
     # Step 1: Start app if not running
     open_app()
-    
+
     # Step 2: Login if needed
     login()
-    
+
     # Step 3: Check duplicate orders
     check_duplicate_orders(code)
-    
+
     # Step 4: Go back to homepage
     goto_homepage()
-    
+
     # Step 5: Replay '今日触发' and navigate to subpage
     replay_page(['今日触发'])
-    
+
     # Wait for the select page to load, then tap '到价卖出'
     time.sleep(2)
     ui_text = get_ui_tree()
@@ -126,50 +126,50 @@ def create_sell_order(code: str, price: str, quantity: str, submit: bool = False
         raise RuntimeError("Cannot find '到价卖出' button on smart order page")
     logger.info(f"Tapping '到价卖出' at {center}")
     device_tap(*center, sleep_after=2)
-    
+
     # Scroll to top of page to ensure stock code is visible
     device_swipe(720, 500, 720, 1500, sleep_after=1.5)
     ui_text = get_ui_tree()
-    
+
     # Verify we are on sell page
     if not verify_on_sell_page(ui_text):
         logger.warning("Current page may not be the sell order page (到价卖出). Proceeding anyway.")
-        
+
     # Step 6: Fill stock code
     fill_stock_code(code, ui_text)
     time.sleep(2)
     ui_text = get_ui_tree()
-    
+
     # Set trigger condition (当股价 >=)
     set_trigger_condition_ge(ui_text)
-    
+
     # Fill trigger price
     fill_trigger_price(price, ui_text)
     time.sleep(1)
-    
+
     # Scroll up to close keyboard
     device_swipe(720, 2000, 720, 500, sleep_after=1.5)
     ui_text = get_ui_tree()
-    
+
     # Set order method (委托方式)
     set_order_method(ui_text)
     ui_text = get_ui_tree()
-    
+
+    # Fill quantity
+    fill_quantity(quantity, ui_text)
+
     # Set order type to auto (自动下单)
     set_auto_order(ui_text)
     ui_text = get_ui_tree()
-    
+
     # Set valid until date to Today
     set_valid_until_today(ui_text)
     ui_text = get_ui_tree()
-    
-    # Fill quantity
-    fill_quantity(quantity, ui_text)
-    
+
     # Close keyboard
     device_swipe(720, 2000, 720, 500, sleep_after=1.5)
     ui_text = get_ui_tree()
-    
+
     # Verify final fields
     time.sleep(0.5)
     ui_text = get_ui_tree()
@@ -177,7 +177,7 @@ def create_sell_order(code: str, price: str, quantity: str, submit: bool = False
     for line in ui_text.split('\n'):
         if 'EditText' in line:
             logger.info(f"  {line.strip()}")
-            
+
     # Step 7: Optionally submit
     if submit and not dry_run:
         tap_create_order(ui_text)
@@ -235,7 +235,7 @@ Examples:
         try:
             with open(args.json, 'r') as f:
                 data = json.load(f)
-            
+
             for order in data.get('smart_orders', []):
                 if 'sell_take_profit_price' in order and 'buy_quantity' in order:
                     code = order['symbol'].split('.')[0]
@@ -246,7 +246,7 @@ Examples:
                         'price': price,
                         'quantity': quantity
                     })
-            
+
             if not orders_to_process:
                 logger.warning("No sell orders found in JSON file.")
         except Exception as e:
@@ -268,22 +268,22 @@ Examples:
             if not codes_list:
                 logger.error("No valid stock codes specified.")
                 sys.exit(1)
-            
+
             formatted_symbols = ",".join(format_symbol(c) for c in codes_list)
             logger.info(f"Generating smart orders JSON for symbols: {formatted_symbols}")
-            
+
             from datetime import datetime
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             output_json = os.path.join("backtest", "results", "daily", f"smart_orders_batch_{timestamp}.json")
             os.makedirs(os.path.dirname(output_json), exist_ok=True)
-            
+
             cmd = f"python -m backtest.cli analyze --symbols {formatted_symbols} --output {output_json}"
             run_cmd(cmd)
-            
+
             try:
                 with open(output_json, 'r') as f:
                     data = json.load(f)
-                
+
                 for order in data.get('smart_orders', []):
                     if 'sell_take_profit_price' in order and 'buy_quantity' in order:
                         code = order['symbol'].split('.')[0]

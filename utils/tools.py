@@ -287,10 +287,10 @@ def set_valid_until_today(ui_text: str) -> None:
         #   Form partially initialized: (1200, 2900) — date label at bottom
         #   Date VALUE is to the left of the label (~x=500-800), not the label itself
         known_positions = [
-            (225, 1701), (500, 1701), (400, 1701),  # BUY form — from morning log + value area
-            (225, 1550), (500, 1550), (400, 1550),  # TP/SL form
+            (225, 1701), (500, 1701), (400, 1701),  # BUY form
+            (500, 2900), (400, 2900), (225, 2900),  # TP/SL form — date at bottom
+            (500, 1550), (400, 1550),                # TP/SL alt Y
             (225, 1768), (400, 1768),                # Alt BUY Y
-            (500, 2900), (700, 2900),                # Uninitialized form
         ]
         for x, y in known_positions:
             logger.info(f"WebView: tapping date value at ({x}, {y})")
@@ -326,9 +326,9 @@ def set_valid_until_today(ui_text: str) -> None:
         if not picker_opened:
             logger.warning("Standard tap failed. Trying known coordinates as fallback...")
             known_positions = [
+                (500, 2900), (400, 2900), (225, 2900),  # TP/SL form — primary
                 (400, 1701), (500, 1701), (225, 1701),  # BUY form
-                (400, 1550), (500, 1550),                # TP/SL form
-                (400, 1768), (400, 2900),                # Alt positions
+                (400, 1550), (500, 1550),                # TP/SL alt
             ]
             for x, y in known_positions:
                 logger.info(f"Fallback: tapping date value at ({x}, {y})")

@@ -873,10 +873,16 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                 is_star_chinext = symbol.startswith('3') or symbol.startswith('688')
                 min_qty = 200 if is_star_chinext else 100
 
-                per_slot_cash = float(initial_cash) / max_positions
-                # Max 25% of capital per position to avoid concentration (e.g. 中际旭创 at 59%)
-                max_position_cash = float(initial_cash) * 0.25
-                effective_slot_cash = min(per_slot_cash, max_position_cash)
+                position_sizing_enabled = os.getenv('POSITION_SIZING_ALGORITHM', 'true').lower() in ('true', '1', 'yes')
+
+                if position_sizing_enabled:
+                    per_slot_cash = float(initial_cash) / max_positions
+                    # Max 25% of capital per position to avoid concentration (e.g. 中际旭创 at 59%)
+                    max_position_cash = float(initial_cash) * 0.25
+                    effective_slot_cash = min(per_slot_cash, max_position_cash)
+                else:
+                    # Disable sizing limits — distribute ALL remaining cash evenly across remaining slots
+                    effective_slot_cash = float(remaining_cash) / max(1, remaining_slots)
 
                 if (effective_slot_cash / buy_price) >= min_qty:
                     buy_quantity = (int(effective_slot_cash / buy_price) // min_qty) * min_qty

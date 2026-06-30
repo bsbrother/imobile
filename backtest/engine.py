@@ -208,9 +208,42 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
     smart_output_file = os.path.join(REPORT_PATH, f'smart_orders_{this_date}.json')
     logger.info(f"Creating smart orders from {pick_input_file}...")
 
+    held_symbols_set = set()
+    def _clean_sym(sym: str) -> str:
+        return sym.split('.')[0] if sym else ''
+
+    if app_positions is not None:
+        for p in app_positions:
+            held_symbols_set.add(_clean_sym(p['code']))
+    
+    if app_running_orders is not None:
+        from trading.sync_app_to_db import get_stock_code_by_name
+        for order in app_running_orders:
+            if order.get('status') == '运行中' and not order.get('reason_of_ending'):
+                code = order['code']
+                if not code or code == '000000':
+                    code = get_stock_code_by_name(order['name'], user_id)
+                if code:
+                    held_symbols_set.add(_clean_sym(code))
+    
+    if app_positions is None and app_running_orders is None:
+        # Backtest mode: fetch from DB
+        with DB.cursor() as cursor:
+            cursor.execute("SELECT code FROM holding_stocks WHERE user_id=? AND holdings > 0", (user_id,))
+            for row in cursor.fetchall():
+                held_symbols_set.add(_clean_sym(row[0]))
+            
+            cursor.execute("SELECT code FROM smart_orders WHERE status='running' AND user_id=?", (user_id,))
+            for row in cursor.fetchall():
+                held_symbols_set.add(_clean_sym(row[0]))
+
     cmd = f'{VENV_PYTHON} -m backtest.cli analyze --stocks-file {pick_input_file} -o {smart_output_file}'
     if current_capital:
          cmd += f' --initial-cash {current_capital}'
+         
+    if held_symbols_set:
+        held_str = ",".join(held_symbols_set)
+        cmd += f' --held-symbols {held_str}'
 
     result = os.system(cmd)
     if result != 0:

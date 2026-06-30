@@ -187,6 +187,11 @@ def create_parser() -> argparse.ArgumentParser:
         help='Number of slots remaining for new orders'
     )
     analyze_parser.add_argument('--date', type=str, help='Target trading date (YYYY-MM-DD or YYYYMMDD)')
+    analyze_parser.add_argument(
+        '--held-symbols',
+        type=str,
+        help='Comma-separated list of symbols currently held (e.g. 000001,600519)'
+    )
 
     subparsers.add_parser('version', help='Show version information')
 
@@ -611,7 +616,8 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                                        output_file: Optional[str] = None,
                                        initial_cash: Optional[float] = None,
                                        remaining_slots: Optional[int] = None,
-                                       base_date: Optional[str] = None) -> Dict[str, Any]:
+                                       base_date: Optional[str] = None,
+                                       held_symbols: Optional[List[str]] = None) -> Dict[str, Any]:
     """
     Analyze picked stocks and generate smart orders with entry/exit prices and quantities.
 
@@ -864,9 +870,10 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                     logger.info(f"Skip {symbol}: no remaining cash/slots for new positions.")
                     skipped_buy_orders.append({
                         "symbol": symbol,
-                            "name": data_provider.latest.get('name', ''),
+                        "name": data_provider.latest.get('name', ''),
                         "buy_price": buy_price,
-                        "remaining_cash": remaining_cash
+                        "remaining_cash": remaining_cash,
+                        "skip_reason": "no_remaining_cash_or_slots"
                     })
                     continue
 
@@ -875,55 +882,67 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
 
                 position_sizing_enabled = os.getenv('POSITION_SIZING_ALGORITHM', 'true').lower() in ('true', '1', 'yes')
 
-                if position_sizing_enabled:
-                    per_slot_cash = float(initial_cash) / max_positions
-                    # Max 25% of capital per position to avoid concentration (e.g. 中际旭创 at 59%)
-                    max_position_cash = float(initial_cash) * 0.25
-                    effective_slot_cash = min(per_slot_cash, max_position_cash)
-                else:
-                    # Disable sizing limits — distribute ALL remaining cash evenly across remaining slots
-                    effective_slot_cash = float(remaining_cash) / max(1, remaining_slots)
+                is_held = False
+                if held_symbols:
+                    clean_sym = symbol.split('.')[0] if symbol else ''
+                    is_held = clean_sym in held_symbols or symbol in held_symbols
 
-                if (effective_slot_cash / buy_price) >= min_qty:
-                    buy_quantity = (int(effective_slot_cash / buy_price) // min_qty) * min_qty
-                elif (effective_slot_cash * 2 / buy_price) >= min_qty:
-                    buy_quantity = (int(effective_slot_cash * 2 / buy_price) // min_qty) * min_qty
-                elif (remaining_cash / buy_price) >= min_qty:
-                    buy_quantity = min_qty
+                if is_held:
+                    buy_quantity = 0
+                    logger.info(f"Symbol {symbol} is already held, assigning 0 buy_quantity to preserve cash.")
                 else:
-                    logger.info(
-                        f"Skip {symbol}: remain cash not enough for buy MIN_QUANTITY (qty=0, min={min_qty}) "
-                        f"for buy_price={buy_price:.2f}, remaining_cash={remaining_cash:.2f}."
-                    )
-                    skipped_buy_orders.append({
-                        "symbol": symbol,
-                        "name": latest.get('name', ''),
-                        "buy_price": buy_price,
-                        "remaining_cash": remaining_cash
-                    })
-                    continue
-                    
-                if buy_quantity * buy_price > remaining_cash:
-                    buy_quantity = (int(remaining_cash / buy_price) // min_qty) * min_qty
-                    if buy_quantity < min_qty:
-                        logger.info(f"Skip {symbol}: adjusted qty=0 due to remaining_cash={remaining_cash:.2f}")
+                    if position_sizing_enabled:
+                        per_slot_cash = float(initial_cash) / max_positions
+                        # Max 25% of capital per position to avoid concentration (e.g. 中际旭创 at 59%)
+                        max_position_cash = float(initial_cash) * 0.25
+                        effective_slot_cash = min(per_slot_cash, max_position_cash)
+                    else:
+                        # Disable sizing limits — distribute ALL remaining cash evenly across remaining slots
+                        effective_slot_cash = float(remaining_cash) / max(1, remaining_slots)
+
+                    if (effective_slot_cash / buy_price) >= min_qty:
+                        buy_quantity = (int(effective_slot_cash / buy_price) // min_qty) * min_qty
+                    elif (effective_slot_cash * 2 / buy_price) >= min_qty:
+                        buy_quantity = (int(effective_slot_cash * 2 / buy_price) // min_qty) * min_qty
+                    elif (remaining_cash / buy_price) >= min_qty:
+                        buy_quantity = min_qty
+                    else:
+                        logger.info(
+                            f"Skip {symbol}: remain cash not enough for buy MIN_QUANTITY (qty=0, min={min_qty}) "
+                            f"for buy_price={buy_price:.2f}, remaining_cash={remaining_cash:.2f}."
+                        )
                         skipped_buy_orders.append({
                             "symbol": symbol,
                             "name": latest.get('name', ''),
                             "buy_price": buy_price,
-                            "remaining_cash": remaining_cash
+                            "remaining_cash": remaining_cash,
+                            "skip_reason": "insufficient_cash_for_min_qty"
                         })
                         continue
+                        
+                    if buy_quantity * buy_price > remaining_cash:
+                        buy_quantity = (int(remaining_cash / buy_price) // min_qty) * min_qty
+                        if buy_quantity < min_qty:
+                            logger.info(f"Skip {symbol}: adjusted qty=0 due to remaining_cash={remaining_cash:.2f}")
+                            skipped_buy_orders.append({
+                                "symbol": symbol,
+                                "name": latest.get('name', ''),
+                                "buy_price": buy_price,
+                                "remaining_cash": remaining_cash,
+                                "skip_reason": "adjusted_qty_below_min_due_to_cash"
+                            })
+                            continue
 
                 # Calculate expected metrics
                 potential_gain_pct = ((sell_take_profit - buy_price) / buy_price) * 100
                 potential_loss_pct = ((sell_stop_loss - buy_price) / buy_price) * 100
                 risk_reward_ratio = abs(potential_gain_pct / potential_loss_pct) if potential_loss_pct != 0 else 0
 
-                # Update remaining cash/slots using this order's planned value
-                used_value = buy_price * buy_quantity
-                remaining_cash = max(0.0, remaining_cash - used_value)
-                remaining_slots = max(0, remaining_slots - 1)
+                if not is_held:
+                    # Update remaining cash/slots using this order's planned value
+                    used_value = buy_price * buy_quantity
+                    remaining_cash = max(0.0, remaining_cash - used_value)
+                    remaining_slots = max(0, remaining_slots - 1)
 
                 # Create smart order
                 smart_order = {
@@ -1059,7 +1078,8 @@ def main():
                 output_file=args.output if hasattr(args, 'output') else None,
                 initial_cash=args.initial_cash if hasattr(args, 'initial_cash') else None,
                 remaining_slots=args.remaining_slots if hasattr(args, 'remaining_slots') else None,
-                base_date=args.date if hasattr(args, 'date') else None
+                base_date=args.date if hasattr(args, 'date') else None,
+                held_symbols=args.held_symbols.split(',') if hasattr(args, 'held_symbols') and args.held_symbols else None
             )
 
         elif args.command == 'config':

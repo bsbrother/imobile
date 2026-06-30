@@ -19,6 +19,10 @@ Interaction notes:
     Must use `adb shell input keyevent` (DEL to clear) + `adb shell input text`
     to type.
   - Quantity: WebView EditText that works with `mobilerun device type --clear`.
+  - valid_until: Taps the date field (WebView, bounds=[0,0]) to open calendar picker,
+    then taps the target day number (e.g. "30") and confirms "确定".
+    Target is 1 trading day: today if <15:00, next trading day if >=15:00.
+    See utils/tools.py set_valid_until_today() for coordinate fallback logic.
 """
 
 import os

@@ -21,6 +21,11 @@ def detect_market_regime(date: str, index_code: str = '000001.SH') -> Dict[str, 
     Returns:
         Dict containing 'regime' and configuration parameters
     """
+    import os
+    switch_fast_regime = os.getenv('SWITCH_INDEX_COMBINE_MA', 'false').lower() in ('true', '1', 'yes')
+    if switch_fast_regime and index_code == '000001.SH':
+        index_code = '000905.SH'  # Switch to CSI500
+
     # Get 120 trading days of index data (approx 6 months)
     date = date.replace('-', '')
     start_date = get_trading_days_before(date, 120) 
@@ -34,6 +39,7 @@ def detect_market_regime(date: str, index_code: str = '000001.SH') -> Dict[str, 
         # Calculate indicators
         close = df['close'].astype(float)
 
+        ma20 = close.rolling(20, min_periods=10).mean().iloc[-1]
         ma60 = close.rolling(60, min_periods=30).mean().iloc[-1]
         ma120 = close.rolling(120, min_periods=60).mean().iloc[-1]
         current_price = close.iloc[-1]
@@ -43,29 +49,41 @@ def detect_market_regime(date: str, index_code: str = '000001.SH') -> Dict[str, 
         volatility = returns.std() * 100  # Daily volatility as percentage
 
         # Calculate trend strength
+        trend_20d = (current_price - ma20) / ma20 * 100
         trend_60d = (current_price - ma60) / ma60 * 100
         trend_120d = (current_price - ma120) / ma120 * 100
 
         # Regime classification
-        logger.debug(f"Regime indicators - Price: {current_price:.2f}, MA60: {ma60:.2f}, "
+        logger.debug(f"Regime indicators - Price: {current_price:.2f}, MA20: {ma20:.2f}, MA60: {ma60:.2f}, "
                     f"MA120: {ma120:.2f}, Vol: {volatility:.2f}%, "
-                    f"Trend60d: {trend_60d:.2f}%, Trend120d: {trend_120d:.2f}%")
+                    f"Trend20d: {trend_20d:.2f}%, Trend60d: {trend_60d:.2f}%, Trend120d: {trend_120d:.2f}%")
 
-        # Bull market: Strong uptrend, low volatility
-        if current_price > ma60 > ma120 and trend_60d > 0 and volatility < 2.0:
-            regime = 'bull'
-
-        # Bear market: Downtrend
-        elif current_price < ma60 < ma120 and trend_60d < 0:
-            regime = 'bear'
-
-        # Volatile market: High volatility regardless of trend
-        elif volatility > 3.0:
-            regime = 'volatile'
-
-        # Normal market: Default
+        if switch_fast_regime:
+            # Bull market: Strong uptrend, low volatility, price above MA20
+            if current_price > ma20 and current_price > ma60 > ma120 and volatility < 2.0:
+                regime = 'bull'
+            # Fast Bear Market / Correction: Price breaks below the 20-day MA and intermediate trend is weak
+            elif current_price < ma20 and (current_price < ma60 or trend_60d < 0):
+                regime = 'bear'
+            # Volatile market: High volatility regardless of trend
+            elif volatility > 3.0:
+                regime = 'volatile'
+            # Normal market: Default
+            else:
+                regime = 'normal'
         else:
-            regime = 'normal'
+            # Bull market: Strong uptrend, low volatility
+            if current_price > ma60 > ma120 and trend_60d > 0 and volatility < 2.0:
+                regime = 'bull'
+            # Bear market: Downtrend
+            elif current_price < ma60 < ma120 and trend_60d < 0:
+                regime = 'bear'
+            # Volatile market: High volatility regardless of trend
+            elif volatility > 3.0:
+                regime = 'volatile'
+            # Normal market: Default
+            else:
+                regime = 'normal'
 
     # Get config for this regime
     config = get_regime_config(regime, global_cm)

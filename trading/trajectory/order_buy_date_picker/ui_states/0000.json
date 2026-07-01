@@ -6,8 +6,7 @@
     "checkedState": "",
     "text": "android.widget.FrameLayout",
     "bounds": "0,0,1440,3120",
-    "children": [],
-    "displayBounds": "0,0,945,2048"
+    "children": []
   },
   {
     "index": 2,
@@ -16,8 +15,7 @@
     "checkedState": "",
     "text": "com.guotai.dazhihui:id/page_indicator_trade_home",
     "bounds": "16,94,532,198",
-    "children": [],
-    "displayBounds": "10,62,349,130"
+    "children": []
   },
   {
     "index": 3,
@@ -26,8 +24,7 @@
     "checkedState": "",
     "text": "普通",
     "bounds": "16,94,206,198",
-    "children": [],
-    "displayBounds": "10,62,135,130"
+    "children": []
   },
   {
     "index": 4,
@@ -36,8 +33,7 @@
     "checkedState": "",
     "text": "信用",
     "bounds": "203,106,369,195",
-    "children": [],
-    "displayBounds": "133,70,242,128"
+    "children": []
   },
   {
     "index": 5,
@@ -46,8 +42,7 @@
     "checkedState": "",
     "text": "期货",
     "bounds": "366,106,532,195",
-    "children": [],
-    "displayBounds": "240,70,349,128"
+    "children": []
   },
   {
     "index": 6,
@@ -56,8 +51,7 @@
     "checkedState": "",
     "text": "com.guotai.dazhihui:id/iv_trade_head_xiaojun",
     "bounds": "1315,108,1392,185",
-    "children": [],
-    "displayBounds": "863,71,914,121"
+    "children": []
   },
   {
     "index": 7,
@@ -66,8 +60,7 @@
     "checkedState": "",
     "text": "com.guotai.dazhihui:id/pager_firm_trade_home",
     "bounds": "0,217,1440,2790",
-    "children": [],
-    "displayBounds": "0,142,945,1831"
+    "children": []
   },
   {
     "index": 8,
@@ -76,8 +69,7 @@
     "checkedState": "",
     "text": "com.guotai.dazhihui:id/sv_trade_menu",
     "bounds": "0,217,1440,2790",
-    "children": [],
-    "displayBounds": "0,142,945,1831"
+    "children": []
   },
   {
     "index": 9,
@@ -85,9 +77,8 @@
     "className": "ViewPager",
     "checkedState": "",
     "text": "com.guotai.dazhihui:id/vpCapital",
-    "bounds": "0,217,1440,641",
-    "children": [],
-    "displayBounds": "0,142,945,421"
+    "bounds": "0,243,1440,729",
+    "children": []
   },
   {
     "index": 10,
@@ -95,9 +86,8 @@
     "className": "TextView",
     "checkedState": "",
     "text": "账户资产(元)",
-    "bounds": "86,222,339,280",
-    "children": [],
-    "displayBounds": "56,146,222,184"
+    "bounds": "86,310,339,368",
+    "children": []
   },
   {
     "index": 11,
@@ -105,19 +95,17 @@
     "className": "FrameLayout",
     "checkedState": "",
     "text": "com.guotai.dazhihui:id/trade_eye_fl",
-    "bounds": "339,217,409,296",
-    "children": [],
-    "displayBounds": "222,142,268,194"
+    "bounds": "339,294,409,384",
+    "children": []
   },
   {
     "index": 12,
     "resourceId": "com.guotai.dazhihui:id/tv_total_assets",
     "className": "TextView",
     "checkedState": "",
-    "text": "810535.46",
-    "bounds": "86,309,461,415",
-    "children": [],
-    "displayBounds": "56,203,303,272"
+    "text": "791663.21",
+    "bounds": "86,397,461,503",
+    "children": []
   },
   {
     "index": 13,
@@ -125,9 +113,8 @@
     "className": "TextView",
     "checkedState": "",
     "text": "资产分析",
-    "bounds": "1157,320,1354,405",
-    "children": [],
-    "displayBounds": "759,210,889,266"
+    "bounds": "1157,408,1354,493",
+    "children": []
   },
   {
     "index": 14,
@@ -135,9 +122,8 @@
     "className": "LinearLayout",
     "checkedState": "",
     "text": "com.guotai.dazhihui:id/lin_trade_account",
-    "bounds": "1011,217,1392,267",
-    "children": [],
-    "displayBounds": "663,142,914,175"
+    "bounds": "1011,243,1392,355",
+    "children": []
   },
   {
     "index": 15,
@@ -145,9 +131,8 @@
     "className": "TextView",
     "checkedState": "",
     "text": "*勇",
-    "bounds": "1069,217,1126,224",
-    "children": [],
-    "displayBounds": "702,142,739,147"
+    "bounds": "1069,263,1126,312",
+    "children": []
   },
   {
     "index": 16,
@@ -155,9 +140,8 @@
     "className": "TextView",
     "checkedState": "",
     "text": "10 *** 18",
-    "bounds": "1132,217,1303,227",
-    "children": [],
-    "displayBounds": "743,142,855,149"
+    "bounds": "1132,261,1303,315",
+    "children": []
   },
   {
     "index": 17,
@@ -165,9 +149,8 @@
     "className": "ViewGroup",
     "checkedState": "",
     "text": "com.guotai.dazhihui:id/rl_stock",
-    "bounds": "86,458,508,590",
-    "children": [],
-    "displayBounds": "56,301,333,387"
+    "bounds": "86,546,508,678",
+    "children": []
   },
   {
     "index": 18,
@@ -175,19 +158,17 @@
     "className": "TextView",
     "checkedState": "",
     "text": "总市值",
-    "bounds": "86,458,206,507",
-    "children": [],
-    "displayBounds": "56,301,135,333"
+    "bounds": "86,546,206,595",
+    "children": []
   },
   {
     "index": 19,
     "resourceId": "com.guotai.dazhihui:id/tv_stockvalue",
     "className": "TextView",
     "checkedState": "",
-    "text": "494592.00",
-    "bounds": "86,513,316,590",
-    "children": [],
-    "displayBounds": "56,337,207,387"
+    "text": "442786.00",
+    "bounds": "86,601,316,678",
+    "children": []
   },
   {
     "index": 20,
@@ -195,9 +176,8 @@
     "className": "ViewGroup",
     "checkedState": "",
     "text": "com.guotai.dazhihui:id/tody_profit_loss",
-    "bounds": "508,458,931,590",
-    "children": [],
-    "displayBounds": "333,301,611,387"
+    "bounds": "508,546,931,678",
+    "children": []
   },
   {
     "index": 21,
@@ -205,9 +185,8 @@
     "className": "TextView",
     "checkedState": "",
     "text": "当日盈亏",
-    "bounds": "508,458,666,507",
-    "children": [],
-    "displayBounds": "333,301,437,333"
+    "bounds": "508,546,666,595",
+    "children": []
   },
   {
     "index": 22,
@@ -215,9 +194,8 @@
     "className": "ImageView",
     "checkedState": "",
     "text": "com.guotai.dazhihui:id/iv_today_profit",
-    "bounds": "666,458,717,509",
-    "children": [],
-    "displayBounds": "437,301,471,334"
+    "bounds": "666,546,717,597",
+    "children": []
   },
   {
     "index": 23,
@@ -225,9 +203,8 @@
     "className": "TextView",
     "checkedState": "",
     "text": "0.00",
-    "bounds": "508,513,603,590",
-    "children": [],
-    "displayBounds": "333,337,396,387"
+    "bounds": "508,601,603,678",
+    "children": []
   },
   {
     "index": 24,
@@ -235,9 +212,8 @@
     "className": "ViewGroup",
     "checkedState": "",
     "text": "com.guotai.dazhihui:id/casher_available",
-    "bounds": "931,458,1354,590",
-    "children": [],
-    "displayBounds": "611,301,889,387"
+    "bounds": "931,546,1354,678",
+    "children": []
   },
   {
     "index": 25,
@@ -245,19 +221,17 @@
     "className": "TextView",
     "checkedState": "",
     "text": "资金资产",
-    "bounds": "931,458,1089,507",
-    "children": [],
-    "displayBounds": "611,301,715,333"
+    "bounds": "931,546,1089,595",
+    "children": []
   },
   {
     "index": 26,
     "resourceId": "com.guotai.dazhihui:id/tv_available",
     "className": "TextView",
     "checkedState": "",
-    "text": "315943.46",
-    "bounds": "931,513,1161,590",
-    "children": [],
-    "displayBounds": "611,337,762,387"
+    "text": "348877.21",
+    "bounds": "931,601,1161,678",
+    "children": []
   },
   {
     "index": 27,
@@ -265,9 +239,8 @@
     "className": "GridView",
     "checkedState": "",
     "text": "com.guotai.dazhihui:id/gridview",
-    "bounds": "0,641,1440,1509",
-    "children": [],
-    "displayBounds": "0,421,945,991"
+    "bounds": "0,729,1440,1597",
+    "children": []
   },
   {
     "index": 28,
@@ -275,9 +248,8 @@
     "className": "FrameLayout",
     "checkedState": "",
     "text": "android.widget.FrameLayout",
-    "bounds": "0,667,360,868",
-    "children": [],
-    "displayBounds": "0,438,236,570"
+    "bounds": "0,755,360,956",
+    "children": []
   },
   {
     "index": 29,
@@ -285,9 +257,8 @@
     "className": "TextView",
     "checkedState": "",
     "text": "买入",
-    "bounds": "13,801,347,849",
-    "children": [],
-    "displayBounds": "9,526,228,557"
+    "bounds": "13,889,347,937",
+    "children": []
   },
   {
     "index": 30,
@@ -295,9 +266,8 @@
     "className": "FrameLayout",
     "checkedState": "",
     "text": "android.widget.FrameLayout",
-    "bounds": "360,667,720,869",
-    "children": [],
-    "displayBounds": "236,438,472,570"
+    "bounds": "360,755,720,957",
+    "children": []
   },
   {
     "index": 31,
@@ -305,9 +275,8 @@
     "className": "TextView",
     "checkedState": "",
     "text": "卖出",
-    "bounds": "373,801,707,850",
-    "children": [],
-    "displayBounds": "245,526,464,558"
+    "bounds": "373,889,707,938",
+    "children": []
   },
   {
     "index": 32,
@@ -315,9 +284,8 @@
     "className": "FrameLayout",
     "checkedState": "",
     "text": "android.widget.FrameLayout",
-    "bounds": "720,667,1080,869",
-    "children": [],
-    "displayBounds": "472,438,709,570"
+    "bounds": "720,755,1080,957",
+    "children": []
   },
   {
     "index": 33,
@@ -325,9 +293,8 @@
     "className": "TextView",
     "checkedState": "",
     "text": "撤单",
-    "bounds": "733,801,1067,850",
-    "children": [],
-    "displayBounds": "481,526,700,558"
+    "bounds": "733,889,1067,938",
+    "children": []
   },
   {
     "index": 34,
@@ -335,9 +302,8 @@
     "className": "FrameLayout",
     "checkedState": "",
     "text": "android.widget.FrameLayout",
-    "bounds": "1080,667,1440,869",
-    "children": [],
-    "displayBounds": "709,438,945,570"
+    "bounds": "1080,755,1440,957",
+    "children": []
   },
   {
     "index": 35,
@@ -345,9 +311,8 @@
     "className": "TextView",
     "checkedState": "",
     "text": "持仓",
-    "bounds": "1093,801,1427,850",
-    "children": [],
-    "displayBounds": "717,526,936,558"
+    "bounds": "1093,889,1427,938",
+    "children": []
   },
   {
     "index": 36,
@@ -355,9 +320,8 @@
     "className": "FrameLayout",
     "checkedState": "",
     "text": "android.widget.FrameLayout",
-    "bounds": "0,869,360,1071",
-    "children": [],
-    "displayBounds": "0,570,236,703"
+    "bounds": "0,957,360,1159",
+    "children": []
   },
   {
     "index": 37,
@@ -365,9 +329,8 @@
     "className": "TextView",
     "checkedState": "",
     "text": "当日交易",
-    "bounds": "13,1003,347,1052",
-    "children": [],
-    "displayBounds": "9,658,228,691"
+    "bounds": "13,1091,347,1140",
+    "children": []
   },
   {
     "index": 38,
@@ -375,9 +338,8 @@
     "className": "FrameLayout",
     "checkedState": "",
     "text": "android.widget.FrameLayout",
-    "bounds": "360,869,720,1071",
-    "children": [],
-    "displayBounds": "236,570,472,703"
+    "bounds": "360,957,720,1159",
+    "children": []
   },
   {
     "index": 39,
@@ -385,9 +347,8 @@
     "className": "TextView",
     "checkedState": "",
     "text": "综合查询",
-    "bounds": "373,1003,707,1052",
-    "children": [],
-    "displayBounds": "245,658,464,691"
+    "bounds": "373,1091,707,1140",
+    "children": []
   },
   {
     "index": 40,
@@ -395,9 +356,8 @@
     "className": "FrameLayout",
     "checkedState": "",
     "text": "android.widget.FrameLayout",
-    "bounds": "720,869,1080,1071",
-    "children": [],
-    "displayBounds": "472,570,709,703"
+    "bounds": "720,957,1080,1159",
+    "children": []
   },
   {
     "index": 41,
@@ -405,9 +365,8 @@
     "className": "TextView",
     "checkedState": "",
     "text": "转账",
-    "bounds": "733,1003,1067,1052",
-    "children": [],
-    "displayBounds": "481,658,700,691"
+    "bounds": "733,1091,1067,1140",
+    "children": []
   },
   {
     "index": 42,
@@ -415,9 +374,8 @@
     "className": "FrameLayout",
     "checkedState": "",
     "text": "android.widget.FrameLayout",
-    "bounds": "1080,869,1440,1071",
-    "children": [],
-    "displayBounds": "709,570,945,703"
+    "bounds": "1080,957,1440,1159",
+    "children": []
   },
   {
     "index": 43,
@@ -425,9 +383,8 @@
     "className": "TextView",
     "checkedState": "",
     "text": "新三板交易",
-    "bounds": "1093,1003,1427,1052",
-    "children": [],
-    "displayBounds": "717,658,936,691"
+    "bounds": "1093,1091,1427,1140",
+    "children": []
   },
   {
     "index": 44,
@@ -435,9 +392,8 @@
     "className": "FrameLayout",
     "checkedState": "",
     "text": "android.widget.FrameLayout",
-    "bounds": "0,1071,360,1273",
-    "children": [],
-    "displayBounds": "0,703,236,836"
+    "bounds": "0,1159,360,1361",
+    "children": []
   },
   {
     "index": 45,
@@ -445,9 +401,8 @@
     "className": "TextView",
     "checkedState": "",
     "text": "历史成交",
-    "bounds": "13,1205,347,1254",
-    "children": [],
-    "displayBounds": "9,791,228,823"
+    "bounds": "13,1293,347,1342",
+    "children": []
   },
   {
     "index": 46,
@@ -455,9 +410,8 @@
     "className": "FrameLayout",
     "checkedState": "",
     "text": "android.widget.FrameLayout",
-    "bounds": "360,1071,720,1273",
-    "children": [],
-    "displayBounds": "236,703,472,836"
+    "bounds": "360,1159,720,1361",
+    "children": []
   },
   {
     "index": 47,
@@ -465,9 +419,8 @@
     "className": "TextView",
     "checkedState": "",
     "text": "账户查询",
-    "bounds": "373,1205,707,1254",
-    "children": [],
-    "displayBounds": "245,791,464,823"
+    "bounds": "373,1293,707,1342",
+    "children": []
   },
   {
     "index": 48,
@@ -475,9 +428,8 @@
     "className": "FrameLayout",
     "checkedState": "",
     "text": "android.widget.FrameLayout",
-    "bounds": "720,1071,1080,1273",
-    "children": [],
-    "displayBounds": "472,703,709,836"
+    "bounds": "720,1159,1080,1361",
+    "children": []
   },
   {
     "index": 49,
@@ -485,9 +437,8 @@
     "className": "TextView",
     "checkedState": "",
     "text": "资金流水",
-    "bounds": "733,1205,1067,1254",
-    "children": [],
-    "displayBounds": "481,791,700,823"
+    "bounds": "733,1293,1067,1342",
+    "children": []
   },
   {
     "index": 50,
@@ -495,9 +446,8 @@
     "className": "FrameLayout",
     "checkedState": "",
     "text": "android.widget.FrameLayout",
-    "bounds": "1080,1071,1440,1273",
-    "children": [],
-    "displayBounds": "709,703,945,836"
+    "bounds": "1080,1159,1440,1361",
+    "children": []
   },
   {
     "index": 51,
@@ -505,9 +455,8 @@
     "className": "TextView",
     "checkedState": "",
     "text": "历史委托",
-    "bounds": "1093,1205,1427,1254",
-    "children": [],
-    "displayBounds": "717,791,936,823"
+    "bounds": "1093,1293,1427,1342",
+    "children": []
   },
   {
     "index": 52,
@@ -515,9 +464,8 @@
     "className": "FrameLayout",
     "checkedState": "",
     "text": "android.widget.FrameLayout",
-    "bounds": "0,1273,360,1475",
-    "children": [],
-    "displayBounds": "0,836,236,968"
+    "bounds": "0,1361,360,1563",
+    "children": []
   },
   {
     "index": 53,
@@ -525,9 +473,8 @@
     "className": "TextView",
     "checkedState": "",
     "text": "更多",
-    "bounds": "13,1407,347,1456",
-    "children": [],
-    "displayBounds": "9,924,228,956"
+    "bounds": "13,1495,347,1544",
+    "children": []
   },
   {
     "index": 54,
@@ -535,9 +482,8 @@
     "className": "TextView",
     "checkedState": "",
     "text": "升级",
-    "bounds": "313,1637,391,1686",
-    "children": [],
-    "displayBounds": "205,1075,257,1107"
+    "bounds": "313,1725,391,1774",
+    "children": []
   },
   {
     "index": 55,
@@ -545,9 +491,8 @@
     "className": "ViewGroup",
     "checkedState": "",
     "text": "com.guotai.dazhihui:id/cl_xgsg",
-    "bounds": "89,1706,529,1898",
-    "children": [],
-    "displayBounds": "58,1120,347,1246"
+    "bounds": "89,1820,529,1937",
+    "children": []
   },
   {
     "index": 56,
@@ -555,209 +500,188 @@
     "className": "TextView",
     "checkedState": "",
     "text": "新股",
-    "bounds": "115,1738,191,1785",
-    "children": [],
-    "displayBounds": "75,1141,125,1172"
+    "bounds": "115,1856,191,1903",
+    "children": []
   },
   {
     "index": 57,
     "resourceId": "com.guotai.dazhihui:id/tv_xgsg_count",
     "className": "TextView",
     "checkedState": "",
-    "text": "1",
-    "bounds": "472,1725,503,1797",
-    "children": [],
-    "displayBounds": "310,1132,330,1180"
+    "text": "0",
+    "bounds": "472,1843,503,1915",
+    "children": []
   },
   {
     "index": 58,
-    "resourceId": "com.guotai.dazhihui:id/tv_hs_str",
-    "className": "TextView",
-    "checkedState": "",
-    "text": "沪深",
-    "bounds": "115,1835,179,1875",
-    "children": [],
-    "displayBounds": "75,1205,117,1231"
-  },
-  {
-    "index": 59,
-    "resourceId": "com.guotai.dazhihui:id/tv_hs_count",
-    "className": "TextView",
-    "checkedState": "",
-    "text": "0",
-    "bounds": "280,1835,299,1879",
-    "children": [],
-    "displayBounds": "184,1205,196,1233"
-  },
-  {
-    "index": 60,
-    "resourceId": "com.guotai.dazhihui:id/tv_bjs_str",
-    "className": "TextView",
-    "checkedState": "",
-    "text": "北证",
-    "bounds": "319,1835,383,1875",
-    "children": [],
-    "displayBounds": "209,1205,251,1231"
-  },
-  {
-    "index": 61,
-    "resourceId": "com.guotai.dazhihui:id/tv_bjs_count",
-    "className": "TextView",
-    "checkedState": "",
-    "text": "1",
-    "bounds": "484,1835,503,1879",
-    "children": [],
-    "displayBounds": "318,1205,330,1233"
-  },
-  {
-    "index": 62,
     "resourceId": "com.guotai.dazhihui:id/cl_kzz",
     "className": "ViewGroup",
     "checkedState": "",
     "text": "com.guotai.dazhihui:id/cl_kzz",
-    "bounds": "89,1923,529,2020",
-    "children": [],
-    "displayBounds": "58,1262,347,1326"
+    "bounds": "89,1975,529,2092",
+    "children": []
   },
   {
-    "index": 63,
+    "index": 59,
     "resourceId": "com.guotai.dazhihui:id/tv_kzz_str",
     "className": "TextView",
     "checkedState": "",
     "text": "新债",
-    "bounds": "115,1948,191,1995",
-    "children": [],
-    "displayBounds": "75,1279,125,1310"
+    "bounds": "115,2010,191,2057",
+    "children": []
   },
   {
-    "index": 64,
+    "index": 60,
     "resourceId": "com.guotai.dazhihui:id/tv_kzz_count",
     "className": "TextView",
     "checkedState": "",
-    "text": "2",
-    "bounds": "472,1936,503,2008",
-    "children": [],
-    "displayBounds": "310,1271,330,1318"
+    "text": "0",
+    "bounds": "472,1998,503,2070",
+    "children": []
   },
   {
-    "index": 65,
+    "index": 61,
     "resourceId": "com.guotai.dazhihui:id/cl_strategy_card",
     "className": "ViewGroup",
     "checkedState": "",
     "text": "com.guotai.dazhihui:id/cl_strategy_card",
-    "bounds": "605,1598,1389,1809",
-    "children": [],
-    "displayBounds": "397,1049,912,1187"
+    "bounds": "605,1686,1389,1897",
+    "children": []
   },
   {
-    "index": 66,
-    "resourceId": "com.guotai.dazhihui:id/tv_today_trigger_str",
+    "index": 62,
+    "resourceId": "",
     "className": "TextView",
     "checkedState": "",
-    "text": "今日触发",
-    "bounds": "669,1724,821,1771",
-    "children": [],
-    "displayBounds": "439,1132,539,1163"
+    "text": "轻松下单自动盯盘",
+    "bounds": "643,1822,1127,1868",
+    "children": []
   },
   {
-    "index": 67,
-    "resourceId": "com.guotai.dazhihui:id/tv_today_trigger_count",
+    "index": 63,
+    "resourceId": "com.guotai.dazhihui:id/tv_use_pp",
     "className": "TextView",
     "checkedState": "",
-    "text": "0",
-    "bounds": "821,1712,971,1783",
-    "children": [],
-    "displayBounds": "539,1124,637,1170"
+    "text": "创建订单",
+    "bounds": "1135,1794,1351,1875",
+    "children": []
   },
   {
-    "index": 68,
-    "resourceId": "com.guotai.dazhihui:id/tv_running_str",
-    "className": "TextView",
-    "checkedState": "",
-    "text": "运行中",
-    "bounds": "1023,1724,1137,1771",
-    "children": [],
-    "displayBounds": "671,1132,746,1163"
-  },
-  {
-    "index": 69,
-    "resourceId": "com.guotai.dazhihui:id/tv_running_count",
-    "className": "TextView",
-    "checkedState": "",
-    "text": "6",
-    "bounds": "1137,1712,1325,1783",
-    "children": [],
-    "displayBounds": "746,1124,870,1170"
-  },
-  {
-    "index": 70,
+    "index": 64,
     "resourceId": "com.guotai.dazhihui:id/cl_smart_card",
     "className": "ViewGroup",
     "checkedState": "",
     "text": "com.guotai.dazhihui:id/cl_smart_card",
-    "bounds": "605,1847,1389,2058",
-    "children": [],
-    "displayBounds": "397,1212,912,1351"
+    "bounds": "605,1935,1389,2146",
+    "children": []
   },
   {
-    "index": 71,
+    "index": 65,
     "resourceId": "",
     "className": "TextView",
     "checkedState": "",
     "text": "定制专属策略",
-    "bounds": "643,1983,1127,2029",
-    "children": [],
-    "displayBounds": "422,1302,740,1332"
+    "bounds": "643,2071,1127,2117",
+    "children": []
   },
   {
-    "index": 72,
+    "index": 66,
     "resourceId": "com.guotai.dazhihui:id/tv_go_use",
     "className": "TextView",
     "checkedState": "",
     "text": "立即定制",
-    "bounds": "1135,1955,1351,2036",
-    "children": [],
-    "displayBounds": "745,1283,887,1336"
+    "bounds": "1135,2043,1351,2124",
+    "children": []
   },
   {
-    "index": 73,
+    "index": 67,
     "resourceId": "",
     "className": "LinearLayout",
     "checkedState": "",
     "text": "android.widget.LinearLayout",
-    "bounds": "0,2147,1440,2308",
-    "children": [],
-    "displayBounds": "0,1409,945,1515"
+    "bounds": "0,2235,1440,2396",
+    "children": []
   },
   {
-    "index": 74,
+    "index": 68,
     "resourceId": "com.guotai.dazhihui:id/trade_yw_tv",
     "className": "TextView",
     "checkedState": "",
     "text": "ETF基金",
-    "bounds": "54,2147,246,2307",
-    "children": [],
-    "displayBounds": "35,1409,161,1514"
+    "bounds": "54,2235,246,2395",
+    "children": []
   },
   {
-    "index": 75,
+    "index": 69,
     "resourceId": "com.guotai.dazhihui:id/trade_yw_sub_tv",
     "className": "TextView",
     "checkedState": "",
     "text": "HOT",
-    "bounds": "262,2200,343,2253",
-    "children": [],
-    "displayBounds": "172,1444,225,1479"
+    "bounds": "262,2288,343,2341",
+    "children": []
+  },
+  {
+    "index": 70,
+    "resourceId": "com.guotai.dazhihui:id/trade_yw_summary_tv",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "新增策略、投教、互动圈子",
+    "bounds": "343,2235,1322,2395",
+    "children": []
+  },
+  {
+    "index": 71,
+    "resourceId": "",
+    "className": "LinearLayout",
+    "checkedState": "",
+    "text": "android.widget.LinearLayout",
+    "bounds": "0,2396,1440,2557",
+    "children": []
+  },
+  {
+    "index": 72,
+    "resourceId": "com.guotai.dazhihui:id/trade_yw_tv",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "可转债申购",
+    "bounds": "54,2396,309,2556",
+    "children": []
+  },
+  {
+    "index": 73,
+    "resourceId": "com.guotai.dazhihui:id/trade_yw_summary_tv",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "支持新债预约",
+    "bounds": "309,2396,1322,2556",
+    "children": []
+  },
+  {
+    "index": 74,
+    "resourceId": "",
+    "className": "LinearLayout",
+    "checkedState": "",
+    "text": "android.widget.LinearLayout",
+    "bounds": "0,2557,1440,2718",
+    "children": []
+  },
+  {
+    "index": 75,
+    "resourceId": "com.guotai.dazhihui:id/trade_yw_tv",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "新三板交易",
+    "bounds": "54,2557,309,2717",
+    "children": []
   },
   {
     "index": 76,
     "resourceId": "com.guotai.dazhihui:id/trade_yw_summary_tv",
     "className": "TextView",
     "checkedState": "",
-    "text": "新增策略、投教、互动圈子",
-    "bounds": "343,2147,1322,2307",
-    "children": [],
-    "displayBounds": "225,1409,868,1514"
+    "text": "开权限、新三板大宗交易",
+    "bounds": "309,2557,1322,2717",
+    "children": []
   },
   {
     "index": 77,
@@ -765,238 +689,160 @@
     "className": "LinearLayout",
     "checkedState": "",
     "text": "android.widget.LinearLayout",
-    "bounds": "0,2308,1440,2469",
-    "children": [],
-    "displayBounds": "0,1515,945,1621"
+    "bounds": "0,2718,1440,2790",
+    "children": []
   },
   {
     "index": 78,
     "resourceId": "com.guotai.dazhihui:id/trade_yw_tv",
     "className": "TextView",
     "checkedState": "",
-    "text": "可转债申购",
-    "bounds": "54,2308,309,2468",
-    "children": [],
-    "displayBounds": "35,1515,203,1620"
+    "text": "特灵交易",
+    "bounds": "54,2718,258,2790",
+    "children": []
   },
   {
     "index": 79,
     "resourceId": "com.guotai.dazhihui:id/trade_yw_summary_tv",
     "className": "TextView",
     "checkedState": "",
-    "text": "支持新债预约",
-    "bounds": "309,2308,1322,2468",
-    "children": [],
-    "displayBounds": "203,1515,868,1620"
+    "text": "助您玩转底仓",
+    "bounds": "258,2718,1322,2790",
+    "children": []
   },
   {
     "index": 80,
-    "resourceId": "",
-    "className": "LinearLayout",
-    "checkedState": "",
-    "text": "android.widget.LinearLayout",
-    "bounds": "0,2469,1440,2630",
-    "children": [],
-    "displayBounds": "0,1621,945,1726"
-  },
-  {
-    "index": 81,
-    "resourceId": "com.guotai.dazhihui:id/trade_yw_tv",
-    "className": "TextView",
-    "checkedState": "",
-    "text": "新三板交易",
-    "bounds": "54,2469,309,2629",
-    "children": [],
-    "displayBounds": "35,1621,203,1726"
-  },
-  {
-    "index": 82,
-    "resourceId": "com.guotai.dazhihui:id/trade_yw_summary_tv",
-    "className": "TextView",
-    "checkedState": "",
-    "text": "开权限、新三板大宗交易",
-    "bounds": "309,2469,1322,2629",
-    "children": [],
-    "displayBounds": "203,1621,868,1726"
-  },
-  {
-    "index": 83,
-    "resourceId": "",
-    "className": "LinearLayout",
-    "checkedState": "",
-    "text": "android.widget.LinearLayout",
-    "bounds": "0,2630,1440,2790",
-    "children": [],
-    "displayBounds": "0,1726,945,1831"
-  },
-  {
-    "index": 84,
-    "resourceId": "com.guotai.dazhihui:id/trade_yw_tv",
-    "className": "TextView",
-    "checkedState": "",
-    "text": "特灵交易",
-    "bounds": "54,2630,258,2790",
-    "children": [],
-    "displayBounds": "35,1726,169,1831"
-  },
-  {
-    "index": 85,
-    "resourceId": "com.guotai.dazhihui:id/trade_yw_summary_tv",
-    "className": "TextView",
-    "checkedState": "",
-    "text": "助您玩转底仓",
-    "bounds": "258,2630,1322,2790",
-    "children": [],
-    "displayBounds": "169,1726,868,1831"
-  },
-  {
-    "index": 86,
     "resourceId": "com.guotai.dazhihui:id/bottom_menu_button1",
     "className": "LinearLayout",
     "checkedState": "",
     "text": "com.guotai.dazhihui:id/bottom_menu_button1",
     "bounds": "0,2790,288,2966",
-    "children": [],
-    "displayBounds": "0,1831,189,1947"
+    "children": []
   },
   {
-    "index": 87,
+    "index": 81,
     "resourceId": "com.guotai.dazhihui:id/btm_image1",
     "className": "ImageView",
     "checkedState": "",
     "text": "发现",
     "bounds": "105,2813,182,2890",
-    "children": [],
-    "displayBounds": "69,1846,119,1897"
+    "children": []
   },
   {
-    "index": 88,
+    "index": 82,
     "resourceId": "com.guotai.dazhihui:id/btm_text1",
     "className": "TextView",
     "checkedState": "",
     "text": "发现",
     "bounds": "0,2890,288,2943",
-    "children": [],
-    "displayBounds": "0,1897,189,1932"
+    "children": []
   },
   {
-    "index": 89,
+    "index": 83,
     "resourceId": "com.guotai.dazhihui:id/bottom_menu_button2",
     "className": "LinearLayout",
     "checkedState": "",
     "text": "com.guotai.dazhihui:id/bottom_menu_button2",
     "bounds": "288,2790,576,2966",
-    "children": [],
-    "displayBounds": "189,1831,378,1947"
+    "children": []
   },
   {
-    "index": 90,
+    "index": 84,
     "resourceId": "com.guotai.dazhihui:id/btm_image2",
     "className": "ImageView",
     "checkedState": "",
     "text": "行情",
     "bounds": "393,2813,470,2890",
-    "children": [],
-    "displayBounds": "258,1846,308,1897"
+    "children": []
   },
   {
-    "index": 91,
+    "index": 85,
     "resourceId": "com.guotai.dazhihui:id/btm_text2",
     "className": "TextView",
     "checkedState": "",
     "text": "行情",
     "bounds": "288,2890,576,2943",
-    "children": [],
-    "displayBounds": "189,1897,378,1932"
+    "children": []
   },
   {
-    "index": 92,
+    "index": 86,
     "resourceId": "com.guotai.dazhihui:id/bottom_menu_button3",
     "className": "LinearLayout",
     "checkedState": "",
     "text": "com.guotai.dazhihui:id/bottom_menu_button3",
     "bounds": "576,2790,864,2966",
-    "children": [],
-    "displayBounds": "378,1831,567,1947"
+    "children": []
   },
   {
-    "index": 93,
+    "index": 87,
     "resourceId": "com.guotai.dazhihui:id/btm_image3",
     "className": "ImageView",
     "checkedState": "",
     "text": "交易",
     "bounds": "681,2813,758,2890",
-    "children": [],
-    "displayBounds": "447,1846,497,1897"
+    "children": []
   },
   {
-    "index": 94,
+    "index": 88,
     "resourceId": "com.guotai.dazhihui:id/btm_text3",
     "className": "TextView",
     "checkedState": "",
     "text": "交易",
     "bounds": "576,2890,864,2943",
-    "children": [],
-    "displayBounds": "378,1897,567,1932"
+    "children": []
   },
   {
-    "index": 95,
+    "index": 89,
     "resourceId": "com.guotai.dazhihui:id/bottom_menu_button4",
     "className": "LinearLayout",
     "checkedState": "",
     "text": "com.guotai.dazhihui:id/bottom_menu_button4",
     "bounds": "864,2790,1152,2966",
-    "children": [],
-    "displayBounds": "567,1831,756,1947"
+    "children": []
   },
   {
-    "index": 96,
+    "index": 90,
     "resourceId": "com.guotai.dazhihui:id/btm_image4",
     "className": "ImageView",
     "checkedState": "",
     "text": "理财",
     "bounds": "969,2813,1046,2890",
-    "children": [],
-    "displayBounds": "636,1846,686,1897"
+    "children": []
   },
   {
-    "index": 97,
+    "index": 91,
     "resourceId": "com.guotai.dazhihui:id/btm_text4",
     "className": "TextView",
     "checkedState": "",
     "text": "理财",
     "bounds": "864,2890,1152,2943",
-    "children": [],
-    "displayBounds": "567,1897,756,1932"
+    "children": []
   },
   {
-    "index": 98,
+    "index": 92,
     "resourceId": "com.guotai.dazhihui:id/bottom_menu_button5",
     "className": "LinearLayout",
     "checkedState": "",
     "text": "com.guotai.dazhihui:id/bottom_menu_button5",
     "bounds": "1152,2790,1440,2966",
-    "children": [],
-    "displayBounds": "756,1831,945,1947"
+    "children": []
   },
   {
-    "index": 99,
+    "index": 93,
     "resourceId": "com.guotai.dazhihui:id/btm_image5",
     "className": "ImageView",
     "checkedState": "",
     "text": "我的",
     "bounds": "1257,2813,1334,2890",
-    "children": [],
-    "displayBounds": "825,1846,875,1897"
+    "children": []
   },
   {
-    "index": 100,
+    "index": 94,
     "resourceId": "com.guotai.dazhihui:id/btm_text5",
     "className": "TextView",
     "checkedState": "",
     "text": "我的",
     "bounds": "1152,2890,1440,2943",
-    "children": [],
-    "displayBounds": "756,1897,945,1932"
+    "children": []
   }
 ]

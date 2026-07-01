@@ -74,7 +74,7 @@ def fill_tp_sl_price(tp_price: str, sl_price: str, ui_text: str) -> str:
         tp_center = find_edittext_by_y(ui_text, tp_label_center[1])
         if not tp_center:
             tp_center = (tp_label_center[0] + 450, tp_label_center[1])
-            
+
         logger.info(f"Tapping TP price field at {tp_center}")
         device_tap(*tp_center, sleep_after=0.5)
         adb_clear_field(max_chars=15)
@@ -95,7 +95,7 @@ def fill_tp_sl_price(tp_price: str, sl_price: str, ui_text: str) -> str:
         sl_center = find_edittext_by_y(ui_text, sl_label_center[1])
         if not sl_center:
             sl_center = (sl_label_center[0] + 450, sl_label_center[1])
-            
+
         logger.info(f"Tapping SL price field at {sl_center}")
         device_tap(*sl_center, sleep_after=0.5)
         adb_clear_field(max_chars=15)
@@ -103,7 +103,7 @@ def fill_tp_sl_price(tp_price: str, sl_price: str, ui_text: str) -> str:
         adb_type(sl_val)
     else:
         logger.warning("Cannot find '止损触发' label")
-        
+
     return ui_text
 
 
@@ -130,24 +130,24 @@ def create_tp_sl_order(code: str, tp_price: str, sl_price: str, quantity: str, s
 
     # Step 1: Start app if not running
     open_app()
-    
+
     # Step 2: Login if needed
     login()
-    
+
     # Step 3: Check duplicate orders
     check_duplicate_orders(code)
-    
+
     # Step 4: Go back to homepage
     goto_homepage()
-    
+
     # Step 5: Replay '今日触发' and navigate to subpage
     replay_page(['今日触发'])
-    
+
     # Wait for the select page to load, then tap '止盈止损'
     time.sleep(2)
     ui_text = get_ui_tree()
     center = find_element_center(ui_text, '止盈止损')
-    
+
     # Scroll to find it — the button is at the bottom of the order creation area
     if not center:
         for _ in range(5):
@@ -156,7 +156,7 @@ def create_tp_sl_order(code: str, tp_price: str, sl_price: str, quantity: str, s
             center = find_element_center(ui_text, '止盈止损')
             if center:
                 break
-    
+
     # If still not found, try tapping '新建订单' first to reveal creation options
     if not center:
         logger.warning("'止盈止损' not found directly. Trying via '新建订单'...")
@@ -165,12 +165,12 @@ def create_tp_sl_order(code: str, tp_price: str, sl_price: str, quantity: str, s
             device_tap(*new_center, sleep_after=2)
             ui_text = get_ui_tree()
             center = find_element_center(ui_text, '止盈止损')
-    
+
     if not center:
         raise RuntimeError("Cannot find '止盈止损' button on smart order page")
     logger.info(f"Tapping '止盈止损' at {center}")
     device_tap(*center, sleep_after=2)
-    
+
     # Scroll to top of page to ensure stock code is visible
     device_swipe(720, 500, 720, 1500, sleep_after=1.5)
     ui_text = get_ui_tree()
@@ -188,31 +188,33 @@ def create_tp_sl_order(code: str, tp_price: str, sl_price: str, quantity: str, s
     ui_text = fill_tp_sl_price(tp_price, sl_price, ui_text)
 
     time.sleep(1)
-    
+
     logger.info("Scrolling to ensure quantity field is visible and keyboard is closed")
-    device_swipe(720, 2000, 720, 500, sleep_after=1.5)
-    ui_text = get_ui_tree()
-
-    # Set valid until date to Today
-    set_valid_until_today(ui_text)
-    ui_text = get_ui_tree()
-
-    fill_quantity(quantity, ui_text)
-    
-    # Hide keyboard and refresh UI tree
     device_swipe(720, 2000, 720, 500, sleep_after=1.5)
     ui_text = get_ui_tree()
 
     set_order_method(ui_text)
     ui_text = get_ui_tree()
 
+    fill_quantity(quantity, ui_text)
+
+    # Hide keyboard and refresh UI tree
+    device_swipe(720, 2000, 720, 500, sleep_after=1.5)
+    ui_text = get_ui_tree()
+
     set_auto_order(ui_text)
     ui_text = get_ui_tree()
-    
+
+    # Set valid until date to Today
+    set_valid_until_today(ui_text)
+    ui_text = get_ui_tree()
+
     # Hide keyboard again
     device_swipe(720, 2000, 720, 500, sleep_after=1.5)
     ui_text = get_ui_tree()
-    
+
+    time.sleep(0.5)
+    ui_text = get_ui_tree()
     logger.info("Final UI state (EditText fields):")
     for line in ui_text.split('\n'):
         if 'EditText' in line:
@@ -242,11 +244,11 @@ def batch_create_tp_sl(submit: bool, dry_run: bool, codes_list: list[str] = None
             logger.warning(f"These stocks are not in holding db: {missing_codes}")
     else:
         holdings = DB.fetch_all("SELECT code, available_shares, cost_basis_diluted FROM holding_stocks")
-    
+
     code_to_shares = {row['code']: row['available_shares'] for row in holdings}
     code_to_cost = {row['code']: row['cost_basis_diluted'] for row in holdings}
     codes = list(code_to_shares.keys())
-    
+
     if not codes:
         logger.info("No holding stocks found.")
         return
@@ -259,7 +261,7 @@ def batch_create_tp_sl(submit: bool, dry_run: bool, codes_list: list[str] = None
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     output_json = os.path.join("backtest", "results", "daily", f"smart_orders_batch_{timestamp}.json")
     os.makedirs(os.path.dirname(output_json), exist_ok=True)
-    
+
     cmd = f"python -m backtest.cli analyze --symbols {stocks_list} --initial-cash 10000000 --output {output_json}"
     run_cmd(cmd)
 
@@ -267,7 +269,7 @@ def batch_create_tp_sl(submit: bool, dry_run: bool, codes_list: list[str] = None
         # Maybe it output somewhere else if our --output was ignored, but wait, we passed --output.
         # Check if the file is generated
         pass
-    
+
     if os.path.exists(output_json):
         logger.info(f"JSON generated: {output_json}")
     else:
@@ -298,11 +300,11 @@ def batch_create_tp_sl(submit: bool, dry_run: bool, codes_list: list[str] = None
                         break
         except Exception as e:
             logger.error(f"Failed to read {output_json}: {e}")
-            
+
         if not tp_price or not sl_price or not quantity:
             logger.warning(f"Skipping {code} because missing data in JSON.")
             continue
-            
+
         create_tp_sl_order(code, tp_price, sl_price, quantity, submit=submit, dry_run=dry_run)
 
 
@@ -334,23 +336,23 @@ def main():
         try:
             with open(args.json, 'r') as f:
                 data = json.load(f)
-            
+
             # Query db for holdings to get actual available_shares
             holdings = DB.fetch_all("SELECT code, available_shares FROM holding_stocks")
             code_to_shares = {row['code']: row['available_shares'] for row in holdings}
-            
+
             for order in data.get('smart_orders', []):
                 if 'sell_take_profit_price' in order and 'sell_stop_loss_price' in order:
                     code = order['symbol'].split('.')[0]
                     tp = str(order['sell_take_profit_price'])
                     sl = str(order['sell_stop_loss_price'])
-                    
+
                     qty = code_to_shares.get(code)
                     if qty:
                         quantity = str(qty)
                     else:
                         quantity = str(order.get('buy_quantity', ''))
-                        
+
                     if code and tp and sl and quantity:
                         orders_to_process.append({
                             'code': code,
@@ -358,7 +360,7 @@ def main():
                             'sl': sl,
                             'quantity': quantity
                         })
-            
+
             if not orders_to_process:
                 logger.warning("No valid TP/SL orders found in JSON file.")
                 sys.exit(1)
@@ -382,7 +384,7 @@ def main():
             if not codes_list:
                 logger.error("No valid stock codes specified.")
                 sys.exit(1)
-            
+
             batch_create_tp_sl(submit=args.submit, dry_run=args.dry_run, codes_list=codes_list)
             return
 

@@ -262,22 +262,40 @@ def set_valid_until_today(ui_text: str) -> None:
     logger.info(f"set_valid_until: now={now:%H:%M}, target_date={target_date_str}, "
                 f"target_day={target_day_str} (1 trading day)")
 
-    # ── Open the date picker ──
+    # ── Open the date picker using AndroidStateProvider ──
     picker_opened = False
-    known_positions = [
-        (906, 1710), (800, 1710), (1000, 1710),  # BUY date VALUE — exact UI dump coords
-        (500, 2900), (400, 2900), (225, 2900),   # TP/SL form — date at bottom
-        (400, 1550), (500, 1550),                 # TP/SL alt
-    ]
-    for x, y in known_positions:
-        logger.info(f"Tapping date field at ({x}, {y})")
-        device_tap(x, y, sleep_after=2.0)
-        ui = get_ui_tree()
-        if '年' in ui:
-            logger.info(f"Date picker opened via ({x}, {y})")
-            picker_opened = True
-            break
-        logger.warning(f"No picker at ({x}, {y})")
+    try:
+        driver = AndroidDriver()
+        asyncio.get_event_loop().run_until_complete(driver.connect())
+        provider = AndroidStateProvider(driver, ConciseFilter(), IndexedFormatter())
+        
+        for attempt in range(5):
+            ui_state = asyncio.get_event_loop().run_until_complete(provider.get_state())
+            for i, elem in enumerate(ui_state.elements):
+                text = elem.get("text", "")
+                # Find the date value on the form (e.g. "2026-09-29收盘前")
+                if text and ("有效期至" in text or "收盘前" in text or text.startswith("2026-")):
+                    try:
+                        x, y = ui_state.get_element_coords(i)
+                        logger.info(f"Found date field '{text[:30]}' at ({x}, {y})")
+                        asyncio.get_event_loop().run_until_complete(driver.tap(x, y))
+                        time.sleep(2.0)
+                        # Verify picker opened
+                        ui2 = asyncio.get_event_loop().run_until_complete(provider.get_state())
+                        for i2, e2 in enumerate(ui2.elements):
+                            if e2.get("text", "") in ("确定", "确认"):
+                                logger.info("Date picker opened")
+                                picker_opened = True
+                                break
+                        if picker_opened:
+                            break
+                    except (ValueError, Exception):
+                        continue
+            if picker_opened:
+                break
+            time.sleep(0.5)
+    except Exception as e:
+        logger.warning(f"AndroidStateProvider picker-open failed: {e}")
     
     if not picker_opened:
         logger.error("Date picker failed to open.")

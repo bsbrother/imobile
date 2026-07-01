@@ -9,11 +9,15 @@ Key points:
 
 If the date picker is in a WebView and elements aren't exposed, you may need to use click_at(x, y) with known coordinates or vision-based detection.
 """
+import sys, os
 import asyncio
 from mobilerun.tools import AndroidDriver
 from mobilerun.tools.ui.provider import AndroidStateProvider
 from mobilerun.tools.filters.concise_filter import ConciseFilter
 from mobilerun.tools.formatters.indexed_formatter import IndexedFormatter
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from trading.guotai import open_app, login, goto_homepage, replay_page
 
 async def export_ui_state():
     """
@@ -73,7 +77,11 @@ async def find_and_tap_date(target_day: str = "01"):
 
 if __name__ == '__main__':
     # Saved UI state tree to /tmp/xx for find the date button.
-    asyncio.run(export_ui_state())
+    # asyncio.run(export_ui_state())
 
+
+    open_app()
+    login()
+    replay_page(['到价买入',])
     # e.g. Today is 2026-07-01, now find and tap  01 button on the date picker.
     asyncio.run(find_and_tap_date("01"))

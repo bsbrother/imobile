@@ -715,12 +715,19 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
         take_profit_ratio = regime_data.get('take_profit_pct', 0.10)
         
         regime = regime_data.get('regime', 'normal')
+        is_ma20_falling = regime_data.get('is_ma20_falling', False)
+        
         regime_max_positions = {
             'bull': 12,
             'normal': 10,
             'volatile': 8,
             'bear': 5
         }
+        
+        switch_fast_regime = os.getenv('SWITCH_INDEX_COMBINE_MA', 'false').lower() in ('true', '1', 'yes')
+        if switch_fast_regime and regime == 'bear' and is_ma20_falling:
+            regime_max_positions['bear'] = 0  # Severe downtrend: protect capital
+            
         max_positions = regime_max_positions.get(regime, max_positions)
         
         logger.info(f"Market Regime: {regime.upper()}, Max Positions: {max_positions}, "
@@ -866,7 +873,14 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                 position_sizing.get('max_position_pct', 0.15)
                 equal_weight = position_sizing.get('equal_weight', True)
 
-                if remaining_slots <= 0 or remaining_cash <= 0:
+                position_sizing_enabled = os.getenv('POSITION_SIZING_ALGORITHM', 'true').lower() in ('true', '1', 'yes')
+
+                is_held = False
+                if held_symbols:
+                    clean_sym = symbol.split('.')[0] if symbol else ''
+                    is_held = clean_sym in held_symbols or symbol in held_symbols
+
+                if not is_held and (remaining_slots <= 0 or remaining_cash <= 0):
                     logger.info(f"Skip {symbol}: no remaining cash/slots for new positions.")
                     skipped_buy_orders.append({
                         "symbol": symbol,
@@ -880,19 +894,12 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                 is_star_chinext = symbol.startswith('3') or symbol.startswith('688')
                 min_qty = 200 if is_star_chinext else 100
 
-                position_sizing_enabled = os.getenv('POSITION_SIZING_ALGORITHM', 'true').lower() in ('true', '1', 'yes')
-
-                is_held = False
-                if held_symbols:
-                    clean_sym = symbol.split('.')[0] if symbol else ''
-                    is_held = clean_sym in held_symbols or symbol in held_symbols
-
                 if is_held:
                     buy_quantity = 0
                     logger.info(f"Symbol {symbol} is already held, assigning 0 buy_quantity to preserve cash.")
                 else:
                     if position_sizing_enabled:
-                        per_slot_cash = float(initial_cash) / max_positions
+                        per_slot_cash = float(initial_cash) / max(1, max_positions)
                         # Max 25% of capital per position to avoid concentration (e.g. 中际旭创 at 59%)
                         max_position_cash = float(initial_cash) * 0.25
                         effective_slot_cash = min(per_slot_cash, max_position_cash)

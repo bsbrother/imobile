@@ -1101,9 +1101,12 @@ async def cron_sync_app_to_db(check_trading_day_and_time: bool = True) -> dict:
     )
     
     logger.info("Extracting transaction history from app...")
+    # Only sync today's transactions — use today as stop_before_date
+    # (not the global _sync_cutoff_date which is for one-time init)
+    today_cutoff = datetime.now().strftime('%Y-%m-%d')
     tx_csv = await get_transactions_from_app_history_page_structured(
         config=config, llm=llm, tools=tools,
-        stop_before_date=_sync_cutoff_date
+        stop_before_date=today_cutoff
     )
     
     # 2. Pre-save app counts

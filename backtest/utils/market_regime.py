@@ -40,9 +40,6 @@ def detect_market_regime(date: str, index_code: str = '000001.SH') -> Dict[str, 
         close = df['close'].astype(float)
 
         ma20 = close.rolling(20, min_periods=10).mean().iloc[-1]
-        ma20_prev = close.rolling(20, min_periods=10).mean().iloc[-2] if len(close) >= 2 else ma20
-        is_ma20_falling = ma20 < ma20_prev
-
         ma60 = close.rolling(60, min_periods=30).mean().iloc[-1]
         ma120 = close.rolling(120, min_periods=60).mean().iloc[-1]
         current_price = close.iloc[-1]
@@ -65,8 +62,8 @@ def detect_market_regime(date: str, index_code: str = '000001.SH') -> Dict[str, 
             # Bull market: Strong uptrend, low volatility, price above MA20
             if current_price > ma20 and current_price > ma60 > ma120 and volatility < 2.0:
                 regime = 'bull'
-            # Fast Bear Market / Correction: Price breaks below the 20-day MA and momentum is negative
-            elif current_price < ma20 and (current_price < ma60 or is_ma20_falling):
+            # Fast Bear Market / Correction: Price breaks below the 20-day MA
+            elif current_price < ma20 and (current_price < ma60 or trend_60d < 0):
                 regime = 'bear'
             # Volatile market: High volatility regardless of trend
             elif volatility > 3.0:
@@ -94,7 +91,6 @@ def detect_market_regime(date: str, index_code: str = '000001.SH') -> Dict[str, 
     # Merge regime name into config
     result = config.copy()
     result['regime'] = regime
-    result['is_ma20_falling'] = bool(is_ma20_falling) if 'is_ma20_falling' in locals() else False
 
     logger.info(f"Market regime detected: {regime.upper()}")
     return result

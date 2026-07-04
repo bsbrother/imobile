@@ -88,6 +88,23 @@ if not os.path.exists(REPORT_PATH):
 # Use virtualenv python for python-based strategies
 VENV_PYTHON = "/home/kasm-user/apps/imobile/.venv/bin/python"
 
+
+def kaufman_efficiency_ratio(close_series: pd.Series, period: int = 14) -> float:
+    """Calculate Kaufman Efficiency Ratio for the latest bar.
+
+    ER = |net_change| / sum(|daily_changes|). Range 0..1.
+    Higher ER means more efficient/trending price action.
+    Returns NaN if insufficient data.
+    """
+    if len(close_series) < period + 1:
+        return float('nan')
+    net_change = abs(float(close_series.iloc[-1]) - float(close_series.iloc[-period - 1]))
+    daily_changes = close_series.diff().abs().iloc[-period:]
+    total_volatility = float(daily_changes.sum())
+    if total_volatility == 0:
+        return float('nan')
+    return net_change / total_volatility
+
 def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ', backtest_search: bool = True, backtest_ai: bool = True) -> str:
     """
     Pick stocks and save to a file for a specific date.
@@ -148,6 +165,8 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ', backtest_search: bo
         result = os.system(cmd)
     elif src == 'ts_7AZ':
         result = os.system(f'{VENV_PYTHON} backtest/strategies/ts_7AZ.py {this_date} ts_7AZ {_flags_str}')
+    elif src == 'ts_ao_er':
+        result = os.system(f'{VENV_PYTHON} backtest/strategies/ts_ao_er.py {this_date} {_flags_str}')
     else:
         result = os.system(f'{VENV_PYTHON} backtest/strategies/ts_ths_dc.py {this_date} {src} {_flags_str}')
     if result != 0:
@@ -157,8 +176,10 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ', backtest_search: bo
     try:
         os.rename('/tmp/tmp', tmp_file)
     except OSError:
-        # ts_7AZ fallback path
+        # ts_7AZ / ts_ao_er fallback paths
         fallback = '/tmp/ts_7AZ_tmp.json'
+        if not os.path.exists(fallback):
+            fallback = '/tmp/ts_ao_er_tmp.json'
         if os.path.exists(fallback):
             os.rename(fallback, tmp_file)
         else:
@@ -212,15 +233,21 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
     def _clean_sym(sym: str) -> str:
         return sym.split('.')[0] if sym else ''
 
+    if app_positions is not None or app_running_orders is not None:
+        from trading.sync_app_to_db import get_stock_code_by_name
+
     if app_positions is not None:
         for p in app_positions:
-            held_symbols_set.add(_clean_sym(p['code']))
+            code = p.get('code')
+            if not code or code == '000000':
+                code = get_stock_code_by_name(p['name'], user_id)
+            if code:
+                held_symbols_set.add(_clean_sym(code))
     
     if app_running_orders is not None:
-        from trading.sync_app_to_db import get_stock_code_by_name
         for order in app_running_orders:
             if order.get('status') == '运行中' and not order.get('reason_of_ending'):
-                code = order['code']
+                code = order.get('code')
                 if not code or code == '000000':
                     code = get_stock_code_by_name(order['name'], user_id)
                 if code:
@@ -437,7 +464,7 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
                     is_force_sell = True
                     reason_of_ending = 'order_expired_before_sell'
                     pos_name_suffix = '_expired'
-                elif days_held >= stagnation_days and current_return_pct < 2.0:
+                elif days_held >= stagnation_days and current_return_pct < 1.0:
                     is_force_sell = True
                     reason_of_ending = 'stagnation_cut'
                     pos_name_suffix = '_expired'
@@ -560,7 +587,7 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
                     is_force_sell = True
                     reason_of_ending = 'order_expired_before_sell'
                     pos_name_suffix = '_expired'
-                elif days_held >= stagnation_days and current_return_pct < 2.0:
+                elif days_held >= stagnation_days and current_return_pct < 1.0:
                     is_force_sell = True
                     reason_of_ending = 'stagnation_cut'
                     pos_name_suffix = '_expired'
@@ -751,8 +778,6 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
                     order['sell_take_profit_price'] = round(profit_price, 2)
                     order['sell_stop_loss_price'] = round(lose_price, 2)
 
-                order['buy_quantity'] = buy_quantity # keep original buy quantity for it not sell filled yet.
-
             # find the order in data['smart_orders'] and update it.
             for i, existing_order in enumerate(data['smart_orders']):
                 if existing_order['symbol'] == order['symbol']:
@@ -826,7 +851,7 @@ def execute_buy_order(user_id: int, symbol: str, name: str,
             old_holdings, old_cost_total, old_available = existing
             new_holdings = old_holdings + quantity
             new_cost_total = old_cost_total + net_amount
-            new_cost_basis = new_cost_total / new_holdings
+            new_cost_basis = new_cost_total / new_holdings if new_holdings > 0 else 0.0
 
             # T+1 rule: today's purchase not available until next trading day
             # available_shares remains unchanged
@@ -1049,6 +1074,17 @@ class OrderAnalyzer:
             logger.error(f"Error fetching data for {symbol}: {e}")
             return None
 
+    def get_market_data_df(self, symbol: str, date: str) -> Optional[pd.DataFrame]:
+        """Get multi-day OHLCV DataFrame for ER calculation (needs 14+ days)."""
+        try:
+            start_date = calendar.get_trading_days_before(date, 20)
+            df = data_provider.get_stock_data(symbol, start_date, date)
+            if df.empty:
+                return None
+            return df
+        except Exception:
+            return None
+
     def check_order_execution(self, order: Dict, market_data: Optional[pd.Series],
                              date: str) -> Dict[str, Any]:
         """
@@ -1168,7 +1204,7 @@ class OrderAnalyzer:
                         cost = cost_basis * quantity
                         exit_value = sell_price * quantity
                         pnl = exit_value - cost
-                        pnl_pct = (pnl / cost) * 100
+                        pnl_pct = (pnl / cost) * 100 if cost > 0 else 0.0
                         return {
                             'executed': True,
                             'action': 'sell',
@@ -1223,7 +1259,7 @@ class OrderAnalyzer:
                             cost = cost_basis * quantity
                             exit_value = sell_price * quantity
                             pnl = exit_value - cost
-                            pnl_pct = (pnl / cost) * 100
+                            pnl_pct = (pnl / cost) * 100 if cost > 0 else 0.0
                             return {
                                 'executed': True,
                                 'action': 'sell',
@@ -1263,7 +1299,7 @@ class OrderAnalyzer:
                             cost = cost_basis * quantity
                             exit_value = sell_price * quantity
                             pnl = exit_value - cost
-                            pnl_pct = (pnl / cost) * 100
+                            pnl_pct = (pnl / cost) * 100 if cost > 0 else 0.0
                             return {
                                 'executed': True,
                                 'action': 'sell',
@@ -1305,7 +1341,7 @@ class OrderAnalyzer:
                         cost = cost_basis * quantity
                         exit_value = sell_price * quantity
                         pnl = exit_value - cost
-                        pnl_pct = (pnl / cost) * 100
+                        pnl_pct = (pnl / cost) * 100 if cost > 0 else 0.0
                         return {
                             'executed': True,
                             'action': 'sell',
@@ -1331,11 +1367,11 @@ class OrderAnalyzer:
                         }
 
                 # Check for Stagnation Cut
-                # Trigger: Held >= half holding period AND Return < 2% (only cut flat/losing)
+                # Trigger: Held >= half holding period AND Return < 1% (only cut flat/losing)
                 # Action: Sell at CLOSE price
                 current_return_pct = ((close_price - cost_basis) / cost_basis) * 100
                 stagnation_days = max(3, self.holding_days // 2 + 1)
-                if holding_days_val >= stagnation_days and current_return_pct < 2.0:
+                if holding_days_val >= stagnation_days and current_return_pct < 1.0:
                     logger.info(f"Stagnation Cut triggered for {symbol}: held {holding_days_val} days, return {current_return_pct:.2f}%")
                     sell_price = close_price
                     reason = 'stagnation_cut'
@@ -1349,7 +1385,7 @@ class OrderAnalyzer:
                         cost = cost_basis * quantity
                         exit_value = sell_price * quantity
                         pnl = exit_value - cost
-                        pnl_pct = (pnl / cost) * 100
+                        pnl_pct = (pnl / cost) * 100 if cost > 0 else 0.0
                         return {
                             'executed': True,
                             'action': 'sell',
@@ -1373,6 +1409,53 @@ class OrderAnalyzer:
                                 'turnover_rate': float(market_data.get('turnover_rate', 0))
                             }
                         }
+
+                # Check for ER Trend Exit (Kaufman Efficiency Ratio)
+                # Trigger: ER > 0.7 AND stock in profit > 3% AND price rising AND held >= 2 days
+                # Rationale: Stock has entered efficient uptrend — lock profits before reversal
+                er_exit_enabled = os.getenv('ER_EXIT_ENABLED', 'true').lower() in ('true', '1', 'yes')
+                if er_exit_enabled and holding_days_val >= 2 and current_return_pct > 3.0:
+                    market_df = self.get_market_data_df(symbol, date)
+                    if market_df is not None and len(market_df) >= 15:
+                        er_val = kaufman_efficiency_ratio(market_df['close'].astype(float))
+                        if not pd.isna(er_val) and er_val > 0.7 and close_price > prev_close:
+                            logger.info(f"ER Trend Exit triggered for {symbol}: ER={er_val:.3f}, return={current_return_pct:.2f}%, held {holding_days_val}d")
+                            sell_price = close_price
+                            reason = 'er_trend_exit'
+
+                            success = execute_sell_order(
+                                self.user_id, symbol, name, sell_price,
+                                min(available_shares, quantity), date,
+                                order_number, reason
+                            )
+                            if success:
+                                cost = cost_basis * quantity
+                                exit_value = sell_price * quantity
+                                pnl = exit_value - cost
+                                pnl_pct = (pnl / cost) * 100 if cost > 0 else 0.0
+                                return {
+                                    'executed': True,
+                                    'action': 'sell',
+                                    'buy_fill_price': cost_basis,
+                                    'exit_price': sell_price,
+                                    'exit_reason': reason,
+                                    'quantity': quantity,
+                                    'cost_basis': cost,
+                                    'exit_value': exit_value,
+                                    'pnl': pnl,
+                                    'pnl_pct': pnl_pct,
+                                    't1_restriction': False,
+                                    'purchase_date': purchase_date,
+                                    'holding_days': holding_days_val,
+                                    'market_summary': {
+                                        'prev_close': prev_close,
+                                        'open': open_price,
+                                        'high': high_price,
+                                        'low': low_price,
+                                        'close': close_price,
+                                        'turnover_rate': float(market_data.get('turnover_rate', 0))
+                                    }
+                                }
 
                 # Holding continues - Update Trailing Stop
                 new_stop_loss, reason = calculate_trailing_stop(
@@ -2485,7 +2568,7 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
 
 if __name__ == '__main__':
     _valid_sources = ['ts_dc', 'ts_go', 'ts_auto', 'ts_daily',
-                      'ts_longup', 'ts_hma', 'ts_ai_pick', 'ts_7AZ']
+                      'ts_longup', 'ts_hma', 'ts_ai_pick', 'ts_7AZ', 'ts_ao_er']
 
     parser = argparse.ArgumentParser(
         description='Backtest Trading Script — A-Shares T+1 backtesting engine.\n'

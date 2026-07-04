@@ -79,9 +79,11 @@ def submit_orders_to_app(smart_orders_file: str):
 
     # Submit BUY orders
     for order in buy_orders:
+        quantity = str(order['buy_quantity'])
+        if quantity == '0':
+            continue
         code = order['symbol'].split('.')[0]
         price = str(order['buy_price'])
-        quantity = str(order['buy_quantity'])
         try:
             create_buy_order(code=code, price=price, quantity=quantity, submit=True)
             logger.info(f"  ✅ BUY submitted: {code} @{price} x{quantity}")
@@ -153,7 +155,10 @@ async def run_pre_market(this_date, user_id, submit, dry_run, app_package_name):
         logger.info(f"Regime: {data.get('market_pattern','?').upper()}")
         logger.info(f"BUY orders: {new_buys}, TP/SL orders: {tp_sl_count}")
         for o in all_orders[:new_buys]:
-            logger.info(f"  BUY {o['symbol']}_{o['name']}: @{o['buy_price']} x{o['buy_quantity']}")
+            if int(o.get('buy_quantity', 0)) > 0:
+                logger.info(f"  BUY {o['symbol']}_{o['name']}: @{o['buy_price']} x{o['buy_quantity']}")
+            else:
+                logger.info(f"  SKIP BUY {o['symbol']}_{o['name']}: Already held or insufficient cash")
         for o in all_orders[new_buys:]:
             logger.info(f"  TP/SL {o['symbol']}_{o['name']}: "
                          f"TP={o['sell_take_profit_price']} SL={o['sell_stop_loss_price']} "

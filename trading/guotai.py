@@ -1000,7 +1000,7 @@ def sync_summary_position_data_to_db(position_data: Optional[str] = None, user_i
     return result
 
 
-def sync_order_data_to_db(order_data: Optional[str] = None, user_id: int = 1) -> Dict:
+def sync_order_data_to_db(order_data: Optional[str] = None, user_id: int = 1, cutoff_date: Optional[str] = None) -> Dict:
     """Sync real-time order data from mobile app to database.
 
     This function synchronizes CSV format data from get_order_from_app_smart_order_page()
@@ -1041,6 +1041,9 @@ def sync_order_data_to_db(order_data: Optional[str] = None, user_id: int = 1) ->
                     valid_until = row[5]
                     order_number = row[6]
                     reason_of_ending = row[7]
+                    
+                    status_raw = row[8] if len(row) > 8 else "运行中"
+                    status = "running" if "运行中" in status_raw else "completed"
 
                     if not name and not code: #,,,,xxx,xxx,,
                         continue
@@ -1052,8 +1055,8 @@ def sync_order_data_to_db(order_data: Optional[str] = None, user_id: int = 1) ->
 
                     # Upsert into smart_orders
                     cursor.execute("""
-                        INSERT INTO smart_orders (user_id, code, name, trigger_condition, buy_or_sell_price_type, buy_or_sell_quantity, valid_until, order_number, reason_of_ending, last_updated)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO smart_orders (user_id, code, name, trigger_condition, buy_or_sell_price_type, buy_or_sell_quantity, valid_until, order_number, reason_of_ending, status, last_updated)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT(order_number) DO UPDATE SET
                             code = excluded.code,
                             name = excluded.name,
@@ -1062,18 +1065,34 @@ def sync_order_data_to_db(order_data: Optional[str] = None, user_id: int = 1) ->
                             buy_or_sell_quantity = excluded.buy_or_sell_quantity,
                             valid_until = excluded.valid_until,
                             reason_of_ending = excluded.reason_of_ending,
+                            status = excluded.status,
                             last_updated = excluded.last_updated
-                    """, (user_id, code, name, trigger_condition, buy_or_sell_price_type, buy_or_sell_quantity, valid_until, order_number, reason_of_ending, current_time))
+                    """, (user_id, code, name, trigger_condition, buy_or_sell_price_type, buy_or_sell_quantity, valid_until, order_number, reason_of_ending, status, current_time))
                     result['orders_updated'] += 1
 
             # Remove orphaned order records (exist in DB but not in source data)
-            if source_order_numbers:
+            cutoff_date_str = cutoff_date.replace('-', '') if cutoff_date else '20000101'
+            if len(source_order_numbers) > 0:
                 placeholders = ','.join('?' * len(source_order_numbers))
-                cursor.execute(f"""
-                    DELETE FROM smart_orders
-                    WHERE user_id = ? AND order_number NOT IN ({placeholders})
-                """, [user_id] + list(source_order_numbers))
-                result['orders_removed'] = cursor.rowcount
+                query = f"""
+                    DELETE FROM smart_orders 
+                    WHERE user_id = ? 
+                      AND order_number NOT LIKE 'ORD_%' 
+                      AND (status = 'running' OR order_number >= ?)
+                      AND order_number NOT IN ({placeholders})
+                """
+                params = [user_id, cutoff_date_str] + list(source_order_numbers)
+            else:
+                query = f"""
+                    DELETE FROM smart_orders 
+                    WHERE user_id = ? 
+                      AND order_number NOT LIKE 'ORD_%' 
+                      AND (status = 'running' OR order_number >= ?)
+                """
+                params = [user_id, cutoff_date_str]
+                
+            cursor.execute(query, params)
+            result['orders_removed'] = cursor.rowcount
 
             result['message'].append(f"Updated {result['orders_updated']} smart orders, removed {result['orders_removed']} orphaned orders")
 

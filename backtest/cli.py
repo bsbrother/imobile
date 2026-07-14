@@ -186,6 +186,11 @@ def create_parser() -> argparse.ArgumentParser:
         type=int,
         help='Number of slots remaining for new orders'
     )
+    analyze_parser.add_argument(
+        '--current-cash',
+        type=float,
+        help='Current available cash to restrict new buy orders'
+    )
     analyze_parser.add_argument('--date', type=str, help='Target trading date (YYYY-MM-DD or YYYYMMDD)')
     analyze_parser.add_argument(
         '--held-symbols',
@@ -617,7 +622,8 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                                        initial_cash: Optional[float] = None,
                                        remaining_slots: Optional[int] = None,
                                        base_date: Optional[str] = None,
-                                       held_symbols: Optional[List[str]] = None) -> Dict[str, Any]:
+                                       held_symbols: Optional[List[str]] = None,
+                                       current_cash: Optional[float] = None) -> Dict[str, Any]:
     """
     Analyze picked stocks and generate smart orders with entry/exit prices and quantities.
 
@@ -755,7 +761,10 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
         # Analyze each stock and generate smart orders
         smart_orders = []
         skipped_buy_orders = []
-        remaining_cash = float(initial_cash)
+        if current_cash is not None:
+            remaining_cash = float(current_cash)
+        else:
+            remaining_cash = float(initial_cash)
         remaining_slots = remaining_slots if remaining_slots is not None else int(max_positions)
 
         for symbol in symbols:
@@ -989,6 +998,32 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                 continue
 
         # Prepare result
+        app_available_cash = current_cash if current_cash is not None else initial_cash
+        total_new_BUY_orders = len(smart_orders)
+        total_new_BUY_orders_cash = sum(order.get('position_value', 0) for order in smart_orders)
+        
+        # Determine no_use_all_app_available_cash_reason
+        if remaining_cash == 0:
+            no_use_all_app_available_cash_reason = "Fully allocated available cash."
+        else:
+            reasons = []
+            if remaining_slots <= 0:
+                reasons.append("All position slots filled.")
+            
+            # Check if any stocks were skipped due to cash
+            skipped_reasons = set(o['skip_reason'] for o in skipped_buy_orders)
+            if 'insufficient_cash_for_min_qty' in skipped_reasons or 'adjusted_qty_below_min_due_to_cash' in skipped_reasons:
+                reasons.append(f"Remaining cash (¥{remaining_cash:.2f}) is less than the minimum lot size required for remaining stocks.")
+                
+            # Check if any stocks were already held
+            if any(o.get('buy_quantity', 0) == 0 for o in smart_orders):
+                reasons.append("Some target stocks are already held in the portfolio.")
+                
+            if not reasons:
+                reasons.append(f"Remaining cash (¥{remaining_cash:.2f}) is less than the minimum lot size required for remaining stocks.")
+                
+            no_use_all_app_available_cash_reason = " ".join(reasons)
+
         result = {
             'analysis_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'target_trading_date': target_trading_date,
@@ -997,11 +1032,15 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
             'target_trading_date': target_trading_date,
             'portfolio_config': {
                 'initial_cash': initial_cash,
+                'current_available_cash': float(app_available_cash - total_new_BUY_orders_cash),
                 'max_positions': max_positions,
-                'total_allocated': float(initial_cash - remaining_cash)
+                'total_allocated': float(total_new_BUY_orders_cash)
             },
             'regime_data': regime_data,
-            'total_orders': len(smart_orders),
+            'app_available_cash': app_available_cash,
+            'total_new_BUY_orders': total_new_BUY_orders,
+            'total_new_BUY_orders_cash': total_new_BUY_orders_cash,
+            'no_use_all_app_available_cash_reason': no_use_all_app_available_cash_reason,
             'skipped_buy_orders': skipped_buy_orders,
             'smart_orders': smart_orders
         }
@@ -1079,7 +1118,8 @@ def main():
                 initial_cash=args.initial_cash if hasattr(args, 'initial_cash') else None,
                 remaining_slots=args.remaining_slots if hasattr(args, 'remaining_slots') else None,
                 base_date=args.date if hasattr(args, 'date') else None,
-                held_symbols=args.held_symbols.split(',') if hasattr(args, 'held_symbols') and args.held_symbols else None
+                held_symbols=args.held_symbols.split(',') if hasattr(args, 'held_symbols') and args.held_symbols else None,
+                current_cash=args.current_cash if hasattr(args, 'current_cash') else None
             )
 
         elif args.command == 'config':

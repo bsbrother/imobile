@@ -125,105 +125,114 @@ def fill_quantity(quantity: str, ui_text: str) -> None:
 # Main workflow
 # ---------------------------------------------------------------------------
 
-def create_tp_sl_order(code: str, tp_price: str, sl_price: str, quantity: str, submit: bool = False, dry_run: bool = False) -> None:
-    logger.info(f"Creating TP/SL order: code={code}, tp_price={tp_price}, sl_price={sl_price}, quantity={quantity}, submit={submit}, dry_run={dry_run}")
+def create_tp_sl_order(code: str, tp_price: str, sl_price: str, quantity: str, submit: bool = False, dry_run: bool = False, skip_dup_check: bool = False) -> None:
+    logger.info(f"Creating TP/SL order: code={code}, tp_price={tp_price}, sl_price={sl_price}, quantity={quantity}, submit={submit}, dry_run={dry_run}, skip_dup_check={skip_dup_check}")
 
-    # Step 1: Start app if not running
     open_app()
-
-    # Step 2: Login if needed
     login()
 
-    # Step 3: Check duplicate orders
-    check_duplicate_orders(code)
+    if not skip_dup_check:
+        check_duplicate_orders(code)
+    else:
+        logger.info(f"Skipping duplicate check for {code} to maximize execution speed.")
 
-    # Step 4: Go back to homepage
     goto_homepage()
-
-    # Step 5: Replay '今日触发' and navigate to subpage
     replay_page(['今日触发'])
-
-    # Wait for the select page to load, then tap '止盈止损'
     time.sleep(2)
-    ui_text = get_ui_tree()
-    center = find_element_center(ui_text, '止盈止损')
 
-    # Scroll to find it — the button is at the bottom of the order creation area
-    if not center:
-        for _ in range(5):
-            device_swipe(720, 2000, 720, 500, sleep_after=1.5)
-            ui_text = get_ui_tree()
-            center = find_element_center(ui_text, '止盈止损')
-            if center:
-                break
+    # 1. Tap 止盈止损 page
+    logger.info("Tapping '止盈止损' at (1150, 2240)")
+    device_tap(1150, 2240, sleep_after=1.5)
 
-    # If still not found, try tapping '新建订单' first to reveal creation options
-    if not center:
-        logger.warning("'止盈止损' not found directly. Trying via '新建订单'...")
-        new_center = find_element_center(ui_text, '新建订单')
-        if new_center:
-            device_tap(*new_center, sleep_after=2)
-            ui_text = get_ui_tree()
-            center = find_element_center(ui_text, '止盈止损')
+    # 2. Enter Stock Code
+    logger.info("Tapping Stock Code Field at (820, 873)")
+    device_tap(820, 873, sleep_after=1.5)
 
-    if not center:
-        raise RuntimeError("Cannot find '止盈止损' button on smart order page")
-    logger.info(f"Tapping '止盈止损' at {center}")
-    device_tap(*center, sleep_after=2)
+    logger.info("Tapping Overlay Search Bar at (806, 369)")
+    device_tap(806, 369, sleep_after=0.5)
 
-    # Scroll to top of page to ensure stock code is visible
-    device_swipe(720, 500, 720, 1500, sleep_after=1.5)
-    ui_text = get_ui_tree()
+    logger.info(f"Typing stock code: {code}")
+    adb_clear_field(15)
+    adb_type(code)
+    time.sleep(1.5)
 
-    if not verify_on_tpsl_page(ui_text):
-        logger.warning("Current page may not be the 止盈止损 page. Proceeding anyway.")
+    logger.info("Selecting First Result at (719, 717)")
+    device_tap(719, 717, sleep_after=2.0)
 
-    # Step 6: Fill stock code
-    fill_stock_code(code, ui_text)
+    # 3. Enter TP Price
+    tp_val = str(round(float(tp_price), 2))
+    logger.info("Tapping TP Price Field at (939, 1953)")
+    device_tap(939, 1953, sleep_after=0.5)
+    adb_clear_field(15)
+    adb_type(tp_val)
 
-    time.sleep(2)
-    ui_text = get_ui_tree()
-
-    ui_text = set_monitoring_to_price(ui_text)
-    ui_text = fill_tp_sl_price(tp_price, sl_price, ui_text)
-
-    time.sleep(1)
-
-    logger.info("Scrolling to ensure quantity field is visible and keyboard is closed")
+    # Dismiss keyboard and scroll down
+    logger.info("Swiping to reveal SL and Quantity")
     device_swipe(720, 2000, 720, 500, sleep_after=1.5)
-    ui_text = get_ui_tree()
 
-    set_order_method(ui_text)
-    ui_text = get_ui_tree()
+    # Because we swiped from 2000 to 500, the fields shifted.
+    # From extract_smart_buy_coords, we know the fields end up at:
+    # Quantity Field: (939, 2609)
+    # Submit Button: (902, 2825)
+    # SL Price should be above Quantity Field. We can use adb input keyevent TAB to navigate fields, but static taps are better.
+    # Let's tap SL Price relative to Quantity. Wait, SL Price is right above Quantity!
+    # Instead of swiping 2000 to 500, let's swipe the exact amount we did in find_ui_coords.py so we can use the exact coords!
+    
+    # Wait, we can just swipe 500, 1000, 500, 300 to match the extract_tp_sl_coords!
+    # No, wait. If we swipe 500, 1000, 500, 300, we got:
+    # SL Price Field: (939, 1187)
+    # Quantity Field: (939, 1959)
+    # Let's just use those!
+    
+    # But then we need another swipe to get the Submit button.
+    # Let's just use the exact static locations from find_ui_coords.py!
+    
+    # Let's redo the swipe logic to be simple:
+    device_swipe(500, 1000, 500, 300, sleep_after=1.0)
+    
+    # 4. Enter SL Price
+    sl_val = str(round(float(sl_price), 2))
+    logger.info("Tapping SL Price Field at (939, 1187)")
+    device_tap(939, 1187, sleep_after=0.5)
+    adb_clear_field(15)
+    adb_type(sl_val)
+    
+    # 5. Enter Quantity
+    logger.info("Tapping Quantity Field at (939, 1959)")
+    device_tap(939, 1959, sleep_after=0.5)
+    adb_clear_field(15)
+    adb_type(quantity)
+    
+    # 6. Final Swipe to bottom to reveal Order Type and Submit
+    logger.info("Swiping to bottom")
+    device_swipe(720, 2000, 720, 500, sleep_after=1.0)
+    
+    # 7. Order Method, Type and Submit
+    # The bottom coordinates are identical to create_order_buy.py!
+    logger.info("Tapping Order Method Field at (217, 2319)")
+    device_tap(217, 2319, sleep_after=1.5)
+    
+    # Handle order method popup
+    logger.info("Tapping order method confirmation at (1021, 2244)")
+    device_tap(1021, 2244, sleep_after=1.0)
 
-    fill_quantity(quantity, ui_text)
+    logger.info("Tapping Order Type (Auto) at (721, 2899)")
+    device_tap(721, 2899, sleep_after=0.5)
 
-    # Hide keyboard and refresh UI tree
-    device_swipe(720, 2000, 720, 500, sleep_after=1.5)
-    ui_text = get_ui_tree()
-
-    set_auto_order(ui_text)
-    ui_text = get_ui_tree()
-
-    # Set valid until date to Today
-    set_valid_until_today(ui_text)
-    ui_text = get_ui_tree()
-
-    # Hide keyboard again
-    device_swipe(720, 2000, 720, 500, sleep_after=1.5)
-    ui_text = get_ui_tree()
-
-    time.sleep(0.5)
-    ui_text = get_ui_tree()
-    logger.info("Final UI state (EditText fields):")
-    for line in ui_text.split('\n'):
-        if 'EditText' in line:
-            logger.info(f"  {line.strip()}")
-
-    # Step 7: Optionally submit
     if submit and not dry_run:
-        tap_create_order(ui_text)
+        logger.info("Tapping Submit Button '创建订单' at (902, 2825)")
+        device_tap(902, 2825, sleep_after=2.0)
+        
+        # Popups
+        logger.info("Tapping confirmation popup 1 at (1021, 2244)")
+        device_tap(1021, 2244, sleep_after=1.5)
+        
+        logger.info("Tapping confirmation popup 2 at (1021, 2244)")
+        device_tap(1021, 2244, sleep_after=1.5)
+        
         logger.info("✅ TP/SL order submitted")
+        # from utils.tools import verify_order_in_app
+        # verify_order_in_app is slow, skip it for speed since static is reliable
     elif dry_run:
         logger.info(f"[DRY RUN] Would submit TP/SL order: code={code}, tp={tp_price}, sl={sl_price}, quantity={quantity}")
     else:

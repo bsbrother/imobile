@@ -14,7 +14,17 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))) +
 import dotenv; dotenv.load_dotenv(os.path.expanduser('.env'), override=False)
 from loguru import logger
 
-THIS_DATE = datetime.now().strftime('%Y%m%d')
+def _resolve_target_date() -> str:
+    """Return today if it's a trading day, otherwise the next trading day."""
+    from backtest.utils.trading_calendar import calendar
+    today = datetime.now().strftime('%Y%m%d')
+    if calendar.is_trading_day(today):
+        return today
+    next_td = calendar.get_trading_days_after(today, 1)
+    logger.info(f"Today {today} is not a trading day, targeting next: {next_td}")
+    return next_td
+
+THIS_DATE = _resolve_target_date()
 USER_ID = 1
 REPORT_PATH = 'backtest/results'
 VENV_PYTHON = '/home/kasm-user/apps/imobile/.venv/bin/python'
@@ -170,7 +180,7 @@ async def main(submit: bool = False):
     subprocess.run(
         [VENV_PYTHON, '-m', 'backtest.cli', 'analyze',
          '--stocks-file', pick_file, '-o', smart_file,
-         '--initial-cash', str(app_cash)],
+         '--current-cash', str(app_cash)],
         capture_output=True, timeout=120
     )
 
@@ -199,30 +209,52 @@ async def main(submit: bool = False):
             logger.info(f"  SKIP {sym} {o['name']}: already held")
             continue
         
+        # Calculate Limit Up Price for guaranteed open fill
+        if sym.startswith('3') or sym.startswith('688'):
+            limit_ratio = 0.20
+        elif sym.startswith('8') or sym.startswith('4'):
+            limit_ratio = 0.30
+        else:
+            limit_ratio = 0.10
+        limit_up_price = round(o['buy_price'] * (1 + limit_ratio) + 1e-8, 2)
+
         min_qty = 200 if (sym.startswith('3') or sym.startswith('688')) else 100
-        min_cost = o['buy_price'] * min_qty
+        min_cost = limit_up_price * min_qty
 
         if remaining_cash < min_cost:
-            logger.info(f"  SKIP {sym} {o['name']}: cash=¥{remaining_cash:,.0f} < min=¥{min_cost:,.0f}")
+            logger.info(f"  SKIP {sym} {o['name']}: cash=¥{remaining_cash:,.0f} < min_limit_up_cost=¥{min_cost:,.0f}")
             continue
 
-        max_qty = int(remaining_cash / o['buy_price'] / 100) * 100
-        qty = min(o['buy_quantity'], max_qty)
+        # Dynamic Buffer Override (Option A) to account for Limit Up freeze
+        remaining_orders = len(cli_orders) - cli_orders.index(o)
+        total_capital = app_cash + sum(pos['holdings'] * pos['current_price'] for pos in app_positions)
+        
+        # Allow up to 15% of total capital to fund the freeze, or split remaining cash evenly
+        dynamic_cash = min(remaining_cash / max(1, remaining_orders), total_capital * 0.15)
+        
+        max_qty = int(remaining_cash / limit_up_price / 100) * 100
+        dynamic_qty = int(dynamic_cash / limit_up_price / 100) * 100
+        
+        # Override original buy_quantity to fully utilize the 15% buffer
+        qty = max(o['buy_quantity'], dynamic_qty)
+        qty = min(qty, max_qty)
+        
         if qty < min_qty:
             continue
 
-        actual_cost = o['buy_price'] * qty
+        actual_cost = limit_up_price * qty
         remaining_cash -= actual_cost
 
         buy_orders.append({
             'symbol': sym,
             'name': o['name'],
             'buy_price': o['buy_price'],
+            'limit_up_price': limit_up_price,
             'sell_take_profit_price': round(o['buy_price'] * (1 + take_profit_pct), 2),
             'sell_stop_loss_price': round(o['buy_price'] * (1 - sl_pct), 2),
             'buy_quantity': qty,
         })
-        logger.info(f"  BUY {sym} {o['name']}: ¥{o['buy_price']:.2f} ×{qty} = ¥{actual_cost:,.0f}, "
+        logger.info(f"  BUY {sym} {o['name']}: limit=¥{limit_up_price:.2f} (base=¥{o['buy_price']:.2f}) ×{qty} = ¥{actual_cost:,.0f}, "
                     f"cash_left=¥{remaining_cash:,.0f}")
 
     # ── Step 5: TP/SL orders for ALL holdings ──
@@ -258,14 +290,14 @@ async def main(submit: bool = False):
     # ── Step 6: Submit to app (if --submit) ──
     if submit:
         logger.info("═══ Step 6: Submit orders to app ═══")
-        from trading.create_order_buy import create_buy_order
+        from trading.create_order_ordinary import create_ordinary_order
         from trading.create_order_tp_sl import create_tp_sl_order
 
         for o in buy_orders:
             code = o['symbol'].split('.')[0]
-            create_buy_order(code=code, price=str(o['buy_price']),
-                           quantity=str(o['buy_quantity']), submit=True)
-            logger.info(f"  ✅ BUY: {code} @{o['buy_price']} ×{o['buy_quantity']}")
+            create_ordinary_order(code=code, price=str(o['limit_up_price']),
+                           quantity=str(o['buy_quantity']), action='buy', submit=True)
+            logger.info(f"  ✅ BUY: {code} @{o['limit_up_price']} (Limit Up) ×{o['buy_quantity']}")
 
         for o in tpsl_orders:
             code = o['symbol'].split('.')[0] if '.' in o['symbol'] else o['symbol']
@@ -285,7 +317,7 @@ async def main(submit: bool = False):
     # ── Step 7: Generate pre-market report ──
     logger.info("═══ Step 7: Generate pre-market report ═══")
 
-    total_buy_cost = sum(o['buy_price'] * o['buy_quantity'] for o in buy_orders)
+    total_buy_cost = sum(o['limit_up_price'] * o['buy_quantity'] for o in buy_orders)
 
     lines = [
         f"# Pre-Market Report — {THIS_DATE[:4]}-{THIS_DATE[4:6]}-{THIS_DATE[6:]}",
@@ -311,21 +343,21 @@ async def main(submit: bool = False):
     lines.append("")
     if buy_orders:
         lines.extend([
-            "| # | Symbol | Name | Buy Price | TP | SL | Qty | Cost |",
-            "|---|--------|------|-----------|-----|-----|-----|------|",
+            "| # | Symbol | Name | Limit Price | Base Price | TP | SL | Qty | Cost (Frozen) |",
+            "|---|--------|------|-------------|------------|-----|-----|-----|---------------|",
         ])
         for i, o in enumerate(buy_orders):
-            cost = o['buy_price'] * o['buy_quantity']
+            cost = o['limit_up_price'] * o['buy_quantity']
             lines.append(
                 f"| {i+1} | {o['symbol']} | {o['name']} | "
-                f"¥{o['buy_price']:.2f} | ¥{o['sell_take_profit_price']:.2f} | "
+                f"¥{o['limit_up_price']:.2f} | ¥{o['buy_price']:.2f} | ¥{o['sell_take_profit_price']:.2f} | "
                 f"¥{o['sell_stop_loss_price']:.2f} | "
                 f"{o['buy_quantity']} | ¥{cost:,.0f} |"
             )
         over = total_buy_cost - app_cash
         status = "✅ WITHIN BUDGET" if over <= 0 else f"⚠️ OVER by ¥{over:,.0f}"
         lines.append(
-            f"| **Total** | | ¥{app_cash:,.2f} avail | | | | | **¥{total_buy_cost:,.0f}** ({status}) |"
+            f"| **Total** | | ¥{app_cash:,.2f} avail | | | | | | **¥{total_buy_cost:,.0f}** ({status}) |"
         )
     else:
         lines.append("*No BUY orders (insufficient cash or slots).*")

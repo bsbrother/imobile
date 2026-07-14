@@ -22,7 +22,7 @@ Usage:
 python this_script [start_date end_date [src [user_id [backtest_search backtest_ai]]]]
   start_date      -- Start date in YYYYMMDD format (default: today)
   end_date        -- End date in YYYYMMDD format (default: today)
-  src             -- Strategy: ts_auto, ts_7AZ, ts_daily, ts_ai_pick, ts_longup, ts_hma, ts_dc, ts_go (default: ts_auto)
+  src             -- Strategy: ts_auto, ts_7AZ, ts_6Factors, ts_daily, ts_ai_pick, ts_longup, ts_hma, ts_dc, ts_go (default: ts_auto)
   user_id         -- User ID for trading account (default: 1)
   backtest_search -- Enable search providers: true/false/1/0/yes/no (default: true)
   backtest_ai     -- Enable AI analysis: true/false/1/0/yes/no (default: true)
@@ -119,6 +119,21 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ', backtest_search: bo
     logger.info(f"Picking stocks for {this_date} ...")
     pick_output_file = os.path.join(REPORT_PATH, f'pick_stocks_{this_date}.json')
 
+    # Optimization: Reuse already generated stock pick files if they exist in backups
+    # Only reuse cache for the same strategy (backup dir name contains strategy name)
+    backup_dirs = [
+        "/home/kasm-user/apps/imobile/backtest/results_backups/20260101_20260619_ts_7AZ_70.60_baseline",
+        "/home/kasm-user/apps/imobile/backtest/results_backups/20260101_20260619_ts_7AZ_68.98_stagnation_cut_2to1"
+    ]
+    if src == 'ts_7AZ':  # Only reuse for ts_7AZ — other strategies must generate fresh picks
+        for b_dir in backup_dirs:
+            b_file = f"{b_dir}/pick_stocks_{this_date}.json"
+            if os.path.exists(b_file):
+                import shutil
+                shutil.copy(b_file, pick_output_file)
+                logger.info(f"[{this_date}] Reused cached ts_7AZ picks from {os.path.basename(b_dir)}")
+                return pick_output_file
+
     # Detect market regime
     regime_data = detect_market_regime(this_date)
     regime_name = regime_data['regime']
@@ -167,6 +182,10 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ', backtest_search: bo
         result = os.system(f'{VENV_PYTHON} backtest/strategies/ts_7AZ.py {this_date} ts_7AZ {_flags_str}')
     elif src == 'ts_ao_er':
         result = os.system(f'{VENV_PYTHON} backtest/strategies/ts_ao_er.py {this_date} {_flags_str}')
+    elif src == 'ts_6Factors':
+        result = os.system(f'{VENV_PYTHON} backtest/strategies/ts_6Factors.py {this_date} ts_6Factors {_flags_str}')
+    elif src == 'ts_multi_factors':
+        result = os.system(f'{VENV_PYTHON} backtest/strategies/ts_multi_factors.py {this_date} ts_multi_factors {_flags_str}')
     else:
         result = os.system(f'{VENV_PYTHON} backtest/strategies/ts_ths_dc.py {this_date} {src} {_flags_str}')
     if result != 0:
@@ -176,10 +195,14 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ', backtest_search: bo
     try:
         os.rename('/tmp/tmp', tmp_file)
     except OSError:
-        # ts_7AZ / ts_ao_er fallback paths
+        # ts_7AZ / ts_ao_er / ts_6Factors / ts_multi_factors fallback paths
         fallback = '/tmp/ts_7AZ_tmp.json'
         if not os.path.exists(fallback):
             fallback = '/tmp/ts_ao_er_tmp.json'
+        if not os.path.exists(fallback):
+            fallback = '/tmp/ts_6Factors_tmp.json'
+        if not os.path.exists(fallback):
+            fallback = '/tmp/ts_multi_factors_tmp.json'
         if os.path.exists(fallback):
             os.rename(fallback, tmp_file)
         else:
@@ -211,7 +234,7 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ', backtest_search: bo
     return pick_output_file
 
 
-def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, current_capital: float = 0.0, app_positions: list = None, app_running_orders: list = None) -> str:
+def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, current_capital: float = 0.0, app_positions: list = None, app_running_orders: list = None, is_live: bool = False) -> str:
     """
     Create smart orders based on picked stocks for a specific date.
     # TODO:
@@ -266,7 +289,7 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
 
     cmd = f'{VENV_PYTHON} -m backtest.cli analyze --stocks-file {pick_input_file} -o {smart_output_file}'
     if current_capital:
-         cmd += f' --initial-cash {current_capital}'
+         cmd += f' --current-cash {current_capital}'
          
     if held_symbols_set:
         held_str = ",".join(held_symbols_set)
@@ -436,7 +459,10 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
                 purchase_date_str = p_date.replace('-', '').replace('T', ' ').split(' ')[0][:8] if p_date else this_date
 
                 # Calculate days held
-                days_held = len(calendar.get_trading_days_between(purchase_date_str, this_date))
+                if purchase_date_str <= this_date:
+                    days_held = len(calendar.get_trading_days_between(purchase_date_str, this_date))
+                else:
+                    days_held = 0
 
                 # Fetch previous day's close price (previous_trading_date_close_price)
                 h_current_price = h_cost  # default fallback
@@ -460,22 +486,65 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
                 reason_of_ending = ''
                 pos_name_suffix = ''
 
+                er_exit_enabled = os.getenv('ER_EXIT_ENABLED', 'true').lower() in ('true', '1', 'yes')
+                is_er_exit = False
+                if er_exit_enabled and days_held >= 2 and current_return_pct > 3.0:
+                    try:
+                        start_date_er = calendar.get_trading_days_before(this_date, 20)
+                        market_df = data_provider.get_stock_data(pos_code, start_date_er, this_date)
+                        if market_df is not None and len(market_df) >= 15:
+                            market_df = market_df.sort_index()
+                            latest_row = market_df.iloc[-1]
+                            prev_row = market_df.iloc[-2]
+                            close_price = float(latest_row['close'])
+                            prev_close = float(prev_row['close'])
+                            er_val = kaufman_efficiency_ratio(market_df['close'].astype(float))
+                            if not pd.isna(er_val) and er_val > 0.7 and close_price > prev_close:
+                                is_er_exit = True
+                    except Exception:
+                        pass
+
                 if days_held >= holding_days:
                     is_force_sell = True
                     reason_of_ending = 'order_expired_before_sell'
                     pos_name_suffix = '_expired'
-                elif days_held >= stagnation_days and current_return_pct < 1.0:
+                elif days_held >= stagnation_days and current_return_pct < float(os.getenv('STAGNATION_CUT_LIMIT', '1.0')):
                     is_force_sell = True
                     reason_of_ending = 'stagnation_cut'
+                    pos_name_suffix = '_expired'
+                elif is_er_exit:
+                    is_force_sell = True
+                    reason_of_ending = 'er_trend_exit'
                     pos_name_suffix = '_expired'
 
                 valid_until = this_date
                 order_number = f"ORD_{this_date}_{pos_code}_{user_id}_holding"
 
                 if is_force_sell:
-                    # Force sell: set low trigger below limit-down to guarantee execution
-                    lose_price = h_current_price * widen_pct
-                    profit_price = lose_price
+                    # Force sell: set trigger price to daily open/auction price to avoid selling too low
+                    open_price = None
+                    if not is_live:
+                        # In backtest mode, fetch historical open price of this_date
+                        try:
+                            md = data_provider.get_stock_data(pos_code, this_date, this_date)
+                            if not md.empty:
+                                open_price = float(md.iloc[-1]['open'])
+                        except Exception:
+                            pass
+                    else:
+                        # In live mode, fetch real-time open/auction price from EastMoney
+                        from utils.tools import get_realtime_quote
+                        open_price = get_realtime_quote(pos_code.split('.')[0])
+
+                    if open_price:
+                        lose_price = open_price
+                        profit_price = open_price
+                        logger.info(f"Using open/auction price for force sell {pos_code}: {open_price}")
+                    else:
+                        # Fallback below limit-down
+                        lose_price = h_current_price * widen_pct
+                        profit_price = lose_price
+
                     trigger_condition = f'股价>={lose_price:.2f}元'
                 else:
                     # Normal TP/SL
@@ -568,7 +637,10 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
                 
                 if buy_date:
                     buy_date_str = buy_date.replace('-', '').replace('T', ' ').split(' ')[0][:8]
-                    days_held = len(calendar.get_trading_days_between(buy_date_str, this_date))
+                    if buy_date_str <= this_date:
+                        days_held = len(calendar.get_trading_days_between(buy_date_str, this_date))
+                    else:
+                        days_held = 0
                 else:
                     days_held = 0
 
@@ -583,20 +655,65 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
                 reason_of_ending = ''
                 pos_name_suffix = ''
 
+                er_exit_enabled = os.getenv('ER_EXIT_ENABLED', 'true').lower() in ('true', '1', 'yes')
+                is_er_exit = False
+                if er_exit_enabled and days_held >= 2 and current_return_pct > 3.0:
+                    try:
+                        start_date_er = calendar.get_trading_days_before(this_date, 20)
+                        market_df = data_provider.get_stock_data(pos_code, start_date_er, this_date)
+                        if market_df is not None and len(market_df) >= 15:
+                            market_df = market_df.sort_index()
+                            latest_row = market_df.iloc[-1]
+                            prev_row = market_df.iloc[-2]
+                            close_price = float(latest_row['close'])
+                            prev_close = float(prev_row['close'])
+                            er_val = kaufman_efficiency_ratio(market_df['close'].astype(float))
+                            if not pd.isna(er_val) and er_val > 0.7 and close_price > prev_close:
+                                is_er_exit = True
+                                logger.info(f"[{this_date}] Live mode: ER Trend Exit triggered for {pos_code}: ER={er_val:.3f}, return={current_return_pct:.2f}%")
+                    except Exception as e:
+                        logger.error(f"Failed to check ER exit for {pos_code}: {e}")
+
                 if days_held >= holding_days:
                     is_force_sell = True
                     reason_of_ending = 'order_expired_before_sell'
                     pos_name_suffix = '_expired'
-                elif days_held >= stagnation_days and current_return_pct < 1.0:
+                elif days_held >= stagnation_days and current_return_pct < float(os.getenv('STAGNATION_CUT_LIMIT', '1.0')):
                     is_force_sell = True
                     reason_of_ending = 'stagnation_cut'
+                    pos_name_suffix = '_expired'
+                elif is_er_exit:
+                    is_force_sell = True
+                    reason_of_ending = 'er_trend_exit'
                     pos_name_suffix = '_expired'
 
                 valid_until = this_date
 
                 if is_force_sell:
-                    lose_price = h_current_price * widen_pct
-                    profit_price = lose_price
+                    # Force sell: set trigger price to daily open/auction price to avoid selling too low
+                    open_price = None
+                    if not is_live:
+                        # In backtest mode, fetch historical open price of this_date
+                        try:
+                            md = data_provider.get_stock_data(pos_code, this_date, this_date)
+                            if not md.empty:
+                                open_price = float(md.iloc[-1]['open'])
+                        except Exception:
+                            pass
+                    else:
+                        # In live mode, fetch real-time open/auction price from EastMoney
+                        from utils.tools import get_realtime_quote
+                        open_price = get_realtime_quote(pos_code.split('.')[0])
+
+                    if open_price:
+                        lose_price = open_price
+                        profit_price = open_price
+                        logger.info(f"Using open/auction price for force sell {pos_code}: {open_price}")
+                    else:
+                        # Fallback below limit-down
+                        lose_price = h_current_price * widen_pct
+                        profit_price = lose_price
+
                     trigger_condition = f'股价>={lose_price:.2f}元'
                 else:
                     profit_price = h_cost * (1 + take_profit_pct)
@@ -725,6 +842,9 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
                 # valid_until = today design: no extension needed
                 new_valid_until = this_date
                 order['valid_until'] = new_valid_until
+
+                # FIX: Preserve actual holding quantity for the sell/holding order
+                order['buy_quantity'] = buy_quantity
 
                 # Update TP/SL if applicable
                 if '触发止盈' in trigger_condition and '触发止损' in trigger_condition:
@@ -1112,6 +1232,11 @@ class OrderAnalyzer:
         take_profit = order['sell_take_profit_price']
         stop_loss = order['sell_stop_loss_price']
         quantity = order['buy_quantity']
+        if quantity <= 0:
+            return {
+                'executed': False,
+                'reason': 'Quantity is 0 or negative'
+            }
         order_number = order.get('order_number', f"ORD_{date}_{symbol}_{self.user_id}")
 
         # Get market prices
@@ -1190,9 +1315,22 @@ class OrderAnalyzer:
                         sell_price = open_price
                         reason = 'order_expired_before_sell'
                     else:
-                        # Execute sell order
-                        sell_price = take_profit if tp_hit else stop_loss
-                        reason = 'take_profit' if tp_hit else 'stop_loss'
+                        # Check real-world execution logic vs original backtest
+                        use_open_price_default = os.getenv('BACKTEST_BUY_OPEN_PRICE', 'true').lower() == 'true'
+                        if not use_open_price_default:
+                            if open_price >= take_profit:
+                                sell_price = open_price
+                                reason = 'take_profit (gap up)'
+                            elif open_price <= stop_loss:
+                                sell_price = open_price
+                                reason = 'stop_loss (gap down)'
+                            else:
+                                sell_price = take_profit if tp_hit else stop_loss
+                                reason = 'take_profit' if tp_hit else 'stop_loss'
+                        else:
+                            # original backtest behavior
+                            sell_price = take_profit if tp_hit else stop_loss
+                            reason = 'take_profit' if tp_hit else 'stop_loss'
 
                     success = execute_sell_order(
                         self.user_id, symbol, name, sell_price,
@@ -1371,7 +1509,7 @@ class OrderAnalyzer:
                 # Action: Sell at CLOSE price
                 current_return_pct = ((close_price - cost_basis) / cost_basis) * 100
                 stagnation_days = max(3, self.holding_days // 2 + 1)
-                if holding_days_val >= stagnation_days and current_return_pct < 1.0:
+                if holding_days_val >= stagnation_days and current_return_pct < float(os.getenv('STAGNATION_CUT_LIMIT', '1.0')):
                     logger.info(f"Stagnation Cut triggered for {symbol}: held {holding_days_val} days, return {current_return_pct:.2f}%")
                     sell_price = close_price
                     reason = 'stagnation_cut'
@@ -1522,9 +1660,6 @@ class OrderAnalyzer:
             #return {"executed": False, "reason": f"gap_up_fade_filter: {(open_price/prev_close):.2%}, {prev_close}, {open_price}, {close_price}"}
             pass
 
-        # Calculate actual fill price
-        buy_fill_price = open_price # 2025.12.14: cannot buy at min(buy_price, open_price)
-
         # REAL-WORLD FIX: Filter out impossible limit-up opens (retail cannot reliably buy a limit-up open)
         is_wide = symbol.startswith('3') or symbol.startswith('688')
         limit_up_price = round(prev_close * (1.20 if is_wide else 1.10), 2)
@@ -1532,6 +1667,44 @@ class OrderAnalyzer:
             return {
                 'executed': False,
                 'reason': f'Open price {open_price} hit limit up {limit_up_price}',
+                'market_summary': {
+                    'prev_close': prev_close,
+                    'open': open_price,
+                    'high': high_price,
+                    'low': low_price,
+                    'close': close_price
+                }
+            }
+
+        # Calculate actual fill price based on BALANCE_PRICE_RATIO
+        balance_ratio = float(os.getenv('BALANCE_PRICE_RATIO', '0.0'))
+        target_buy_price = float(order['buy_price'])
+        
+        use_open_price_default = os.getenv('BACKTEST_BUY_OPEN_PRICE', 'true').lower() == 'true'
+
+        if use_open_price_default:
+            # Force buy at open price unconditionally (original backtest behavior)
+            buy_fill_price = open_price
+            is_triggered = True
+        else:
+            # Simulating Real Trading Execution (Limit Order placed Pre-market)
+            if open_price <= target_buy_price:
+                # Opens below or at limit price: triggers immediately at open
+                buy_fill_price = open_price
+                is_triggered = True
+            else:
+                # Opens above limit price: calculate limit price between buy_price and open_price
+                limit_price = open_price - (open_price - target_buy_price) * balance_ratio
+                if low_price <= limit_price:
+                    buy_fill_price = limit_price
+                    is_triggered = True
+                else:
+                    is_triggered = False
+
+        if not is_triggered:
+            return {
+                'executed': False,
+                'reason': f"Price low ({low_price}) did not reach limit price ({limit_price:.2f})",
                 'market_summary': {
                     'prev_close': prev_close,
                     'open': open_price,
@@ -2533,7 +2706,8 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
             user_id=user_id, 
             current_capital=current_capital,
             app_positions=app_positions,
-            app_running_orders=app_running_orders
+            app_running_orders=app_running_orders,
+            is_live=is_live
         )
 
         # Step 3: Analyze orders and generate reports
@@ -2568,7 +2742,7 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
 
 if __name__ == '__main__':
     _valid_sources = ['ts_dc', 'ts_go', 'ts_auto', 'ts_daily',
-                      'ts_longup', 'ts_hma', 'ts_ai_pick', 'ts_7AZ', 'ts_ao_er']
+                      'ts_longup', 'ts_hma', 'ts_ai_pick', 'ts_7AZ', 'ts_ao_er', 'ts_6Factors', 'ts_multi_factors']
 
     parser = argparse.ArgumentParser(
         description='Backtest Trading Script — A-Shares T+1 backtesting engine.\n'

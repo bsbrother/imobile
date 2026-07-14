@@ -467,11 +467,11 @@ python backtest/engine.py 20250101 20250612
 # Specific strategy
 python backtest/engine.py 20250101 20250612 ts_auto
 
-# Disable AI and search (pure technical, 30x faster)
-python backtest/engine.py 20250101 20250612 ts_7AZ 1 false false
+# Disable AI and search (pure technical, 30x faster; note: flags only affect ts_ai_pick/ts_daily/ts_auto)
+python backtest/engine.py 20250101 20250612 ts_7AZ --no-search --no-ai
 
-# Resume interrupted run
-python backtest/engine.py 20250101 20250612 ts_7AZ 1 true true --resume
+# Resume interrupted run (--search --ai are default, no need to specify)
+python backtest/engine.py 20250101 20250612 ts_7AZ --resume
 
 # Analyze past results
 python backtest/result_backtest.py backtest/results/20250101_20250612_ts_7AZ

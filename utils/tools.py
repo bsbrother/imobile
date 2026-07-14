@@ -5,9 +5,12 @@ Consolidated ADB/device utility tools and page navigation helper for Guotai App.
 
 import os, sys, time, argparse, subprocess, asyncio, re
 from loguru import logger
+import nest_asyncio
+nest_asyncio.apply()
 
 # Add project root to path for imports to work
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 
 PAGE_LABELS = {
     'order_buy':   '到价买入',
@@ -32,20 +35,21 @@ def run_cmd(cmd: str, check: bool = True) -> subprocess.CompletedProcess:
 
 def device_tap(x: int, y: int, sleep_after: float = 1.0) -> None:
     """Tap at screen coordinates."""
-    run_cmd(f"mobilerun device tap {x} {y}")
+    run_cmd(f"adb shell input tap {x} {y}", check=False)
     time.sleep(sleep_after)
 
 
 def device_swipe(x1: int, y1: int, x2: int, y2: int, sleep_after: float = 1.0) -> None:
     """Swipe on the screen."""
-    run_cmd(f"mobilerun device swipe {x1} {y1} {x2} {y2}")
+    run_cmd(f"adb shell input swipe {x1} {y1} {x2} {y2}", check=False)
     time.sleep(sleep_after)
 
 
 def device_type(text: str, clear: bool = True) -> None:
-    """Type text into the currently focused field via mobilerun."""
-    clear_flag = " --clear" if clear else ""
-    run_cmd(f'mobilerun device type "{text}"{clear_flag}')
+    """Type text into the currently focused field via adb."""
+    if clear:
+        adb_clear_field(20)
+    run_cmd(f'adb shell input text "{text}"', check=False)
     time.sleep(0.5)
 
 
@@ -57,9 +61,10 @@ def adb_type(text: str) -> None:
 
 def adb_clear_field(max_chars: int = 20) -> None:
     """Clear a text field by sending DEL key events via adb."""
-    for _ in range(max_chars):
-        run_cmd("adb shell input keyevent 67", check=False)
-    time.sleep(0.3)
+    # adb shell input keyevent supports multiple keycodes in one call
+    keyevents = " ".join(["67"] * max_chars)
+    run_cmd(f"adb shell input keyevent {keyevents}", check=False)
+    time.sleep(0.1)
 
 
 def get_ui_tree() -> str:
@@ -179,33 +184,38 @@ def check_duplicate_orders(code: str) -> None:
     """Navigate to running/triggered orders and check if code exists."""
     from trading.guotai import replay_page
     logger.info(f"Checking if order for {code} already exists...")
-    replay_page(['智能订单', '查看详情'])
-    
-    time.sleep(3)
+    try:
+        replay_page(['今日触发'])
+        time.sleep(3)
+    except Exception as e:
+        logger.warning(f"Replay ['今日触发'] failed: {e}. Trying fallback ['智能订单', '查看详情']...")
+        replay_page(['智能订单', '查看详情'])
+        time.sleep(3)
+        
     found = False
     
     # Check '运行中' tab
     ui = get_ui_tree()
-    running_center = find_element_center(ui, '"运行中"') or find_element_center(ui, '运行中')
+    running_center = find_element_center(ui, '实时运行中') or find_element_center(ui, '运行中')
     if running_center:
-        logger.info(f"Tapping '运行中' tab at {running_center}")
+        logger.info(f"Tapping running tab at {running_center}")
         device_tap(*running_center, sleep_after=2.0)
         if check_stock_in_orders_list(code):
             found = True
     else:
-        logger.warning("Could not find '运行中' tab.")
+        logger.warning("Could not find running tab.")
         
     if not found:
         # Check '今日已触发' tab
         ui = get_ui_tree()
-        triggered_center = find_element_center(ui, '"今日已触发"') or find_element_center(ui, '今日已触发') or find_element_center(ui, '今日触发')
+        triggered_center = find_element_center(ui, '今日已触发') or find_element_center(ui, '今日触发')
         if triggered_center:
-            logger.info(f"Tapping '今日已触发' tab at {triggered_center}")
+            logger.info(f"Tapping triggered tab at {triggered_center}")
             device_tap(*triggered_center, sleep_after=2.0)
             if check_stock_in_orders_list(code):
                 found = True
         else:
-            logger.warning("Could not find '今日已触发' tab.")
+            logger.warning("Could not find triggered tab.")
             
     if found:
         print(f"WARNNING: the stock({code}) order exist, not need do again.")
@@ -399,8 +409,42 @@ def set_auto_order(ui_text: str) -> None:
     logger.warning("Could not find '自动下单' option.")
 
 
+def dismiss_custom_keyboard(ui_text: str) -> None:
+    """If the custom numeric keyboard is open, close it by tapping its 确定 button."""
+    import re
+    for line in ui_text.split('\n'):
+        if '确定' in line:
+            match = re.search(r'\((\d+),(\d+),(\d+),(\d+)\)', line)
+            if match:
+                x1, y1, x2, y2 = int(match.group(1)), int(match.group(2)), int(match.group(3)), int(match.group(4))
+                # Check if it's the bottom-right keyboard button
+                if x1 > 1000 and y1 > 2500:
+                    center = ((x1 + x2) // 2, (y1 + y2) // 2)
+                    logger.info(f"Custom keyboard detected. Tapping keyboard '确定' at {center} to close it.")
+                    device_tap(*center, sleep_after=1.5)
+                    return
+
+
 def tap_create_order(ui_text: str) -> None:
     """Tap the '创建订单' button and handle popups."""
+    # First close the custom keyboard if it is active
+    dismiss_custom_keyboard(ui_text)
+    
+    # Also check if system soft keyboard is open (keyboardVisible is True),
+    # and send BACK keyevent to dismiss it.
+    keyboard_visible = False
+    for line in ui_text.split('\n'):
+        if 'Phone state:' in line:
+            if "'keyboardVisible': True" in line or '"keyboardVisible": true' in line:
+                keyboard_visible = True
+                
+    if keyboard_visible:
+        logger.info("Soft keyboard detected. Sending BACK keyevent to close keyboard.")
+        run_cmd("adb shell input keyevent 4")
+        time.sleep(1.0)
+        
+    ui_text = get_ui_tree()
+
     center = (find_button_center(ui_text, '创建订单') or 
               find_button_center(ui_text, '提交') or 
               find_button_center(ui_text, '买入') or 
@@ -421,8 +465,20 @@ def tap_create_order(ui_text: str) -> None:
         found_label = None
         
         for label in ['确定', '确认', '继续', '同意']:
-            confirm_center = find_button_center(popup_ui, label) or find_element_center(popup_ui, label)
-            if confirm_center:
+            # For confirmation popups, avoid tapping the keyboard "确定" button (which is at y > 2500)
+            import re
+            elements = []
+            for line in popup_ui.split('\n'):
+                if f'"{label}"' in line:
+                    match = re.search(r'\((\d+),(\d+),(\d+),(\d+)\)', line)
+                    if match:
+                        x1, y1, x2, y2 = int(match.group(1)), int(match.group(2)), int(match.group(3)), int(match.group(4))
+                        # Skip if it looks like the keyboard button
+                        if label == '确定' and x1 > 1000 and y1 > 2500:
+                            continue
+                        elements.append(((x1 + x2) // 2, (y1 + y2) // 2))
+            if elements:
+                confirm_center = elements[-1]
                 found_label = label
                 break
                 
@@ -565,6 +621,43 @@ def goto_page(page: str = 'order_buy') -> None:
     _tap_order_page(page)
 
 
+def goto_ordinary_trade_page(action: str = 'buy') -> None:
+    """Navigate to ordinary trade page: homepage -> tap 交易 tab -> tap 买入 or 卖出."""
+    from trading.guotai import open_app, login, goto_homepage
+    if action not in ('buy', 'sell'):
+        raise ValueError(f"Unknown action '{action}'. Valid: ('buy', 'sell')")
+
+    logger.info(f"[goto_ordinary_trade_page] Navigating to ordinary '{action}' page")
+
+    open_app()
+    login()
+    goto_homepage()
+    
+    # 1. Tap 交易 tab on the bottom menu
+    ui = get_ui_tree()
+    trading_tab = find_element_center(ui, "交易") or find_element_center(ui, "btm_text3") or find_element_center(ui, "bottom_menu_button3") or (720, 2880)
+    logger.info(f"Tapping '交易' tab at {trading_tab}")
+    device_tap(*trading_tab, sleep_after=3)
+    
+    # 2. Check for warning popup "我知道了"
+    ui = get_ui_tree()
+    popup = find_element_center(ui, "我知道了")
+    if popup:
+        logger.info(f"Dismissing warning popup at {popup}")
+        device_tap(*popup, sleep_after=2)
+        ui = get_ui_tree()
+        
+    # 3. Tap 买入 or 卖出 button inside GridView
+    label = "买入" if action == 'buy' else "卖出"
+    center = find_element_center(ui, label)
+    if not center:
+        # Fallback based on verified layout: Buy (180, 889), Sell (540, 889)
+        center = (180, 889) if action == 'buy' else (540, 889)
+    logger.info(f"Tapping ordinary '{label}' button at {center}")
+    device_tap(*center, sleep_after=3)
+
+
+
 def get_available_cash_from_homepage() -> float:
     """Read available cash from the '资金资产' field on the homepage (交易 tab main view)."""
     from trading.guotai import open_app, login, goto_homepage
@@ -627,6 +720,216 @@ def get_available_cash_from_homepage() -> float:
         
     logger.info(f"Successfully extracted cash from app homepage: ¥{cash_value:,.2f}")
     return cash_value
+
+
+def get_realtime_quote(code: str) -> float | None:
+    """Fetch the real-time open/auction price from Tushare with Tencent/EastMoney APIs fallback."""
+    import requests
+    import time
+    from datetime import datetime
+    
+    # 0. Format the ts_code
+    ts_code = f"{code}.SH" if code.startswith(('6', '9')) else f"{code}.SZ"
+    
+    # 1. Try Tushare API (Primary)
+    try:
+        import tushare as ts
+        import os
+        from dotenv import load_dotenv
+        
+        load_dotenv(os.path.expanduser('~/apps/imobile/.env'))
+        token = os.environ.get('TUSHARE_TOKEN')
+        if token:
+            ts.set_token(token)
+            pro = ts.pro_api()
+            
+            today_str = datetime.now().strftime('%Y%m%d')
+            
+            # Try stk_auction first for auction open price
+            try:
+                df_auction = pro.stk_auction(ts_code=ts_code, trade_date=today_str)
+                if not df_auction.empty and 'price' in df_auction.columns:
+                    # Get the most recent auction match price
+                    price = float(df_auction.iloc[0]['price'])
+                    if price > 0:
+                        logger.info(f"Fetched live auction price via Tushare (stk_auction) for {code}: {price}")
+                        return price
+            except Exception as e:
+                # E.g. permission error, just silently fall through to next method
+                pass
+                
+            # Try realtime_quote
+            try:
+                df_rt = pro.realtime_quote(ts_code=ts_code)
+                if not df_rt.empty and 'OPEN' in df_rt.columns:
+                    open_p = float(df_rt.iloc[0]['OPEN'])
+                    latest_p = float(df_rt.iloc[0].get('PRICE', 0.0))
+                    price = open_p if open_p > 0 else latest_p
+                    if price > 0:
+                        logger.info(f"Fetched live price via Tushare (realtime_quote) for {code}: {price}")
+                        return price
+            except Exception as e:
+                pass
+    except Exception as e:
+        logger.warning(f"Tushare quote fetch failed for {code}: {e}")
+
+    # 2. Try Tencent API (Highly stable, returns direct float values)
+    prefix = 'sh' if code.startswith(('6', '9')) else 'sz'
+    url_tencent = f"https://qt.gtimg.cn/q={prefix}{code}"
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
+    try:
+        res = requests.get(url_tencent, headers=headers, timeout=3)
+        if res.status_code == 200 and '=' in res.text:
+            content = res.text.split('=', 1)[1].strip('";\n ')
+            parts = content.split('~')
+            if len(parts) > 5:
+                open_p = float(parts[4]) if parts[4] and parts[4] != '0.00' else 0.0
+                latest_p = float(parts[3]) if parts[3] and parts[3] != '0.00' else 0.0
+                price = open_p if open_p > 0 else latest_p
+                if price > 0:
+                    logger.info(f"Fetched live price via Tencent for {code}: {price}")
+                    return price
+    except Exception as e:
+        logger.warning(f"Tencent quote fetch failed for {code}: {e}")
+
+    # 3. Try EastMoney API (Fallback, returns cents)
+    secid = f"1.{code}" if code.startswith(('6', '9')) else f"0.{code}"
+    url_eastmoney = f"http://push2.eastmoney.com/api/qt/stock/get?secid={secid}&fields=f43,f44,f45,f46"
+    try:
+        time.sleep(0.1)
+        res = requests.get(url_eastmoney, headers=headers, timeout=3)
+        if res.status_code == 200:
+            d = res.json().get('data', {})
+            if d:
+                open_p = d.get('f46')
+                latest_p = d.get('f43')
+                price = open_p if open_p and open_p != '-' else latest_p
+                if price and price != '-':
+                    val = float(price) / 100.0
+                    logger.info(f"Fetched live price via EastMoney fallback for {code}: {val}")
+                    return val
+    except Exception as e:
+        logger.warning(f"EastMoney quote fallback failed for {code}: {e}")
+        
+    return None
+
+
+def goto_cancel_order_page() -> None:
+    """Navigate to Cancel Order (撤单) page to verify ordinary limit orders."""
+    from trading.guotai import open_app, login, goto_homepage
+    open_app()
+    login()
+    goto_homepage()
+    
+    # 1. Tap 交易 tab on bottom menu
+    ui = get_ui_tree()
+    trading_tab = find_element_center(ui, "交易") or find_element_center(ui, "btm_text3") or find_element_center(ui, "bottom_menu_button3") or (720, 2880)
+    logger.info(f"Tapping '交易' tab at {trading_tab}")
+    device_tap(*trading_tab, sleep_after=3)
+    
+    # 2. Check for warning popup
+    ui = get_ui_tree()
+    popup = find_element_center(ui, "我知道了")
+    if popup:
+        logger.info(f"Dismissing popup at {popup}")
+        device_tap(*popup, sleep_after=2)
+        ui = get_ui_tree()
+        
+    # 3. Tap 撤单 button
+    center = find_element_center(ui, "撤单")
+    if not center:
+        # Fallback coordinate based on GridView layout (right of Buy and Sell)
+        center = (900, 889) 
+    logger.info(f"Tapping '撤单' button at {center}")
+    device_tap(*center, sleep_after=3)
+
+
+def verify_order_in_app(code: str, order_type: str = 'smart', quantity: str = None) -> bool:
+    """
+    Verify that the order for `code` was successfully created and is visible in the app.
+    order_type can be 'smart' (conditional buy, TP/SL) or 'ordinary' (limit buy/sell).
+    """
+    import time
+    logger.info(f"🔍 Verifying {order_type} order for {code} in the app...")
+    
+    from trading.guotai import open_app, login, goto_homepage, replay_page
+    
+    if order_type == 'smart':
+        open_app()
+        login()
+        goto_homepage()
+        # Navigate to Smart Orders detail page
+        logger.info("Replaying ['今日触发'] to open smart orders view...")
+        try:
+            replay_page(['今日触发'])
+            time.sleep(3) # Wait for page load
+        except Exception as e:
+            logger.warning(f"Replay ['今日触发'] failed: {e}. Trying fallback ['智能订单', '查看详情']...")
+            replay_page(['智能订单', '查看详情'])
+            time.sleep(3)
+            
+        # Tap '实时运行中' or '运行中' tab to ensure we see active orders
+        ui_text = get_ui_tree()
+        running_tab = find_element_center(ui_text, '实时运行中') or find_element_center(ui_text, '运行中')
+        if running_tab:
+            logger.info(f"Tapping running tab at {running_tab}")
+            device_tap(*running_tab, sleep_after=2)
+            
+        # Check if code is visible on screen
+        ui_text = get_ui_tree()
+        if code in ui_text:
+            logger.info(f"✅ Verified: Smart order for {code} is active on the app's '运行中' tab.")
+            return True
+            
+        # Swipe down once to check if it's further down
+        logger.info("Scrolling down to scan more orders...")
+        device_swipe(720, 2000, 720, 1000, sleep_after=1.5)
+        ui_text = get_ui_tree()
+        if code in ui_text:
+            logger.info(f"✅ Verified: Smart order for {code} is active on the app's '运行中' tab (found after scroll).")
+            return True
+            
+        logger.error(f"❌ Verification FAILED: Smart order for {code} NOT found in '运行中' tab!")
+        return False
+        
+    elif order_type == 'ordinary':
+        goto_cancel_order_page()
+        
+        # Check if code is visible on the cancel page
+        ui_text = get_ui_tree()
+        if code in ui_text and (not quantity or quantity in ui_text):
+            logger.info(f"✅ Verified: Ordinary limit order for {code} is active on the app's '撤单' page.")
+            return True
+            
+        # Swipe down once to check if it's further down
+        logger.info("Scrolling down to scan more orders...")
+        device_swipe(720, 2000, 720, 1000, sleep_after=1.5)
+        ui_text = get_ui_tree()
+        if code in ui_text and (not quantity or quantity in ui_text):
+            logger.info(f"✅ Verified: Ordinary limit order for {code} is active on the app's '撤单' page (found after scroll).")
+            return True
+            
+        # Fallback: check the '委托' (Entrust/Orders) tab in case it was instantly filled
+        logger.info(f"Order for {code} not found on '撤单' page. Checking '委托' tab in case it was instantly filled...")
+        entrust_tab = find_element_center(ui_text, "委托") or (1262, 294)
+        logger.info(f"Tapping '委托' tab at {entrust_tab}")
+        device_tap(*entrust_tab, sleep_after=2)
+        
+        ui_text = get_ui_tree()
+        if code in ui_text and (not quantity or quantity in ui_text):
+            logger.info(f"✅ Verified: Ordinary limit order for {code} is present in the app's '委托' tab (likely filled instantly).")
+            return True
+            
+        # Swipe down once to check if it's further down
+        logger.info("Scrolling down to scan '委托' tab...")
+        device_swipe(720, 2000, 720, 1000, sleep_after=1.5)
+        ui_text = get_ui_tree()
+        if code in ui_text and (not quantity or quantity in ui_text):
+            logger.info(f"✅ Verified: Ordinary limit order for {code} is present in the app's '委托' tab (found after scroll).")
+            return True
+            
+        logger.error(f"❌ Verification FAILED: Ordinary limit order for {code} NOT found on either '撤单' or '委托' pages!")
+        return False
 
 
 # ---------------------------------------------------------------------------

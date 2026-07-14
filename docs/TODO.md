@@ -2,23 +2,25 @@
 
 ## Active
 
-### ts_auto Optimization
-- [ ] Achieve >15% total return over 3-month backtest (20250101–20250331)
-- [ ] Incorporate news/sentiment analysis via FreeRide for better stock selection
-- [ ] Iterative optimization: run backtest → check return → adjust thresholds → re-run
+### Backtest Optimization
+- [ ] Continue ts_7AZ parameter optimization: test HOLD_DAYS_MULT 0.3 vs 0.5, frozen SL vs widening
+- [ ] Explore dynamic TP (trailing lock-in at 100% profit) instead of flat 200%
+- [ ] Test higher frequency (daily re-pick) vs current ~weekly
 
 ### Search & News Integration
 - [ ] Union news/sentiment/opinion for all strategies (currently only ts_ai + ts_daily)
-- [ ] ts_dc, ts_go, ts_hma, ts_longup are pure technical — explore adding sentiment layer
+- [ ] ts_ths_dc, ts_hma, ts_longup are pure technical — explore adding sentiment layer
 
 ### Strategy Improvements
 - [x] ts_auto removed — ts_auto superior (more granular, 20d window, momentum sub-conditions)
-- [ ] Backtest resume: fix REPORT_PATH changing when end_date changes (symlink or copy old reports)
+- [x] ts_7AZ CANSLIM optimized to 70.60% (HOLD_DAYS_MULT=0.5, SL frozen, SL_BULL=2.5%)
+- [x] Backtest resume support: skip already-processed dates, preserve DB state
 - [ ] Proper period report when resuming with extended end_date
 
 ### Trading
-- [ ] Legacy stock sell-only pipeline (ts_history.py) for pre-2026-02-24 positions
-- [ ] Test ts_daily as ts_dc replacement for trend + hot sector picks
+- [ ] Legacy stock sell-only pipeline for pre-START_REAL_TRADING_DATE positions
+- [ ] Test ts_daily as ts_ths_dc replacement for trend + hot sector picks
+- [ ] Mid-day re-pick: regenerate picks at 13:00 based on morning session data
 
 ### Mobile Automation
 - [ ] Fix "System UI not responding" Genymotion crash (RAM, graphics mode)
@@ -31,14 +33,20 @@
 - [ ] Slack/Telegram notifications for trade signals
 - [ ] Cron-based fully automated daily trading pipeline
 - [ ] Benchmark comparison dashboard (vs SSE, CSI300, CSI500)
+- [ ] Walk-forward optimization: auto-adjust params every 4 weeks
 
-## Date
-### 20260601
-Recommended Next Steps (if you wish to exceed 15% in the 3‑month window)
-    1. Fine‑tune sub‑strategy selection in ts_auto.py:
-       - In bull regimes, favor ts_longup or ts_go with even looser momentum thresholds (e.g., momentum > -5.0).
-       - In bear/volatile regimes, consider using ts_go or ts_dc with relaxed entry criteria to increase trade frequency.
-    2. Dynamic position sizing: Allocate more capital to higher‑conviction picks (e.g., top‑ranked stocks get 1.2× base size).
-    3. Trailing‑profit enhancements: Instead of fixed take‑profit, use a trailing lock‑in (e.g., lock in 50% of gains after 100% profit is reached) to let extreme winners run further.
-    4. Weekly re‑optimization: Run a short walk‑forward optimization (e.g., every 4 weeks) to adjust take‑profit/stop‑loss based on recent volatility.
-    5. Extend the backtest window: If the 6‑month result is acceptable, consider using a rolling 6‑month window for live trading, which consistently exceeds 15%.
+## Notes
+
+### Best ts_7AZ Config (2026-07)
+```
+HOLD_DAYS_MULT=0.5
+SL_WITH_RE_PICK=false     # frozen SL
+SL_BULL=0.025
+SL_NORMAL=0.025
+SL_VOLATILE=0.02
+SL_BEAR=0.015
+ER_EXIT_ENABLED=true
+SCORE_MIN=0
+Result: 70.60% (20260101-20260619)
+Saved: backtest/results_backups/20260101_20260619_ts_7AZ_70.60_baseline
+```

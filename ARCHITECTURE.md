@@ -20,12 +20,13 @@ Shared databases, caches, and utilities are located in the `shared/` and `utils/
 imobile/
 ├── backtest/                     # [1] Backtest & Order Engine
 │   ├── engine.py                 #   Main orchestrator: pick → orders → execute
-│   ├── strategies/               #   Stock selection logic (ts_auto, ts_7AZ, ts_dc, etc.)
+│   ├── strategies/               #   Stock selection logic (ts_auto, ts_7AZ, ts_6Factors, ts_multi_factors, ts_ao_er, ts_ths_dc, etc.)
 │   ├── core/                     #   A-Shares rule enforcement (T+1), order execution
 │   ├── data/                     #   Data providers (Tushare, Akshare, SQLite cache)
 │   ├── utils/                    #   Market regime detection, calendars
 │   ├── analysis/                 #   Post-backtest performance metrics & charts
 │   ├── config.json               #   Risk parameters, regime TP/SL thresholds
+│   ├── results_backups/          #   Archived backtest result sets for cache reuse
 │   └── results/                  #   Backtest reports (YYYYMMDD_YYYYMMDD_ts_XX/)
 │       └── daily/                #   Daily trading output (pick + smart orders)
 │
@@ -148,3 +149,4 @@ The central brain of the quantitative risk model lives in `backtest/config.json`
 2. **No Lookahead Bias** — Strategies are restricted from using current-day closing data to generate current-day open orders.
 3. **Resilient Automation** — The ADB agent relies on LLM vision rather than hardcoded coordinates for data extraction, making it robust against broker app UI changes.
 4. **Single Source of Truth** — `imobile.db` holds the definitive state of the live portfolio, bridging the Python backend and the Reflex frontend.
+5. **Backtest Cache Reuse** — Previous ts_7AZ results are cached in `results_backups/`. Subsequent ts_7AZ runs reuse pick files automatically; all other strategies always regenerate fresh picks.

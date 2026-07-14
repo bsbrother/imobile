@@ -63,50 +63,77 @@ def check_phase_time_allowed(phase: str, date: str) -> bool:
 
 
 # ─── Submit orders to app ────────────────────────────────────
-def submit_orders_to_app(smart_orders_file: str):
+def submit_orders_to_app(smart_orders_file: str, submit: bool = False, market_pattern: str = 'normal', dry_run: bool = False):
     """Read smart_orders JSON and submit orders to broker app via ADB."""
-    from trading.create_order_buy import create_buy_order
     from trading.create_order_tp_sl import create_tp_sl_order
+    from trading.create_order_ordinary import create_ordinary_order
+    from utils.tools import get_realtime_quote
+    import time
+    from datetime import datetime
 
     with open(smart_orders_file, 'r') as f:
         data = json.load(f)
 
     all_orders = data.get('smart_orders', [])
-    total_new_buys = data.get('total_orders', 0)
+    total_new_buys = data.get('total_new_BUY_orders', data.get('total_orders', 0))
 
     buy_orders = all_orders[:total_new_buys]
     tp_sl_orders = all_orders[total_new_buys:]
 
-    # Submit BUY orders
-    for order in buy_orders:
-        quantity = str(order['buy_quantity'])
-        if quantity == '0':
-            continue
-        code = order['symbol'].split('.')[0]
-        price = str(order['buy_price'])
-        try:
-            create_buy_order(code=code, price=price, quantity=quantity, submit=True)
-            logger.info(f"  ✅ BUY submitted: {code} @{price} x{quantity}")
-        except Exception as e:
-            logger.error(f"  ❌ BUY failed: {code} — {e}")
-
-    # Submit TP/SL orders
+    # 1. Submit TP/SL orders FIRST (can be done anytime before market opens)
     for order in tp_sl_orders:
         code = order['symbol'].split('.')[0]
         tp = str(order.get('sell_take_profit_price', 0))
         sl = str(order.get('sell_stop_loss_price', 0))
         qty = str(order.get('buy_quantity', 0))
         try:
-            create_tp_sl_order(code=code, tp_price=tp, sl_price=sl, quantity=qty, submit=True)
-            logger.info(f"  ✅ TP/SL submitted: {code} TP={tp} SL={sl} x{qty}")
+            create_tp_sl_order(code=code, tp_price=tp, sl_price=sl, quantity=qty, submit=submit, dry_run=dry_run)
+            logger.info(f"  {'✅' if submit else 'ℹ️'} TP/SL {'submitted' if submit else 'filled (dry-run)'}: {code} TP={tp} SL={sl} x{qty}")
         except Exception as e:
             logger.error(f"  ❌ TP/SL failed: {code} — {e}")
+
+    # 2. Wait until 09:24:00 if necessary to capture the near-real open price during the auction period
+    if buy_orders:
+        now = datetime.now()
+        target_time = now.replace(hour=9, minute=24, second=0, microsecond=0)
+        # If it's before 09:24:00 and we are running in the morning (before 12:00)
+        if now < target_time and now.hour < 12:
+            wait_seconds = (target_time - now).total_seconds()
+            logger.info(f"⏳ Waiting {wait_seconds:.0f} seconds until 09:24:00 to fetch real-time auction open price for BUY orders...")
+            if not dry_run:
+                time.sleep(wait_seconds)
+            else:
+                logger.info("[DRY RUN] Skipping actual time.sleep wait.")
+
+    # 3. Submit BUY orders
+    for order in buy_orders:
+        quantity = str(order['buy_quantity'])
+        if quantity == '0':
+            continue
+        code = order['symbol'].split('.')[0]
+        
+        # Override the suggested buy_price with the real-time open price if available
+        rt_price = get_realtime_quote(code)
+        if rt_price and rt_price > 0:
+            price = f"{rt_price:.2f}"
+            logger.info(f"Using real-time auction open price {price} for {code} instead of suggested {order['buy_price']}")
+        else:
+            price = str(order['buy_price'])
+            
+        try:
+            # All regimes: use ordinary limit buy order during pre-market to execute exactly at Open price
+            create_ordinary_order(code=code, price=price, quantity=quantity, action='buy', submit=submit, dry_run=dry_run, skip_dup_check=True)
+            logger.info(f"  {'✅' if submit else 'ℹ️'} Ordinary BUY {'submitted' if submit else 'filled (dry-run)'}: {code} @{price} x{quantity}")
+        except Exception as e:
+            logger.error(f"  ❌ BUY failed: {code} — {e}")
 
 
 # ─── Pre-market phase ────────────────────────────────────────
 async def run_pre_market(this_date, user_id, submit, dry_run, app_package_name):
     """Pre-market: sync check → pick stocks → create orders → (submit to app)."""
+    import time
     logger.info(f"═══ PRE-MARKET for {this_date} ═══")
+    start_time = time.perf_counter()
 
     _daily_dir = os.path.join('backtest', 'results', 'daily')
     os.makedirs(_daily_dir, exist_ok=True)
@@ -149,10 +176,11 @@ async def run_pre_market(this_date, user_id, submit, dry_run, app_package_name):
             data = json.load(f)
 
         all_orders = data.get('smart_orders', [])
-        new_buys = data.get('total_orders', 0)
+        new_buys = data.get('total_new_BUY_orders', data.get('total_orders', 0))
         tp_sl_count = len(all_orders) - new_buys
+        market_pattern = data.get('market_pattern', 'normal')
 
-        logger.info(f"Regime: {data.get('market_pattern','?').upper()}")
+        logger.info(f"Regime: {market_pattern.upper()}")
         logger.info(f"BUY orders: {new_buys}, TP/SL orders: {tp_sl_count}")
         for o in all_orders[:new_buys]:
             if int(o.get('buy_quantity', 0)) > 0:
@@ -164,12 +192,12 @@ async def run_pre_market(this_date, user_id, submit, dry_run, app_package_name):
                          f"TP={o['sell_take_profit_price']} SL={o['sell_stop_loss_price']} "
                          f"x{o['buy_quantity']}")
 
-        # Step 5: Submit to app (if --submit)
-        if submit and not dry_run:
-            submit_orders_to_app(smart_output_file)
-        elif not submit:
-            logger.info("ℹ️ Orders NOT submitted to app (use --submit to push)")
+        # Step 5: Submit or dry-run orders to app
+        submit_orders_to_app(smart_output_file, submit=submit, market_pattern=market_pattern, dry_run=dry_run)
 
+
+    elapsed_time = time.perf_counter() - start_time
+    logger.info(f"⏱️ Pre-market phase execution completed in {elapsed_time:.2f} seconds.")
     logger.info("✅ Pre-market complete")
 
 
@@ -327,7 +355,9 @@ Examples:
         args.date = datetime.now().strftime('%Y%m%d')
 
     cleanup_empty_trajectories()
-    login()
+    if not args.dry_run:
+        login()
+
 
     if args.sync_only:
         asyncio.run(cron_sync_app_to_db(check_trading_day_and_time=False))

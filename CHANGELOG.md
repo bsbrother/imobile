@@ -2,6 +2,30 @@
 
 Key changes and milestones in iMobile development.
 
+## 2026-07
+
+### Project Cleanup
+- Removed 27 temp/unused files (temp_*.txt, test_*.py, mock_*.json, stale DBs, old logs)
+- Removed cache dirs (__pycache__, .pytest_cache, .ruff_cache)
+- Removed empty dirs (.states/, scratch/)
+
+### New Strategies
+- **ts_6Factors** — 6-factor V-G-Q-M-L-S binary screener (13.30% full-period return). Value/quality/defensive focus, complements momentum strategies.
+- **ts_multi_factors** — BigQuant-inspired volume-acceleration + slope-ranking strategy (0.70% in 3-day flat market). Momentum-forward with hard ret_3d ≥ 0 filter.
+- Both strategies registered in `engine.py` dispatch and `_valid_sources`.
+
+### Backtest Engine Fixes
+- **Backtest cache isolation** — Pick file reuse now limited to `ts_7AZ` only (`if src == 'ts_7AZ'` guard). Previously all strategies silently reused ts_7AZ cached picks, making new strategies appear to have identical returns.
+- **Fallback path expansion** — `/tmp` rename logic now handles ts_6Factors and ts_multi_factors alternative output paths.
+- **Argument parsing** — Updated argparse `choices` to include ts_6Factors and ts_multi_factors as valid sources.
+
+### Documentation
+- **`.env.example`** — Created template with all backtest and trading parameters documented.
+- **`ENV_VARS.md`** — Complete 80+ variable reference grouped by subsystem (paths, providers, AI, search, strategy params, trading).
+- **`STRATEGIES.md`** — Detailed reference with 10 registered + 2 unregistered strategies, `--no-ai`/`--no-search` flag behavior table, and regime-based selection guide.
+- **`SETUP.md`** — Developer quick-start with `backtest-trading` helper, updated CLI syntax.
+- **`6-factors-introduction.md`** and **`multi-factor-momentum-bigquant.md`** — Saved reference docs on factor theory and BigQuant methodology.
+
 ## 2026-06
 
 ### Pre-Market Smart Order Fixes

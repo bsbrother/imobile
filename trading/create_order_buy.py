@@ -88,115 +88,98 @@ def fill_quantity(quantity: str, ui_text: str) -> None:
 # Main workflow
 # ---------------------------------------------------------------------------
 
-def create_buy_order(code: str, price: str, quantity: str, submit: bool = False, dry_run: bool = False) -> None:
-    """Fill all fields on the buy order page.
+def create_buy_order(code: str, price: str, quantity: str, submit: bool = False, dry_run: bool = False, skip_dup_check: bool = False) -> None:
+    """Fill all fields on the buy order page using optimized static coordinates."""
+    logger.info(f"Creating buy order: code={code}, price={price}, quantity={quantity}, submit={submit}, dry_run={dry_run}, skip_dup_check={skip_dup_check}")
 
-    Args:
-        code: Stock code (e.g., '600279')
-        price: Trigger price (e.g., '3.97')
-        quantity: Buy quantity (e.g., '900')
-        submit: If True, tap the '创建订单' button to submit
-        dry_run: If True, only log actions without executing
-    """
-    logger.info(f"Creating buy order: code={code}, price={price}, quantity={quantity}, submit={submit}, dry_run={dry_run}")
-
-    # Step 1: Start app if not running
+    # Step 1: Start app if not running & Login if needed
     open_app()
-
-    # Step 2: Login if needed
     login()
 
-    # Step 3: Check duplicate orders
-    check_duplicate_orders(code)
+    # Step 2: Check duplicate orders
+    if not skip_dup_check:
+        check_duplicate_orders(code)
+    else:
+        logger.info(f"Skipping duplicate check for {code} to maximize execution speed.")
 
-    # Step 4: Go back to homepage
+    # Step 3: Go back to homepage & Replay '今日触发'
     goto_homepage()
-
-    # Step 5: Replay '今日触发' and navigate to subpage
     replay_page(['今日触发'])
-
-    # Wait for the select page to load, then tap '到价买入'
-    time.sleep(2)
-    ui_text = get_ui_tree()
-    center = find_element_center(ui_text, '到价买入')
-
-    # Scroll down to find it — the button is at the bottom of the order creation area
-    if not center:
-        for _ in range(5):
-            device_swipe(720, 2000, 720, 500, sleep_after=1.5)
-            ui_text = get_ui_tree()
-            center = find_element_center(ui_text, '到价买入')
-            if center:
-                break
-
-    # If still not found, try tapping '新建订单' first to reveal creation options
-    if not center:
-        logger.warning("'到价买入' not found directly. Trying via '新建订单'...")
-        new_center = find_element_center(ui_text, '新建订单')
-        if new_center:
-            device_tap(*new_center, sleep_after=2)
-            ui_text = get_ui_tree()
-            center = find_element_center(ui_text, '到价买入')
-
-    if not center:
-        raise RuntimeError("Cannot find '到价买入' button on smart order page")
-    logger.info(f"Tapping '到价买入' at {center}")
-    device_tap(*center, sleep_after=2)
-
-    # Scroll to top of page to ensure stock code is visible
-    device_swipe(720, 500, 720, 1500, sleep_after=1.5)
-    ui_text = get_ui_tree()
-
-    # Verify we are on buy page
-    if not verify_on_buy_page(ui_text):
-        logger.warning("Current page may not be the buy order page (到价买入). Proceeding anyway.")
-
-    # Step 6: Fill stock code
-    fill_stock_code(code, ui_text)
-    time.sleep(2)
-    ui_text = get_ui_tree()
-
-    # Set trigger condition (当股价 >=)
-    set_trigger_condition_ge(ui_text)
-
-    # Fill trigger price
-    fill_trigger_price(price, ui_text)
     time.sleep(1)
 
-    # Scroll up to close keyboard
-    device_swipe(720, 2000, 720, 500, sleep_after=1.5)
-    ui_text = get_ui_tree()
+    # Step 4: Tap '到价买入'
+    logger.info("Tapping '到价买入' at (273, 2240)")
+    device_tap(273, 2240, sleep_after=1.0)
+    
+    # Scroll to top of page to ensure stock code is visible
+    device_swipe(720, 500, 720, 1500, sleep_after=0.5)
 
-    # Set order method (委托方式)
-    set_order_method(ui_text)
-    ui_text = get_ui_tree()
+    # Step 5: Fill stock code
+    logger.info("Tapping Stock Code Field at (820, 873)")
+    device_tap(820, 873, sleep_after=1.0)
+    
+    logger.info("Tapping Overlay Search Bar at (806, 369)")
+    device_tap(806, 369, sleep_after=0.5)
+    
+    logger.info(f"Typing stock code: {code}")
+    from utils.tools import device_type, adb_clear_field, adb_type
+    device_type(code, clear=True)
+    time.sleep(1.5)
+    
+    logger.info("Selecting First Result at (719, 717)")
+    device_tap(719, 717, sleep_after=1.5)
 
-    # Fill quantity
-    fill_quantity(quantity, ui_text)
+    # Step 6: Set trigger condition (当股价 >=)
+    logger.info("Setting trigger condition '当股价 ≥' at (695, 1885)")
+    device_tap(695, 1885, sleep_after=0.5)
 
-    # Set order type to auto (自动下单)
-    set_auto_order(ui_text)
-    ui_text = get_ui_tree()
+    # Step 7: Fill trigger price
+    logger.info("Tapping Trigger Price Field at (939, 1531)")
+    device_tap(939, 1531, sleep_after=0.5)
+    
+    logger.info("Clearing trigger price field via DEL keys")
+    adb_clear_field(max_chars=15)
+    
+    logger.info(f"Typing trigger price via adb: {price}")
+    adb_type(price)
+    time.sleep(0.5)
 
-    # Set valid until date to Today
-    set_valid_until_today(ui_text)
-    ui_text = get_ui_tree()
+    # Scroll up to close keyboard and reveal lower fields
+    device_swipe(720, 2000, 720, 500, sleep_after=1.0)
+
+    # Step 8: Set order method (委托方式 -> 最新价)
+    logger.info("Tapping Order Method Field at (217, 2319)")
+    device_tap(217, 2319, sleep_after=0.5)
+
+    # Step 9: Fill quantity
+    logger.info("Tapping Quantity Field at (939, 2609)")
+    device_tap(939, 2609, sleep_after=0.5)
+    
+    logger.info("Clearing quantity field via DEL keys")
+    adb_clear_field(max_chars=15)
+    
+    logger.info(f"Typing quantity via adb: {quantity}")
+    adb_type(quantity)
+    time.sleep(0.5)
+
+    # Step 10: Set order type to auto (自动下单)
+    logger.info("Tapping Order Type (Auto) at (721, 2899)")
+    device_tap(721, 2899, sleep_after=0.5)
 
     # Close keyboard
-    device_swipe(720, 2000, 720, 500, sleep_after=1.5)
-    ui_text = get_ui_tree()
+    device_swipe(720, 2000, 720, 500, sleep_after=0.5)
 
-    # Verify final fields
-    time.sleep(0.5)
-    ui_text = get_ui_tree()
-    logger.info("Final UI state (EditText fields):")
-    for line in ui_text.split('\n'):
-        if 'EditText' in line:
-            logger.info(f"  {line.strip()}")
-
-    # Step 8: Optionally submit
+    # Step 12: Submit
     if submit:
-        tap_create_order(ui_text)
+        logger.info("Tapping Submit Button '创建订单' at (902, 2825)")
+        device_tap(902, 2825, sleep_after=2.0)
+        
+        # Tap confirmation popups
+        logger.info("Tapping confirmation popup 1 at (1021, 2244)")
+        device_tap(1021, 2244, sleep_after=1.0)
+        logger.info("Tapping confirmation popup 2 at (1021, 2244)")
+        device_tap(1021, 2244, sleep_after=1.0)
+        
         logger.info("✅ Buy order submitted")
     else:
         logger.info("✅ Buy order fields filled (not submitted, use --submit to submit)")

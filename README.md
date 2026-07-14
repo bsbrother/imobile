@@ -65,10 +65,13 @@ cd web && reflex run
 | Strategy | Type | Description | Best In |
 |----------|------|-------------|---------|
 | `ts_7AZ` | ✦ Default | CANSLIM 7-factor (C-A-N-S-L-I-M) quality screener with regime-based TP/SL | Normal/Moderate |
+| `ts_ao_er` | Technical | AO + ER (Elliott Wave Oscillator divergence detection) | Bear/Volatile |
+| `ts_6Factors` | Fundamental | 6-factor V-G-Q-M-L-S screener (value, growth, quality, momentum, low-vol, size) | All |
 | `ts_auto` | Meta | Auto-selects best sub-strategy based on 20-day regime | All conditions |
 | `ts_dc` | Technical | Hot-sector channel breakout | Bull/Normal |
 | `ts_hma` | Technical | Hull Moving Average + SuperTrend reversal detection | Sharp Bear |
 | `ts_longup` | Technical | ADX trend-following | Strong Bull |
+| `ts_multi_factors` | Momentum | BigQuant-inspired volume-acceleration + slope-ranking strategy | Bull/Trending |
 | `ts_ai_pick`| AI | Full AI analysis with news/sentiment | Any |
 | `ts_daily` | AI | News-driven daily picks (LLM + web search) | Any |
 
@@ -83,7 +86,25 @@ imobile/
 ├── web/               # Reflex web dashboard (frontend + backend)
 ├── shared/            # Shared SQLite databases (imobile.db, cache)
 ├── utils/             # Cross-module utilities (LLM analysis, search)
+├── tests/             # Pytest test suite
 └── docs/              # Detailed subsystem documentation
 ```
 
 For a deep dive into how these systems interact, please read [ARCHITECTURE.md](ARCHITECTURE.md) or explore the individual module documentation in `docs/`.
+
+---
+
+## 📚 Documentation
+
+| Doc | Description |
+|---|---|
+| [docs/SETUP.md](docs/SETUP.md) | Developer quick-start guide |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | System architecture and data flow |
+| [docs/BACKTEST.md](docs/BACKTEST.md) | Full backtest pipeline (7 phases) |
+| [docs/TRADING.md](docs/TRADING.md) | Live trading pipeline (3 phases) |
+| [docs/WEB.md](docs/WEB.md) | Web dashboard |
+| [docs/STRATEGIES.md](docs/STRATEGIES.md) | Strategy comparison and selection guide |
+| [docs/ENV_VARS.md](docs/ENV_VARS.md) | Complete environment variables reference |
+| [docs/TODO.md](docs/TODO.md) | Current tasks and backlog |
+| [CHANGELOG.md](CHANGELOG.md) | Project changelog |
+| [.env.example](.env.example) | Environment variables template |

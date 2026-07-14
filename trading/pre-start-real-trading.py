@@ -132,55 +132,55 @@ def create_synthetic_buy_transactions():
             (USER_ID,)
         ).fetchall()
 
-    if not holdings:
-        logger.info("No holdings to create synthetic transactions for.")
-        return 0
+        if not holdings:
+            logger.info("No holdings to create synthetic transactions for.")
+            return 0
 
-    synthetic_date = f"{SYNTHETIC_BUY_DATE} 00:00:00"
-    created_count = 0
+        synthetic_date = f"{SYNTHETIC_BUY_DATE} 00:00:00"
+        created_count = 0
 
-    for h in holdings:
-        code = h[0]
-        name = h[1]
-        quantity = h[2]
-        cost_basis = h[4] if h[4] else 0.0
-        current_price = h[6] if h[6] else cost_basis
+        for h in holdings:
+            code = h[0]
+            name = h[1]
+            quantity = h[2]
+            cost_basis = h[4] if h[4] else 0.0
+            current_price = h[6] if h[6] else cost_basis
 
-        if quantity <= 0 or cost_basis <= 0:
-            logger.warning(f"Skipping {name} ({code}): holdings={quantity}, cost={cost_basis}")
-            continue
+            if quantity <= 0 or cost_basis <= 0:
+                logger.warning(f"Skipping {name} ({code}): holdings={quantity}, cost={cost_basis}")
+                continue
 
-        amount = cost_basis * quantity
-        commission = 0.0
-        tax = 0.0
-        net_amount = amount
+            amount = cost_basis * quantity
+            commission = 0.0
+            tax = 0.0
+            net_amount = amount
 
-        # Check if a synthetic buy already exists for this stock
-        existing = cursor.execute(
-            """SELECT id FROM transactions
-               WHERE user_id = ? AND code = ? AND transaction_type = 'buy'
-               AND transaction_date = ? AND notes = 'synthetic_buy_for_real_trading_init'""",
-            (USER_ID, code, synthetic_date)
-        ).fetchone()
+            # Check if a synthetic buy already exists for this stock
+            existing = cursor.execute(
+                """SELECT id FROM transactions
+                   WHERE user_id = ? AND code = ? AND transaction_type = 'buy'
+                   AND transaction_date = ? AND notes = 'synthetic_buy_for_real_trading_init'""",
+                (USER_ID, code, synthetic_date)
+            ).fetchone()
 
-        if existing:
-            logger.info(f"Synthetic buy already exists for {name} ({code}), skipping.")
-            continue
+            if existing:
+                logger.info(f"Synthetic buy already exists for {name} ({code}), skipping.")
+                continue
 
-        cursor.execute(
-            """INSERT INTO transactions
-               (user_id, code, name, transaction_type, transaction_date,
-                price, quantity, amount, commission, tax, net_amount, notes)
-               VALUES (?, ?, ?, 'buy', ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (USER_ID, code, name, synthetic_date,
-             cost_basis, quantity, amount,
-             commission, tax, net_amount,
-             'synthetic_buy_for_real_trading_init')
-        )
-        created_count += 1
-        logger.info(f"  ✅ Synthetic BUY: {name} ({code}) — "
-                    f"{quantity} shares @ ¥{cost_basis:.2f} = ¥{amount:,.2f} "
-                    f"(current: ¥{current_price:.2f})")
+            cursor.execute(
+                """INSERT INTO transactions
+                   (user_id, code, name, transaction_type, transaction_date,
+                    price, quantity, amount, commission, tax, net_amount, notes)
+                   VALUES (?, ?, ?, 'buy', ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (USER_ID, code, name, synthetic_date,
+                 cost_basis, quantity, amount,
+                 commission, tax, net_amount,
+                 'synthetic_buy_for_real_trading_init')
+            )
+            created_count += 1
+            logger.info(f"  ✅ Synthetic BUY: {name} ({code}) — "
+                        f"{quantity} shares @ ¥{cost_basis:.2f} = ¥{amount:,.2f} "
+                        f"(current: ¥{current_price:.2f})")
 
     logger.info(f"✅ Created {created_count} synthetic BUY transactions "
                 f"for {len(holdings)} holdings.")

@@ -5,6 +5,7 @@ Uses exact same imports as gemini_free_api.py and DroidRun MobileAgent.
 Expected: 405 Method Not Allowed on client.models.get(model=...)
 On google ai studio ->create new project ->create new API (iset norestrict)
 """
+import pytest
 import os
 import asyncio
 import dotenv
@@ -12,6 +13,9 @@ dotenv.load_dotenv('.env')
 
 from llama_index.llms.google_genai import GoogleGenAI
 from mobilerun import MobileAgent
+
+pytestmark = pytest.mark.integration
+
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite-preview")

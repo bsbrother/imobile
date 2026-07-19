@@ -1,4 +1,5 @@
 
+import pytest
 import sys
 import os
 # Mock config if needed, or rely on actual config
@@ -6,6 +7,9 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from backtest.utils.market_regime import detect_market_regime
+
+pytestmark = pytest.mark.integration
+
 
 def test_regime():
     dates_to_test = [

@@ -2,6 +2,25 @@
 
 Key changes and milestones in iMobile development.
 
+## 2026-07 (refactor/optimize-and-clean branch)
+
+### Phase A — Test infrastructure & cleanup
+- **pytest.ini**: added `testpaths`, `norecursedirs` (excludes `utils/searxng`, `utils/daily_stock_analysis`, `.venv`, `.web`), registered `benchmark` marker.
+- **tests/conftest.py**: new — registers `integration` and `benchmark` markers, adds `--run-integration` CLI flag, auto-skips integration tests by default, provides `tmp_db_path`, `sample_ohlcv`, `sample_picks_json` fixtures.
+- **Characterization test** (`tests/test_baseline_regression.py`): parses committed `report_period_20260101_20260619.md`, asserts ts_7AZ total return stays within ±0.2% of 70.59% baseline (65% floor). Runs in 0.01s — no backtest re-run needed.
+- **Ghost test cleanup**:
+  - Deleted `tests/test_cbs_ewo_portfolio.py` (imports removed `cbs_ewo` module).
+  - Deleted `tests/test_stock_analysis.py` (imports `../illm/` external project — doesn't exist).
+  - Moved `tests/test_searxng.py` → `scripts/demo_searxng_sentiment.py` (330-line argparse demo, not a test).
+  - Moved `tests/_check_dates.py` → `scripts/_check_dates.py` (diagnostic script).
+  - Moved `tests/verify_freeride_integration.py` → `scripts/verify_freeride_integration.py` (manual verification script).
+  - Renamed `tests/test_gemini_3.1_flash-lite_free_*.py` → `test_gemini_3_1_flash_lite_free_*.py` (dots in filenames break pytest collection).
+- **Integration markers**: tagged 10 network-dependent test files with `@pytest.mark.integration` — they now skip by default instead of hanging on real API calls.
+- **xfail markers**: marked 2 pre-existing `test_freeride.py` failures (`test_freeride_model_initialization`, `test_model_configuration`) as `xfail` with reasons — they test the old OpenRouter client API, not the current `_try_completion` helper.
+- **Bug fix**: `pd.io.json.dumps` (non-existent API) replaced with `json.dumps` in conftest fixture.
+- **Makefile**: added with `test`, `test-integration`, `backtest`, `lint`, `clean` targets.
+- Test suite: 31 collection errors → 0; 9 pass, 16 skip, 2 xfail in 45s (was 38s + 31 errors).
+
 ## 2026-07
 
 ### Project Cleanup

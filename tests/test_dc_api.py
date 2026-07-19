@@ -1,7 +1,11 @@
 
+import pytest
 import tushare as ts
 import os
 from dotenv import load_dotenv
+
+pytestmark = pytest.mark.integration
+
 
 load_dotenv()
 

@@ -1,5 +1,10 @@
+
+import pytest
 import adata
 import pandas as pd
+
+pytestmark = pytest.mark.integration
+
 
 print("--- THS Concepts ---")
 try:

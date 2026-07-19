@@ -1,6 +1,11 @@
+
+import pytest
 import os
 from google import genai
 from google.genai.errors import APIError
+
+pytestmark = pytest.mark.integration
+
 
 def test_gemini_api():
     # 1. Retrieve the API key from your environment variables

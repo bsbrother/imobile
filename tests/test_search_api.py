@@ -6,6 +6,7 @@ Measures and prints performance metrics (speed vs. content richness) to rank the
 - SearXNG, TinyFish, SerpAPI, MiniMax, Brave, Anspire, Bocha, Tavily
 """
 
+import pytest
 import os
 import sys
 import unittest
@@ -48,6 +49,9 @@ from utils.anysearch import AnySearchSearchProvider
 
 
 import subprocess
+
+pytestmark = pytest.mark.integration
+
 
 def ensure_searxng_container_running():
     """

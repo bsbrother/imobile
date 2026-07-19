@@ -19,7 +19,9 @@ Examples:
 import os
 import sys
 import json
+import re
 import argparse
+import subprocess
 import pandas as pd
 from datetime import datetime
 import time
@@ -44,6 +46,22 @@ from backtest.utils.trailing_stop import calculate_trailing_stop
 from shared.db.db import DBTEST as DB
 
 load_dotenv()
+
+# ── Market regime memoization ────────────────────────────────────────────────
+# detect_market_regime() fetches 120 days of SSE Composite OHLCV from Tushare
+# on every call. Within a single backtest run, the same date is queried 2-3x
+# (from pick_stocks_to_file + pick_orders_trading + strategy scripts).
+# Memoizing per-date eliminates ~120 redundant API calls over a full run.
+_REGIME_CACHE: dict = {}
+
+
+def _detect_market_regime_cached(date: str) -> dict:
+    """Memoized wrapper for detect_market_regime — results cached per date."""
+    if date not in _REGIME_CACHE:
+        _REGIME_CACHE[date] = detect_market_regime(date)
+    return _REGIME_CACHE[date]
+
+
 # 1. Load configures from .env, $BACKTEST_PATH/config.json, e.g. REPORT_PATH, initial cash, strategy parameters etc.
 CONFIG_FILE = os.getenv("CONFIG_FILE", default="/backtest/config.json")
 BACKTEST_PATH = os.getenv('BACKTEST_PATH', './backtest')
@@ -61,8 +79,9 @@ TAX = global_cm.get('portfolio_config.tax', 0.0005)  # 10W * 0.005% = 50 # Only 
 if not os.path.exists(REPORT_PATH):
     os.makedirs(REPORT_PATH)
 
-# Use virtualenv python for python-based strategies
-VENV_PYTHON = "/home/kasm-user/apps/imobile/.venv/bin/python"
+# Use the current interpreter for strategy subprocesses — avoids hard-coded paths
+# and makes the engine portable across machines / venvs.
+VENV_PYTHON = sys.executable
 
 
 def kaufman_efficiency_ratio(close_series: pd.Series, period: int = 14) -> float:
@@ -80,6 +99,40 @@ def kaufman_efficiency_ratio(close_series: pd.Series, period: int = 14) -> float
     if total_volatility == 0:
         return float('nan')
     return net_change / total_volatility
+
+def _run_strategy_script(script_path: str, *args: str) -> None:
+    """Run a strategy script with the current interpreter.
+
+    Replaces os.system() calls — raises RuntimeError on non-zero exit with
+    captured stderr for debugging, and avoids shell injection by passing args
+    as a list (no shell=True).
+    """
+    cmd = [sys.executable, script_path, *args]
+    logger.debug(f"Running strategy: {' '.join(cmd)}")
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        stderr_tail = result.stderr[-500:] if result.stderr else "(no stderr)"
+        raise RuntimeError(
+            f"Strategy script {script_path} exited with code {result.returncode}.\n"
+            f"stderr: {stderr_tail}"
+        )
+
+
+def _run_cli_command(*args: str) -> None:
+    """Run a backtest.cli command with the current interpreter.
+
+    Replaces os.system() for CLI invocations (e.g., `analyze` subcommand).
+    """
+    cmd = [sys.executable, "-m", "backtest.cli", *args]
+    logger.debug(f"Running CLI: {' '.join(cmd)}")
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        stderr_tail = result.stderr[-500:] if result.stderr else "(no stderr)"
+        raise RuntimeError(
+            f"CLI command {' '.join(args[:2])} exited with code {result.returncode}.\n"
+            f"stderr: {stderr_tail}"
+        )
+
 
 def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ', backtest_search: bool = True, backtest_ai: bool = True) -> str:
     """
@@ -110,8 +163,10 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ', backtest_search: bo
                 logger.info(f"[{this_date}] Reused cached ts_7AZ picks from {os.path.basename(b_dir)}")
                 return pick_output_file
 
-    # Detect market regime
-    regime_data = detect_market_regime(this_date)
+    # Detect market regime (memoized — pick_stocks_to_file and pick_orders_trading
+    # both call detect_market_regime for the same date; memoization saves ~120
+    # redundant index-data API calls over a full backtest).
+    regime_data = _detect_market_regime_cached(this_date)
     regime_name = regime_data['regime']
     logger.info(f"Market Regime for {this_date}: {regime_name}")
 
@@ -131,7 +186,7 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ', backtest_search: bo
         logger.info(f"backtest_ai=False: Strategy '{src}' requires AI, falling back to 'ts_longup'")
         src = 'ts_longup'
 
-    VENV_PYTHON = "/home/kasm-user/apps/imobile/.venv/bin/python"
+    VENV_PYTHON = sys.executable  # noqa: F811 — keep local ref for clarity
     # Build optional flags for strategy scripts
     _flags = []
     if not backtest_search:
@@ -139,33 +194,33 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ', backtest_search: bo
     if not backtest_ai:
         _flags.append("--no-ai")
     _flags_str = " ".join(_flags)
-    if src == 'ts_auto':
-        result = os.system(f'{VENV_PYTHON} backtest/strategies/ts_auto.py {this_date} {_flags_str}')
-    elif src == 'ts_longup':
-        result = os.system(f'{VENV_PYTHON} backtest/strategies/ts_longup.py {this_date} {_flags_str}')
-    elif src == 'ts_hma':
-        result = os.system(f'{VENV_PYTHON} backtest/strategies/ts_hma.py {this_date} {_flags_str}')
-    elif src == 'ts_ai_pick':
-        result = os.system(f'{VENV_PYTHON} backtest/strategies/ts_ai_pick.py {this_date} {_flags_str}')
-    elif src == 'ts_daily':
-        result = os.system(f'{VENV_PYTHON} backtest/strategies/ts_daily.py {this_date} {_flags_str}')
+    # Strategy dispatch table — maps src to (script, extra_args).
+    # All scripts receive this_date + flags; some get an extra strategy-name arg.
+    _STRATEGY_SCRIPTS = {
+        'ts_auto':         ('backtest/strategies/ts_auto.py', []),
+        'ts_longup':        ('backtest/strategies/ts_longup.py', []),
+        'ts_hma':           ('backtest/strategies/ts_hma.py', []),
+        'ts_ai_pick':       ('backtest/strategies/ts_ai_pick.py', []),
+        'ts_daily':         ('backtest/strategies/ts_daily.py', []),
+        'ts_7AZ':           ('backtest/strategies/ts_7AZ.py', ['ts_7AZ']),
+        'ts_ao_er':         ('backtest/strategies/ts_ao_er.py', []),
+        'ts_6Factors':      ('backtest/strategies/ts_6Factors.py', ['ts_6Factors']),
+        'ts_multi_factors': ('backtest/strategies/ts_multi_factors.py', ['ts_multi_factors']),
+    }
+
+    if src in _STRATEGY_SCRIPTS:
+        script, extra_args = _STRATEGY_SCRIPTS[src]
+        _run_strategy_script(script, this_date, *extra_args, *_flags)
     elif src == 'ts_go':
-        # Compile and run the Go stock picker
+        # Compile and run the Go stock picker (kept as os.system for shell chaining)
         cmd = f'cd utils/go-stock && go build -o pick_stocks cmd/pick_stocks/main.go && ./pick_stocks -date {this_date} {_flags_str}'
         logger.info(f"Running Go stock picker: {cmd}")
         result = os.system(cmd)
-    elif src == 'ts_7AZ':
-        result = os.system(f'{VENV_PYTHON} backtest/strategies/ts_7AZ.py {this_date} ts_7AZ {_flags_str}')
-    elif src == 'ts_ao_er':
-        result = os.system(f'{VENV_PYTHON} backtest/strategies/ts_ao_er.py {this_date} {_flags_str}')
-    elif src == 'ts_6Factors':
-        result = os.system(f'{VENV_PYTHON} backtest/strategies/ts_6Factors.py {this_date} ts_6Factors {_flags_str}')
-    elif src == 'ts_multi_factors':
-        result = os.system(f'{VENV_PYTHON} backtest/strategies/ts_multi_factors.py {this_date} ts_multi_factors {_flags_str}')
+        if result != 0:
+            raise ValueError(f"Go stock picker failed for {this_date} (exit {result}).")
     else:
-        result = os.system(f'{VENV_PYTHON} backtest/strategies/ts_ths_dc.py {this_date} {src} {_flags_str}')
-    if result != 0:
-        raise ValueError(f"Failed to pick strong stocks from hot sectors for {this_date} using {src}.")
+        # Default: ts_ths_dc with src as the strategy name
+        _run_strategy_script('backtest/strategies/ts_ths_dc.py', this_date, src, *_flags)
     # Rename /tmp/tmp to per-date file to allow parallel backtests
     tmp_file = f'/tmp/tmp_{src}_{this_date}_{os.getpid()}'
     try:
@@ -263,17 +318,15 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
             for row in cursor.fetchall():
                 held_symbols_set.add(_clean_sym(row[0]))
 
-    cmd = f'{VENV_PYTHON} -m backtest.cli analyze --stocks-file {pick_input_file} -o {smart_output_file}'
+    cli_args = ['analyze', '--stocks-file', pick_input_file, '-o', smart_output_file]
     if current_capital:
-         cmd += f' --current-cash {current_capital}'
-         
+        cli_args.extend(['--current-cash', str(current_capital)])
+
     if held_symbols_set:
         held_str = ",".join(held_symbols_set)
-        cmd += f' --held-symbols {held_str}'
+        cli_args.extend(['--held-symbols', held_str])
 
-    result = os.system(cmd)
-    if result != 0:
-        raise ValueError(f"Failed to create smart orders from {pick_input_file}.")
+    _run_cli_command(*cli_args)
     logger.info(f"Created smart orders, saved to {smart_output_file}")
 
     running_orders = {}
@@ -2565,8 +2618,8 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
     
     dates = calendar.get_trading_days_between(start_date, end_date)
     for this_date in dates:
-        # Dynamically set MAX_POSITIONS based on market regime
-        regime_data = detect_market_regime(this_date)
+        # Dynamically set MAX_POSITIONS based on market regime (memoized)
+        regime_data = _detect_market_regime_cached(this_date)
         regime = regime_data.get('regime', 'normal')
         regime_max_positions = {
             'bull': 12,

@@ -16,7 +16,6 @@ from pathlib import Path
 from typing import Dict, Any, Tuple, Optional, List
 import pandas as pd
 
-from .core.backtest import ASharesBacktestWrapper
 from .strategies.manager import StrategyManager
 from .strategies.normal import NormalMarketStrategy
 from .strategies.bull import BullMarketStrategy
@@ -24,8 +23,6 @@ from .strategies.bear import BearMarketStrategy
 from .strategies.volatile import VolatileMarketStrategy
 from .analysis.pattern_detector import ChinaMarketPatternDetector
 from .strategies.picker import ASharesStockPicker
-from .analysis.performance import PerformanceAnalyzer
-from .analysis.reporting import generate_quick_report
 from .utils.exceptions import IBacktestError
 
 from . import CONFIG_FILE, data_provider, global_cm
@@ -64,60 +61,6 @@ def create_parser() -> argparse.ArgumentParser:
 
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
 
-    # Run backtest command
-    run_parser = subparsers.add_parser('run', help='Run a backtest')
-    run_parser.add_argument(
-        '--start-date', '-s',
-        type=str,
-        help='Start date in YYYY-MM-DD format'
-    )
-    run_parser.add_argument(
-        '--end-date', '-e',
-        type=str,
-        help='End date in YYYY-MM-DD format'
-    )
-    run_parser.add_argument(
-        '--initial-cash', '-c',
-        type=float,
-        help='Initial cash amount.'
-    )
-    run_parser.add_argument(
-        '--commission',
-        type=float,
-        help='Commission rate'
-    )
-    run_parser.add_argument(
-        '--max-positions', '-p',
-        type=int,
-        help='Maximum number of positions'
-    )
-    run_parser.add_argument(
-        '--strategy',
-        type=str,
-        choices=['auto', 'simple', 'normal_market', 'bull_market', 'bear_market', 'volatile_market'],
-        help='Trading strategy to use'
-    )
-    run_parser.add_argument(
-        '--config',
-        type=str,
-        help='Path to configuration file (JSON format)'
-    )
-    run_parser.add_argument(
-        '--output-dir', '-o',
-        type=str,
-        help='Output directory for results'
-    )
-    run_parser.add_argument(
-        '--formats', '-f',
-        type=str,
-        help='Output formats: json,html,csv'
-    )
-    run_parser.add_argument(
-        '--benchmarks',
-        type=str,       # Benchmark Indexes: '000001.SH,...'
-        help='Benchmarking options'
-    )
-    
     # Config command
     config_parser = subparsers.add_parser('config', help='Manage configuration')
     config_subparsers = config_parser.add_subparsers(dest='config_action')
@@ -203,25 +146,6 @@ def create_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def validate_date_format(date_str: str) -> bool:
-    """Validate date string format."""
-    try:
-        datetime.strptime(date_str, '%Y-%m-%d')
-        return True
-    except ValueError:
-        return False
-
-
-def validate_date_range(start_date: str, end_date: str) -> bool:
-    """Validate that end_date is after start_date."""
-    try:
-        start = datetime.strptime(start_date, '%Y-%m-%d')
-        end = datetime.strptime(end_date, '%Y-%m-%d')
-        return end >= start
-    except ValueError:
-        return False
-
-
 def create_components() -> Tuple[ChinaMarketPatternDetector, ASharesStockPicker, StrategyManager]:
     """Create and initialize all backtest components."""
     logger.debug("Initializing components...")
@@ -255,208 +179,6 @@ def create_components() -> Tuple[ChinaMarketPatternDetector, ASharesStockPicker,
     logger.debug(f"✓ Stock picker configured for max {global_cm.get('stock_picker.max_pick')} stocks")
 
     return pattern_detector, stock_picker, strategy_manager
-
-def combined_args_and_config(args: argparse.Namespace) -> argparse.Namespace:
-    """Combine command line arguments and configuration settings."""
-    args.config = args.config or CONFIG_FILE
-    global_cm = ConfigManager(args.config)
-
-    date = global_cm.get('init_info.start_date', None)
-    start_date = datetime.now().strftime('%Y-01-01') if not date or 'year-01-01' in date else date
-    date = global_cm.get('init_info.end_date', None)
-    end_date = datetime.now().strftime('%Y-%m-%d') if not date or 'today' in date else date
-
-    args.start_date = args.start_date or start_date
-    args.end_date = args.end_date or end_date
-    args.initial_cash = args.initial_cash or global_cm.get('init_info.initial_cash')
-    args.commission = args.commission or global_cm.get('init_info.commission')
-    args.max_positions = args.max_positions or global_cm.get('trading_rules.position_sizing.max_positions')
-    args.strategy = args.strategy or global_cm.get('init_info.strategy')
-    args.output_dir = args.output_dir or global_cm.get('reporting.output_dir')
-    args.formats = args.formats or global_cm.get('reporting.formats')
-    args.benchmarks = args.benchmarks or global_cm.get('reporting.benchmarks')
-
-    if not validate_date_format(args.start_date):
-        raise IBacktestError(f"Invalid start date format: {args.start_date}. Use YYYY-MM-DD")
-    if not validate_date_format(args.end_date):
-        raise IBacktestError(f"Invalid end date format: {args.end_date}. Use YYYY-MM-DD")
-    if not validate_date_range(args.start_date, args.end_date):
-        raise IBacktestError("End date must be after start date")
-    return args
-
-def run_backtest(args) -> Dict[str, Any]:
-    """Run the backtest with given arguments."""
-
-    logger.debug(f"Starting backtest from {args.start_date} to {args.end_date}")
-    logger.debug(f"Initial cash: ¥{args.initial_cash:,.2f}")
-    logger.debug(f"Commission: {args.commission:.3%}")
-    logger.debug(f"Max positions: {args.max_positions}")
-    logger.debug(f"Strategy: {args.strategy}")
-
-    pattern_detector, stock_picker, strategy_manager = create_components()
-    backtest = ASharesBacktestWrapper(
-        data_provider=data_provider,
-        strategy_manager=strategy_manager,
-        pattern_detector=pattern_detector,
-        stock_picker=stock_picker
-    )
-
-    logger.debug("Running backtest...")
-
-    import time
-    start_time = time.time()
-
-    results = backtest.run_portfolio_backtest(
-        start_date=args.start_date,
-        end_date=args.end_date,
-        initial_cash=args.initial_cash,
-        commission=args.commission,
-        max_positions=args.max_positions,
-    )
-
-    backtest_time = time.time() - start_time
-    logger.debug(f"✓ Backtest completed in {backtest_time:.2f} seconds")
-
-    # Add benchmark comparison
-    logger.debug("Running benchmark comparison...")
-
-    benchmark_start = time.time()
-    try:
-        # Create performance analyzer
-        analyzer = PerformanceAnalyzer()
-
-        # Get benchmark comparison (沪深300 and 中证A500)
-        benchmark_results = analyzer.analyze_with_benchmarks(
-            results,
-            benchmarks=args.benchmarks,
-            data_provider=data_provider
-        )
-
-        # Merge benchmark results into main results
-        results['benchmark_analysis'] = benchmark_results.get('benchmark_comparisons', {})
-        results['performance_metrics'] = benchmark_results.get('performance', {})
-
-        benchmark_time = time.time() - benchmark_start
-        logger.debug(f"✓ Benchmark comparison completed in {benchmark_time:.2f} seconds")
-
-    except Exception as e:
-        benchmark_time = time.time() - benchmark_start
-        logger.warning(f"Benchmark comparison failed in {benchmark_time:.2f} seconds: {e}")
-
-    logger.debug("✓ Backtest completed successfully")
-
-    return results
-
-
-def save_results(results: Dict[str, Any], output_dir: str, formats: str):
-    """Save backtest results in specified formats."""
-    # Create output directory
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
-
-    # Parse formats
-    format_list = [f.strip().lower() for f in formats.split(',')]
-
-    logger.info(f"Saving results to {output_dir} in formats: {', '.join(format_list)}")
-
-    # Generate timestamp for unique filenames
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-
-    saved_files = {}
-
-    # Save in requested formats
-    if 'json' in format_list:
-        json_path = os.path.join(output_dir, f'backtest_results_{timestamp}.json')
-        with open(json_path, 'w', encoding='utf-8') as f:
-            json.dump(results, f, indent=2, default=str)
-        saved_files['json'] = json_path
-        logger.debug(f"✓ JSON results saved to {json_path}")
-
-    # For HTML and CSV, we need to use the reporting system
-    if 'html' in format_list or 'csv' in format_list:
-        try:
-            # Generate performance report using proper analysis
-            from .analysis.performance import PerformanceAnalyzer
-            analyzer = PerformanceAnalyzer()
-            performance_report = analyzer.analyze(results)
-
-            # Extract benchmark comparisons from results
-            benchmark_comparisons = results.get('benchmark_analysis', {})
-
-            # Generate reports using the reporting system
-            report_files = generate_quick_report(
-                performance_report,
-                benchmark_comparisons=benchmark_comparisons,
-                output_dir=output_dir,
-                formats=format_list
-            )
-
-            saved_files.update(report_files)
-
-            for fmt, path in report_files.items():
-                logger.debug(f"✓ {fmt.upper()} report saved to {path}")
-
-        except Exception as e:
-            logger.warning(f"Could not generate HTML/CSV reports: {e}")
-
-    return saved_files
-
-
-def print_summary(results: Dict[str, Any]):
-    """Print a summary of backtest results."""
-    logger.info("BACKTEST RESULTS SUMMARY")
-    logger.info("="*60)
-
-    # Basic metrics
-    initial_cash = results.get('initial_cash', 0)
-    final_value = results.get('final_portfolio_value', 0)
-    total_return = results.get('total_return', 0)
-
-    logger.info(f"Initial Cash:        ¥{initial_cash:,.2f}")
-    logger.info(f"Final Portfolio:     ¥{final_value:,.2f}")
-    logger.info(f"Total Return:        {total_return:.2%}")
-    logger.info(f"Absolute Gain/Loss:  ¥{final_value - initial_cash:,.2f}")
-
-    # Trading activity
-    compliance = results.get('ashares_compliance', {})
-    total_trades = compliance.get('total_trades', 0)
-    compliance_rate = compliance.get('compliance_rate', 1.0)
-
-    logger.info("Trading Activity:")
-    logger.info(f"Total Trades:        {total_trades}")
-    logger.info(f"A-shares Compliance: {compliance_rate:.1%}")
-
-    if compliance.get('t_plus_one_violations', 0) > 0:
-        logger.info(f"T+1 Violations:      {compliance['t_plus_one_violations']}")
-
-    if compliance.get('short_selling_violations', 0) > 0:
-        logger.info(f"Short Sell Attempts: {compliance['short_selling_violations']}")
-
-    # Benchmark comparison
-    benchmark_analysis = results.get('benchmark_analysis', {})
-    if benchmark_analysis:
-        logger.info("Benchmark Comparison:")
-        for benchmark_name, comparison in benchmark_analysis.items():
-            if hasattr(comparison, 'benchmark_name'):
-                logger.info(f"{comparison.benchmark_name}:")
-                logger.info(f"  Strategy Return:   {comparison.strategy_total_return:.2%}")
-                logger.info(f"  Benchmark Return:  {comparison.benchmark_total_return:.2%}")
-                logger.info(f"  Excess Return:     {comparison.excess_return:.2%}")
-                logger.info(f"  Correlation:       {comparison.correlation:.3f}")
-                logger.info(f"  Beta:              {comparison.beta:.2f}")
-                logger.info(f"  Alpha:             {comparison.alpha:.2%}")
-            else:
-                logger.info(f"{benchmark_name}: Comparison data unavailable")
-
-    # Period information
-    start_date = results.get('start_date', 'N/A')
-    end_date = results.get('end_date', 'N/A')
-    trading_days = len(results.get('trading_dates', []))
-
-    logger.info("Period Information:")
-    logger.info(f"Start Date:          {start_date}")
-    logger.info(f"End Date:            {end_date}")
-    logger.info(f"Trading Days:        {trading_days}")
-
 
 def create_default_config(output_path: str):
     """Create a default configuration file."""
@@ -1088,18 +810,7 @@ def main():
         return
 
     try:
-        if args.command == 'run':
-            args = combined_args_and_config(args)
-            results = run_backtest(args)
-
-            save_results(
-                results,
-                args.output_dir,
-                args.formats,
-            )
-            print_summary(results)
-
-        elif args.command == 'pick':
+        if args.command == 'pick':
             # Pick top 10 stocks for next trading date
             pick_next_trading_date_stocks(
                 config_path=args.config if hasattr(args, 'config') else None,

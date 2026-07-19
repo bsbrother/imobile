@@ -1,41 +1,19 @@
 """
-Backtest Trading Script on A-Shares Market with T+1 Compliance,
-pick stocks from strong sectors, create smart orders, execute orders, and generate reports.
+iMobile Backtest Engine — A-Shares backtest with T+1 compliance.
 
-Architecture Flow:
-pick_orders_trading()
-├── pick_stocks_to_file()                    # Pick stocks from hot sectors
-├── create_smart_orders_from_picks()         # Create/adjust smart orders
-│   ├── Add new orders
-│   ├── Adjust existing orders
-│   └── Force-sell: expires orders when this_date >= valid_until
-├── OrderAnalyzer.generate_daily_report()
-│   └── check_order_execution()              # Execute buy/sell based on triggers
-│       ├── execute_buy_order()              # Write to DB
-│       └── execute_sell_order()             # Write to DB
-└── OrderAnalyzer.generate_period_report()   # READ ONLY - no trading
-    ├── Read from transactions table
-    ├── Read from holding_stocks table
-    └── Calculate P&L
+Orchestrates: stock picking → smart orders → order execution → daily/period reports.
 
 Usage:
-python this_script [start_date end_date [src [user_id [backtest_search backtest_ai]]]]
-  start_date      -- Start date in YYYYMMDD format (default: today)
-  end_date        -- End date in YYYYMMDD format (default: today)
-  src             -- Strategy: ts_auto, ts_7AZ, ts_6Factors, ts_daily, ts_ai_pick, ts_longup, ts_hma, ts_dc, ts_go (default: ts_auto)
-  user_id         -- User ID for trading account (default: 1)
-  backtest_search -- Enable search providers: true/false/1/0/yes/no (default: true)
-  backtest_ai     -- Enable AI analysis: true/false/1/0/yes/no (default: true)
+  python backtest/engine.py <start_date> <end_date> [src] [user_id] [backtest_search] [backtest_ai]
+
+  src     — Strategy: ts_7AZ (default), ts_auto, ts_6Factors, ts_daily, ts_ai_pick,
+            ts_longup, ts_hma, ts_dc, ts_go, ts_ao_er, ts_multi_factors
+  resume  — Use as last positional arg to skip already-processed dates
 
 Examples:
   python backtest/engine.py 20250101 20250331
-  python backtest/engine.py 20250101 20250331 ts_auto
-  python backtest/engine.py 20250101 20250331 ts_auto 1 true true
-  python backtest/engine.py 20250101 20250331 ts_daily 1 false true
-  python backtest/engine.py 20250101 20250331 ts_daily 1 false false
-
-TODO
-- Monitor execution performance
+  python backtest/engine.py 20250101 20250331 ts_7AZ
+  python backtest/engine.py 20250101 20250331 ts_auto 1 false false
 """
 
 import os
@@ -63,8 +41,6 @@ from backtest.utils.config import ConfigManager
 from backtest.utils.util import convert_to_datetime
 from backtest.utils.market_regime import detect_market_regime
 from backtest.utils.trailing_stop import calculate_trailing_stop
-# Add the parent directory to Python path so we can import from utils
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from shared.db.db import DBTEST as DB
 
 load_dotenv()

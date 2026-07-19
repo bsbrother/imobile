@@ -21,74 +21,79 @@ def detect_market_regime(date: str, index_code: str = '000001.SH') -> Dict[str, 
     Returns:
         Dict containing 'regime' and configuration parameters
     """
-    try:
-        # Get 60 trading days of index data
-        date = date.replace('-', '')
-        start_date = get_trading_days_before(date, 60) # not 59, maybe date is not trading date.
-        df = data_provider.get_index_data(index_code, start_date, date)
+    import os
+    switch_fast_regime = os.getenv('SWITCH_INDEX_COMBINE_MA', 'false').lower() in ('true', '1', 'yes')
+    if switch_fast_regime and index_code == '000001.SH':
+        index_code = '000905.SH'  # Switch to CSI500
 
-        if df is None or df.empty or len(df) < 60:
-            logger.info("Insufficient data for regime detection, retrying after cache clear")
-            num = CACHE.clear_cache(pattern=f'index_data_{index_code}_*')
-            logger.info(f'clear cache index_data {num}')
-            df = data_provider.get_index_data(index_code, start_date, date)
-        if df is None or df.empty or len(df) < 60:
-            logger.warning("Insufficient data for regime detection, defaulting to 'normal'")
-            regime = 'normal'
-        else:
-            # Calculate indicators
-            close = df['close'].astype(float)
+    # Get 120 trading days of index data (approx 6 months)
+    date = date.replace('-', '')
+    start_date = get_trading_days_before(date, 120) 
+    df = data_provider.get_index_data(index_code, start_date, date)
 
-            ma20 = close.rolling(20).mean().iloc[-1]
-            ma60 = close.rolling(60).mean().iloc[-1]
-            current_price = close.iloc[-1]
+    if df is None or df.empty or len(df) < 30:
+        error_msg = f"Insufficient data for regime detection (got {len(df) if df is not None else 0} records, need at least 30). Index: {index_code}"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+    else:
+        # Calculate indicators
+        close = df['close'].astype(float)
 
-            # Calculate volatility (annualized)
-            returns = close.pct_change()
-            volatility = returns.std() * 100  # Daily volatility as percentage
+        ma20 = close.rolling(20, min_periods=10).mean().iloc[-1]
+        ma60 = close.rolling(60, min_periods=30).mean().iloc[-1]
+        ma120 = close.rolling(120, min_periods=60).mean().iloc[-1]
+        current_price = close.iloc[-1]
 
-            # Calculate trend strength
-            trend_20d = (current_price - ma20) / ma20 * 100
-            trend_60d = (current_price - ma60) / ma60 * 100
+        # Calculate volatility (annualized)
+        returns = close.pct_change()
+        volatility = returns.std() * 100  # Daily volatility as percentage
 
-            # Regime classification
-            logger.debug(f"Regime indicators - Price: {current_price:.2f}, MA20: {ma20:.2f}, "
-                        f"MA60: {ma60:.2f}, Vol: {volatility:.2f}%, "
-                        f"Trend20d: {trend_20d:.2f}%, Trend60d: {trend_60d:.2f}%")
+        # Calculate trend strength
+        trend_20d = (current_price - ma20) / ma20 * 100
+        trend_60d = (current_price - ma60) / ma60 * 100
+        trend_120d = (current_price - ma120) / ma120 * 100
 
-            # Bull market: Strong uptrend, low volatility
-            if current_price > ma20 > ma60 and trend_20d > 3 and volatility < 2.0:
+        # Regime classification
+        logger.debug(f"Regime indicators - Price: {current_price:.2f}, MA20: {ma20:.2f}, MA60: {ma60:.2f}, "
+                    f"MA120: {ma120:.2f}, Vol: {volatility:.2f}%, "
+                    f"Trend20d: {trend_20d:.2f}%, Trend60d: {trend_60d:.2f}%, Trend120d: {trend_120d:.2f}%")
+
+        if switch_fast_regime:
+            # Bull market: Strong uptrend, low volatility, price above MA20
+            if current_price > ma20 and current_price > ma60 > ma120 and volatility < 2.0:
                 regime = 'bull'
-
-            # Bear market: Downtrend
-            elif current_price < ma20 < ma60 and trend_20d < -3:
+            # Fast Bear Market / Correction: Price breaks below the 20-day MA
+            elif current_price < ma20 and (current_price < ma60 or trend_60d < 0):
                 regime = 'bear'
-
             # Volatile market: High volatility regardless of trend
             elif volatility > 3.0:
                 regime = 'volatile'
-
+            # Normal market: Default
+            else:
+                regime = 'normal'
+        else:
+            # Bull market: Strong uptrend, low volatility
+            if current_price > ma60 > ma120 and trend_60d > 0 and volatility < 2.0:
+                regime = 'bull'
+            # Bear market: Downtrend
+            elif current_price < ma60 < ma120 and trend_60d < 0:
+                regime = 'bear'
+            # Volatile market: High volatility regardless of trend
+            elif volatility > 3.0:
+                regime = 'volatile'
             # Normal market: Default
             else:
                 regime = 'normal'
 
-        # Get config for this regime
-        config = get_regime_config(regime, global_cm)
+    # Get config for this regime
+    config = get_regime_config(regime, global_cm)
 
-        # Merge regime name into config
-        result = config.copy()
-        result['regime'] = regime
+    # Merge regime name into config
+    result = config.copy()
+    result['regime'] = regime
 
-        logger.info(f"Market regime detected: {regime.upper()}")
-        return result
-
-    except Exception as e:
-        logger.error(f"Error detecting market regime: {e}, defaulting to 'normal'")
-        regime = 'normal'
-        config = get_regime_config(regime, global_cm)
-        result = config.copy()
-        result['regime'] = regime
-        return result
+    logger.info(f"Market regime detected: {regime.upper()}")
+    return result
 
 
 def get_regime_config(regime: MarketRegime, config_manager) -> dict:
@@ -99,9 +104,10 @@ def get_regime_config(regime: MarketRegime, config_manager) -> dict:
         regime: Market regime
         config_manager: ConfigManager instance
 
-    Returns:
-        Dict with regime-specific parameters
+    Environment overrides (set in .env for easy SL testing):
+        SL_BULL, SL_NORMAL, SL_VOLATILE, SL_BEAR
     """
+    import os as _os
     config_path = f'trading_rules.risk_reward_ratios.{regime}_market'
     config = config_manager.get(config_path, {})
 
@@ -115,4 +121,37 @@ def get_regime_config(regime: MarketRegime, config_manager) -> dict:
             'min_hold_days': 2
         }
 
+    # Override stop_loss_pct from env var if set (for easy SL testing)
+    _sl_env = _os.getenv(f'SL_{regime.upper()}')
+    if _sl_env is not None:
+        try:
+            _sl_val = float(_sl_env)
+            logger.info(f"SL_{regime.upper()}={_sl_val:.1%} (from .env, overriding config)")
+            config['stop_loss_pct'] = _sl_val
+        except ValueError:
+            logger.warning(f"Invalid SL_{regime.upper()}={_sl_env}, using config value")
+
+    # Disable SL entirely (only MAX_HOLD + TP exits)
+    if _os.getenv('SL_ENABLED', 'true').lower() in ('false', '0', 'no'):
+        config['stop_loss_pct'] = 0.99  # SL = 1% of buy price — never triggers
+        logger.info(f"SL_{regime.upper()}=DISABLED (SL_ENABLED=false, MAX_HOLD only)")
+
+    # Apply hold days multiplier from env
+    _hold_mult = _os.getenv('HOLD_DAYS_MULT')
+    if _hold_mult is not None:
+        try:
+            _mult = float(_hold_mult)
+            _orig = config.get('max_hold_days', 7)
+            config['max_hold_days'] = max(1, int(_orig * _mult))
+            if _mult != 1.0:
+                logger.info(f"HOLD_DAYS_MULT={_mult}: {regime} max_hold {_orig} → {config['max_hold_days']}d")
+        except ValueError:
+            pass
+
+    # Add late_trend_filter config
+    filter_path = f'trading_rules.late_trend_filter.{regime}_market'
+    filter_config = config_manager.get(filter_path, {})
+    if filter_config:
+        config['late_trend_filter'] = filter_config
+    
     return config

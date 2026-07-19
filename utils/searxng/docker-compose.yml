@@ -1,0 +1,18 @@
+services:
+  searxng:
+    image: searxng/searxng:latest
+    container_name: searxng
+    # Connect to the same Docker network as our app container
+    # so it can use the VPN proxy at 172.21.0.12:8118
+    networks:
+      - searxng_net
+    volumes:
+      - ./settings.yml:/etc/searxng/settings.yml
+    environment:
+      - SEARXNG_SETTINGS_PATH=/etc/searxng/settings.yml
+    restart: unless-stopped
+
+networks:
+  searxng_net:
+    external: true
+    name: kasm_default_network

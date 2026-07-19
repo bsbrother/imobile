@@ -1,12 +1,9 @@
 """
-ibacktest - China A-shares Backtesting Framework
+iMobile Backtest — A-Shares backtesting framework with T+1 compliance.
 
-A specialized backtesting system designed for China A-shares market with T+1 trading rules,
-no short-selling constraints, and integrated Tushare data provider.
+Module-level configuration and lazy singletons for data provider,
+trading calendar, and basic info cache.
 """
-
-__version__ = "0.1.0"
-__author__ = "ibacktest"
 
 import os
 from loguru import logger
@@ -17,16 +14,7 @@ from .utils.logging_config import configure_logger
 
 if not os.path.exists('.env'):
     raise FileNotFoundError("Error: .env file not found. Please create it in the home directory.")
-load_dotenv('.env', verbose=True, override=True)
-
-"""Module-level configuration and lazy singletons.
-
-Import order is important to avoid circular import issues. We intentionally
-delay importing heavy submodules (like data provider) until after all
-configuration constants are defined so that utility modules importing these
-constants during their own import phase don't trigger circular attribute
-lookup failures ("partially initialized module").
-"""
+load_dotenv('.env', verbose=False, override=False)
 
 # Log level
 LOG_LEVEL = os.getenv("LOG_LEVEL", default="DEBUG")
@@ -35,6 +23,11 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", default="DEBUG")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", default=None)
 TUSHARE_TOKEN = os.getenv("TUSHARE_TOKEN", default=None)
 
+# AI provider selection
+AI_PROVIDER = os.getenv("AI_PROVIDER", "openrouter").lower()
+if AI_PROVIDER == "google" and not GOOGLE_API_KEY:
+    raise ValueError("Error: GOOGLE_API_KEY not found. Please set it in your .env file for Google AI provider.")
+
 # Paths / Files
 CONFIG_FILE = os.getenv("CONFIG_FILE", default="/tmp/ibacktest.json")
 LOG_PATH = os.getenv("LOG_PATH", default="/tmp/ibacktest_logs")  # treat as directory
@@ -42,12 +35,7 @@ CACHE_PATH = os.getenv("CACHE_PATH", default="/tmp/ibacktest_cache")
 CAL_PICKLE_FILE = os.path.expanduser(os.getenv("CAL_PICKLE_FILE", default="/tmp/cal.pkl"))
 BASIC_INFO_PICKLE_FILE = os.path.expanduser(os.getenv("BASIC_INFO_PICKLE_FILE", default="/tmp/basic_info.pkl"))
 DB_CACHE_FILE = os.getenv("DB_CACHE_FILE", default="/tmp/ibacktest_cache.db")
-DB_CACHE_FILE = os.getenv("DB_CACHE_FILE", default="/tmp/ibacktest_cache.db")
 WORKING_PROXY_FILE = os.path.expanduser(os.getenv("WORKING_PROXY_FILE", default="/tmp/working_proxies.txt"))
-
-# AI provider
-if not GOOGLE_API_KEY:
-    raise ValueError("Error: GOOGLE_API_KEY not found. Please set it in your .env file.")
 
 # Logging setup using centralized configuration
 configure_logger(log_level=LOG_LEVEL, log_path=LOG_PATH)
@@ -71,12 +59,7 @@ elif provider == 'tdx':
 else:
     raise ValueError(f"Unsupported data provider: {provider}. Supported providers: tushare, akshare.")
 
-# NOTE:
-# Importing ibacktest.utils.trading_calendar at package import time caused a RuntimeWarning
-# when executing `python -m ibacktest.utils.trading_calendar` because runpy first imports the
-# package (executing this file) which re-imported the target module before runpy executed it.
-# To eliminate that warning and reduce import side-effects, we lazily initialize the calendar.
-
+# Lazy calendar init to avoid runpy double-import warning
 _calendar_instance = None
 
 def get_calendar():

@@ -4,7 +4,6 @@ Bull market strategy implementation.
 
 from typing import Dict, Any
 import pandas as pd
-import numpy as np
 from ..core.strategy import ASharesStrategy
 from ..analysis.indicators import TechnicalIndicators
 
@@ -78,8 +77,8 @@ class BullMarketStrategy(ASharesStrategy):
             # Get current values
             current_idx = len(data) - 1
             close_prices = data['Close'] if 'Close' in data.columns else data.iloc[:, 3]
-            high_prices = data['High'] if 'High' in data.columns else data.iloc[:, 1]
-            low_prices = data['Low'] if 'Low' in data.columns else data.iloc[:, 2]
+            data['High'] if 'High' in data.columns else data.iloc[:, 1]
+            data['Low'] if 'Low' in data.columns else data.iloc[:, 2]
             volume = data['Volume'] if 'Volume' in data.columns else None
             
             # Calculate indicators
@@ -93,7 +92,7 @@ class BullMarketStrategy(ASharesStrategy):
             # Get current and previous values
             current_rsi = rsi.iloc[current_idx] if not pd.isna(rsi.iloc[current_idx]) else 50
             current_price = close_prices.iloc[current_idx]
-            current_bb_lower = bb_lower.iloc[current_idx] if not pd.isna(bb_lower.iloc[current_idx]) else current_price
+            bb_lower.iloc[current_idx] if not pd.isna(bb_lower.iloc[current_idx]) else current_price
             current_macd = macd_line.iloc[current_idx] if not pd.isna(macd_line.iloc[current_idx]) else 0
             current_macd_signal = macd_signal.iloc[current_idx] if not pd.isna(macd_signal.iloc[current_idx]) else 0
             prev_macd = macd_line.iloc[current_idx-1] if current_idx > 0 and not pd.isna(macd_line.iloc[current_idx-1]) else 0
@@ -160,7 +159,7 @@ class BullMarketStrategy(ASharesStrategy):
             # Bull market - more aggressive entry (need fewer signals)
             return len(buy_signals) >= 1 and has_trend
             
-        except Exception as e:
+        except Exception:
             # Return False if any calculation fails
             return False
     
@@ -252,6 +251,6 @@ class BullMarketStrategy(ASharesStrategy):
             
             return len(sell_signals) >= 2 or has_strong_signal
             
-        except Exception as e:
+        except Exception:
             # Return False if any calculation fails
             return False

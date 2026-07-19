@@ -1,8 +1,11 @@
 
+import pytest
 import tushare as ts
 import os
 from dotenv import load_dotenv
-import pandas as pd
+
+pytestmark = pytest.mark.integration
+
 
 load_dotenv()
 

@@ -4,7 +4,6 @@ Bear market strategy implementation.
 
 from typing import Dict, Any
 import pandas as pd
-import numpy as np
 from ..core.strategy import ASharesStrategy
 from ..analysis.indicators import TechnicalIndicators
 
@@ -82,7 +81,7 @@ class BearMarketStrategy(ASharesStrategy):
             # Get current values
             current_idx = len(data) - 1
             close_prices = data['Close'] if 'Close' in data.columns else data.iloc[:, 3]
-            high_prices = data['High'] if 'High' in data.columns else data.iloc[:, 1]
+            data['High'] if 'High' in data.columns else data.iloc[:, 1]
             low_prices = data['Low'] if 'Low' in data.columns else data.iloc[:, 2]
             volume = data['Volume'] if 'Volume' in data.columns else None
             
@@ -97,13 +96,13 @@ class BearMarketStrategy(ASharesStrategy):
             current_rsi = rsi.iloc[current_idx] if not pd.isna(rsi.iloc[current_idx]) else 50
             current_price = close_prices.iloc[current_idx]
             current_bb_lower = bb_lower.iloc[current_idx] if not pd.isna(bb_lower.iloc[current_idx]) else current_price
-            current_bb_middle = bb_middle.iloc[current_idx] if not pd.isna(bb_middle.iloc[current_idx]) else current_price
+            bb_middle.iloc[current_idx] if not pd.isna(bb_middle.iloc[current_idx]) else current_price
             current_macd = macd_line.iloc[current_idx] if not pd.isna(macd_line.iloc[current_idx]) else 0
             current_macd_signal = macd_signal.iloc[current_idx] if not pd.isna(macd_signal.iloc[current_idx]) else 0
             prev_macd = macd_line.iloc[current_idx-1] if current_idx > 0 and not pd.isna(macd_line.iloc[current_idx-1]) else 0
             prev_macd_signal = macd_signal.iloc[current_idx-1] if current_idx > 0 and not pd.isna(macd_signal.iloc[current_idx-1]) else 0
-            current_ma20 = ma_20.iloc[current_idx] if not pd.isna(ma_20.iloc[current_idx]) else current_price
-            current_ma50 = ma_50.iloc[current_idx] if not pd.isna(ma_50.iloc[current_idx]) else current_price
+            ma_20.iloc[current_idx] if not pd.isna(ma_20.iloc[current_idx]) else current_price
+            ma_50.iloc[current_idx] if not pd.isna(ma_50.iloc[current_idx]) else current_price
             
             buy_config = self.strategy_config.config.get('buy_signals', {})
             
@@ -164,13 +163,11 @@ class BearMarketStrategy(ASharesStrategy):
             # Bear market requires many confirmation signals
             # Need at least 4 signals including oversold and volume confirmation
             has_oversold = 'rsi_extremely_oversold' in buy_signals or 'bb_oversold' in buy_signals
-            has_volume = 'high_volume' in buy_signals
-            has_bounce = 'bounce_confirmation' in buy_signals
             
             # Bear market - very selective but not impossible (need strong oversold signal)
             return len(buy_signals) >= 2 and has_oversold
             
-        except Exception as e:
+        except Exception:
             # Return False if any calculation fails
             return False
     
@@ -277,6 +274,6 @@ class BearMarketStrategy(ASharesStrategy):
             
             return len(sell_signals) >= 1 or has_profit_signal or has_strong_signal
             
-        except Exception as e:
+        except Exception:
             # Return False if any calculation fails
             return False

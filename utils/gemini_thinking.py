@@ -1,16 +1,21 @@
 """
-Google Gemini with Thinking Mode Support for DroidRun
+Google Gemini with Thinking Mode Support for DroidRun.
 Provides GoogleGenAI configuration with native thinking mode support.
+Uses free tier API key (GEMINI_API_KEY) by default.
 """
 
 import logging
 import os
 from typing import Optional
 
-from google.genai import types
 from llama_index.llms.google_genai import GoogleGenAI
 
 logger = logging.getLogger("droidrun")
+
+# ── Free Gemini API (gemini-3.1-flash-lite) ──
+# Get API key from .env: GEMINI_API_KEY=***
+# https://aistudio.google.com/app/apikey
+# Paid models (commented): gemini-2.5-flash, gemini-2.5-pro, gpt-4o
 
 
 def create_gemini_with_thinking(
@@ -20,67 +25,97 @@ def create_gemini_with_thinking(
     **kwargs
 ) -> GoogleGenAI:
     """
-    Create GoogleGenAI with native thinking mode support
+    Create GoogleGenAI instance for DroidRun MobileAgent.
+    Default: gemini-2.5-flash (free tier, vision-enabled).
 
     Args:
         thinking_budget: Budget for thinking tokens (-1 = unlimited, 0 = disabled)
         model: Gemini model to use
-        api_key: Google API key (uses env var if not provided)
+        api_key: Google API key (uses GOOGLE_API_KEY env var if not provided)
         **kwargs: Additional arguments passed to GoogleGenAI
 
     Returns:
-        Configured GoogleGenAI instance with thinking mode
+        Configured GoogleGenAI instance
     """
-    # Get API key from environment if not provided
     if api_key is None:
-        api_key = os.getenv('GOOGLE_API_KEY')
+        api_key = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
 
-    # Configure thinking mode
-    thinking_config = types.ThinkingConfig(thinking_budget=thinking_budget)
-
-    # Configure generation with thinking mode
-    generation_config = types.GenerateContentConfig(
-        thinking_config=thinking_config
-    )
-
-    # Create and return GoogleGenAI instance with thinking configuration
+    # Free tier model: gemini-3.1-flash-lite-preview supports llama_index GoogleGenAI
+    # The thinking_config causes 405 on free tier — skip it
     return GoogleGenAI(
         model=model,
         api_key=api_key,
-        generation_config=generation_config,
         **kwargs
     )
 
-if __name__ == "__main__":
-    import os
-    import dotenv
-    dotenv.load_dotenv(os.path.expanduser('.env'), verbose=True)
-    GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY', 'gemini-2.5-flash')
-    GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
-    GEMINI_THINKING_BUDGET = os.getenv('GEMINI_THINKING_BUDGET', '-1')
 
-    prompt = "What is 2 + 2? Please think through this step by step."
-    print('Prompt: ', prompt )
-    llm = create_gemini_with_thinking(
-        api_key=GOOGLE_API_KEY,
-        model=GEMINI_MODEL,
-        thinking_budget=int(GEMINI_THINKING_BUDGET),
-        temperature=0.1
-    )
-    response = llm.complete(prompt)
-    print(f"Response: {response}")
+def analyze_stock_with_gemini(
+    stock_info: dict,
+    news_context: str,
+    model_name: str = "gemini-3.1-flash-lite",
+    market_regime: str = "normal",
+    hot_sectors: str = ""
+) -> dict:
+    """
+    Stock analysis using free Gemini API for backtest AI strategies.
+    Used by ts_ai_pick.py and ts_daily.py.
+    """
+    import json
+    from google import genai
+    from google.genai import types as genai_types
 
-    # Test model vision capabilities by input a simple image URL
-    vision_prompt = ("Analyze the image at this URL and describe its contents in detail: "
-                     "https://www.gstatic.com/webp/gallery/1.jpg")
-    print('Vision Prompt: ', vision_prompt )
-    llm_vision = create_gemini_with_thinking(
-        api_key=GOOGLE_API_KEY,
-        model='gemini-2.5-flash',
-        thinking_budget=0,
-        temperature=0.1,
-        vision=True,         # Set to True for vision models, False for text-only
-        reflection=True,     # Enable reflection for vision tasks
+    api_key = os.getenv('GEMINI_API_KEY')
+    if not api_key:
+        raise ValueError("GEMINI_API_KEY not found in environment variables.")
+
+    client = genai.Client(api_key=api_key)
+
+    regime_warning = ""
+    if market_regime == 'bear':
+        regime_warning = "⚠️ 熊市环境 - 保守评估，只推荐防御型股票"
+    elif market_regime == 'volatile':
+        regime_warning = "震荡市 - 控制仓位，避免追涨杀跌"
+
+    hot_sector_section = f"{hot_sectors}\n股票所属行业与热门板块相关则加分" if hot_sectors else ""
+
+    prompt = f"""你是一个专业的A股短期动量交易分析师。请分析以下股票并给出评分和建议。
+{regime_warning}
+{hot_sector_section}
+
+## 股票信息
+- 代码: {stock_info.get('ts_code', 'N/A')}
+- 名称: {stock_info.get('name', 'N/A')}
+- 当前价格: {stock_info.get('close', 'N/A')}
+- 涨跌幅: {stock_info.get('pct_chg', 'N/A')}%
+
+## 最新消息
+{news_context}
+
+## 输出格式 (严格JSON，不要有其他内容)
+```json
+{{"score": <0-100整数>, "recommendation": "<买入|观望|卖出>", "summary": "<一句话结论>"}}
+```"""
+
+    response = client.models.generate_content(
+        model=model_name,
+        contents=prompt,
+        config=genai_types.GenerateContentConfig(temperature=0.0, max_output_tokens=1024)
     )
-    vision_response = llm_vision.complete(vision_prompt)
-    print(f"Vision Response: {vision_response}")
+
+    response_text = response.text
+    if "```json" in response_text:
+        json_str = response_text.split("```json")[1].split("```")[0].strip()
+    elif "```" in response_text:
+        json_str = response_text.split("```")[1].split("```")[0].strip()
+    else:
+        json_str = response_text.strip()
+
+    try:
+        result = json.loads(json_str)
+        score = max(0, min(100, int(result.get("score", 50))))
+        rec = result.get("recommendation", "观望")
+        if rec not in ["买入", "观望", "卖出"]:
+            rec = "观望"
+        return {"score": score, "recommendation": rec, "summary": str(result.get("summary", ""))[:100]}
+    except Exception:
+        return {"score": 50, "recommendation": "观望", "summary": "解析失败"}

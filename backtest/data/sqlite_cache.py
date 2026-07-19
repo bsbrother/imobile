@@ -6,11 +6,25 @@ from loguru import logger
 import sqlite3
 import time
 import pickle
+import zlib
 import fnmatch
 from typing import Optional, Dict, Any, List, Tuple
 import pandas as pd
 from datetime import datetime
 from tqdm import tqdm
+
+# Magic prefix to identify compressed blobs (backward-compatible with uncompressed)
+_ZLIB_MAGIC = b'ZL\1'
+
+def _compress_blob(data: bytes) -> bytes:
+    """Compress a pickle blob with zlib, prefixing a magic marker."""
+    return _ZLIB_MAGIC + zlib.compress(data, level=1)
+
+def _decompress_blob(data: bytes) -> bytes:
+    """Decompress a blob if it has the zlib magic prefix, else return as-is."""
+    if data.startswith(_ZLIB_MAGIC):
+        return zlib.decompress(data[len(_ZLIB_MAGIC):])
+    return data
 
 from ..utils.exceptions import DataProviderError
 from ..utils.util import convert_trade_date, dfs_concat
@@ -152,7 +166,7 @@ class SQLiteDataCache:
 
                     if result:
                         data_blob = result[0]
-                        df = pickle.loads(data_blob)
+                        df = pickle.loads(_decompress_blob(data_blob))
                         logger.debug(f"Daily cache hit: {key}")
                         return df
 
@@ -176,15 +190,17 @@ class SQLiteDataCache:
 
                         if result:
                             data_blob = result[0]
-                            df = pickle.loads(data_blob)
+                            df = pickle.loads(_decompress_blob(data_blob))
                             daily_dfs.append(df)
 
-                # Return combined data if we have records
-                if daily_dfs:
+                # Verify we have all required trading days
+                if daily_dfs and len(daily_dfs) >= len(trade_dates) * 0.90:  # Allow 10% margin for missing APIs/holidays
                     combined_df = dfs_concat(daily_dfs, ignore_index=True)
                     combined_df = combined_df.sort_values('trade_date').reset_index(drop=True)
                     logger.debug(f"Built from daily cache: {key} ({len(daily_dfs)} days)")
                     return combined_df
+                elif daily_dfs:
+                    logger.debug(f"Partial cache hit for {key} (found {len(daily_dfs)}, expected {len(trade_dates)}). Forcing cache miss.")
 
             logger.debug(f"Cache miss: {key}")
             return None
@@ -216,7 +232,7 @@ class SQLiteDataCache:
                     for _, row in data.iterrows():
                         trade_date = str(row['trade_date'])
                         row_df = pd.DataFrame([row])
-                        data_blob = pickle.dumps(row_df)
+                        data_blob = _compress_blob(pickle.dumps(row_df))
 
                         try:
                             # Check if record exists
@@ -575,3 +591,46 @@ class SQLiteDataCache:
         # Show final cache statistics
         stats = self.get_cache_stats()
         logger.info(f"Final cache stats: {stats['total_entries']} entries, {stats['unique_symbols']} symbols, {stats['db_size_mb']} MB")
+
+    def invalidate_recent(self, data_type: str = 'ohlcv_data', days: int = 3):
+        """Remove cached data for the most recent N trading days.
+        
+        Use before pre-market or backtest to ensure fresh OHLCV data.
+        Only drops ohlcv_data by default; trading calendar and basic info
+        caches (pickle files) are not affected.
+        
+        Args:
+            data_type: Type of data to invalidate (default 'ohlcv_data')
+            days: Number of most recent trading days to purge
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                # Get the N most recent distinct trade_dates
+                cursor.execute(
+                    """SELECT DISTINCT trade_date FROM daily_data
+                       WHERE data_type = ?
+                       ORDER BY trade_date DESC LIMIT ?""",
+                    (data_type, days)
+                )
+                recent_dates = [row[0] for row in cursor.fetchall()]
+                if not recent_dates:
+                    logger.info(f"No recent {data_type} entries to invalidate.")
+                    return 0
+                
+                placeholders = ','.join(['?'] * len(recent_dates))
+                cursor.execute(
+                    f"""DELETE FROM daily_data
+                        WHERE data_type = ? AND trade_date IN ({placeholders})""",
+                    [data_type] + recent_dates
+                )
+                deleted = cursor.rowcount
+                conn.commit()
+                logger.info(
+                    f"Invalidated {deleted} {data_type} cache entries "
+                    f"for {len(recent_dates)} recent trading dates: {recent_dates}"
+                )
+                return deleted
+        except Exception as e:
+            logger.error(f"Failed to invalidate recent cache: {e}")
+            return 0

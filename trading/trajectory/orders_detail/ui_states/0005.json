@@ -1,0 +1,416 @@
+[
+  {
+    "index": 1,
+    "resourceId": "",
+    "className": "FrameLayout",
+    "checkedState": "",
+    "text": "android.widget.FrameLayout",
+    "bounds": "0,0,1440,3120",
+    "children": []
+  },
+  {
+    "index": 2,
+    "resourceId": "",
+    "className": "WebView",
+    "checkedState": "",
+    "text": "android.webkit.WebView",
+    "bounds": "0,77,1440,2966",
+    "children": []
+  },
+  {
+    "index": 3,
+    "resourceId": "",
+    "className": "WebView",
+    "checkedState": "",
+    "text": "jh-trade-new-smart-order",
+    "bounds": "0,77,1440,2967",
+    "children": []
+  },
+  {
+    "index": 4,
+    "resourceId": "app",
+    "className": "View",
+    "checkedState": "",
+    "text": "app",
+    "bounds": "0,77,1440,2967",
+    "children": []
+  },
+  {
+    "index": 5,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "0,77,1440,2967",
+    "children": []
+  },
+  {
+    "index": 6,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "0,77,1440,246",
+    "children": []
+  },
+  {
+    "index": 7,
+    "resourceId": "",
+    "className": "Button",
+    "checkedState": "",
+    "text": "关闭页面",
+    "bounds": "0,77,185,246",
+    "children": []
+  },
+  {
+    "index": 8,
+    "resourceId": "",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "智能订单",
+    "bounds": "579,118,860,205",
+    "children": []
+  },
+  {
+    "index": 9,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "1305,118,1392,205",
+    "children": []
+  },
+  {
+    "index": 10,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "为超200万名客户提供稳定服务",
+    "bounds": "54,333,1385,521",
+    "children": []
+  },
+  {
+    "index": 11,
+    "resourceId": "",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "条件下单",
+    "bounds": "240,576,425,637",
+    "children": []
+  },
+  {
+    "index": 12,
+    "resourceId": "",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "多日有效",
+    "bounds": "515,576,704,637",
+    "children": []
+  },
+  {
+    "index": 13,
+    "resourceId": "",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "智能盯盘",
+    "bounds": "790,576,979,637",
+    "children": []
+  },
+  {
+    "index": 14,
+    "resourceId": "",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "自动委托",
+    "bounds": "1068,576,1254,637",
+    "children": []
+  },
+  {
+    "index": 15,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "54,633,1385,749",
+    "children": []
+  },
+  {
+    "index": 16,
+    "resourceId": "",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "了解更多",
+    "bounds": "601,694,790,752",
+    "children": []
+  },
+  {
+    "index": 17,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "787,701,838,749",
+    "children": []
+  },
+  {
+    "index": 18,
+    "resourceId": "",
+    "className": "Button",
+    "checkedState": "",
+    "text": "新建订单",
+    "bounds": "131,822,1308,995",
+    "children": []
+  },
+  {
+    "index": 19,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "我的智能订单",
+    "bounds": "54,1181,1142,1267",
+    "children": []
+  },
+  {
+    "index": 20,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "查看详情",
+    "bounds": "1139,1200,1328,1248",
+    "children": []
+  },
+  {
+    "index": 21,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "11 笔",
+    "bounds": "307,1424,467,1529",
+    "children": []
+  },
+  {
+    "index": 22,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "今日已触发",
+    "bounds": "272,1526,505,1587",
+    "children": []
+  },
+  {
+    "index": 23,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "0 笔",
+    "bounds": "992,1424,1110,1529",
+    "children": []
+  },
+  {
+    "index": 24,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "实时运行中",
+    "bounds": "934,1526,1168,1587",
+    "children": []
+  },
+  {
+    "index": 25,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "热门智能订单",
+    "bounds": "54,1766,1385,1849",
+    "children": []
+  },
+  {
+    "index": 26,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "54,1961,496,2349",
+    "children": []
+  },
+  {
+    "index": 27,
+    "resourceId": "",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "到价买入",
+    "bounds": "156,2205,390,2275",
+    "children": []
+  },
+  {
+    "index": 28,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "54,2342,492,2349",
+    "children": []
+  },
+  {
+    "index": 29,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "102,2342,492,2349",
+    "children": []
+  },
+  {
+    "index": 30,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "492,1961,934,2349",
+    "children": []
+  },
+  {
+    "index": 31,
+    "resourceId": "",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "到价卖出",
+    "bounds": "595,2205,828,2275",
+    "children": []
+  },
+  {
+    "index": 32,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "492,2342,931,2349",
+    "children": []
+  },
+  {
+    "index": 33,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "492,2342,931,2349",
+    "children": []
+  },
+  {
+    "index": 34,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "928,1961,1372,2349",
+    "children": []
+  },
+  {
+    "index": 35,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "1193,2003,1312,2064",
+    "children": []
+  },
+  {
+    "index": 36,
+    "resourceId": "",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "止盈止损",
+    "bounds": "1033,2205,1267,2275",
+    "children": []
+  },
+  {
+    "index": 37,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "928,2342,1372,2349",
+    "children": []
+  },
+  {
+    "index": 38,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "928,2342,1324,2349",
+    "children": []
+  },
+  {
+    "index": 39,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "54,2345,496,2733",
+    "children": []
+  },
+  {
+    "index": 40,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "316,2387,435,2448",
+    "children": []
+  },
+  {
+    "index": 41,
+    "resourceId": "",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "ETF定投",
+    "bounds": "166,2589,384,2659",
+    "children": []
+  },
+  {
+    "index": 42,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "反弹买入",
+    "bounds": "492,2345,934,2733",
+    "children": []
+  },
+  {
+    "index": 43,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "928,2345,1372,2733",
+    "children": []
+  },
+  {
+    "index": 44,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "android.view.View",
+    "bounds": "1193,2387,1312,2448",
+    "children": []
+  },
+  {
+    "index": 45,
+    "resourceId": "",
+    "className": "TextView",
+    "checkedState": "",
+    "text": "网格交易",
+    "bounds": "1033,2589,1267,2659",
+    "children": []
+  },
+  {
+    "index": 46,
+    "resourceId": "",
+    "className": "View",
+    "checkedState": "",
+    "text": "全部策略",
+    "bounds": "54,2845,1385,2967",
+    "children": []
+  }
+]

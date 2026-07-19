@@ -51,8 +51,8 @@ class TushareDataProvider(DataProvider):
             raise TushareAPIError(f"Failed to initialize Tushare Pro API: {str(e)}")
 
     @retry(
-        stop=stop_after_attempt(2),
-        wait=wait_random_exponential(multiplier=0.2, min=1, max=2),
+        stop=stop_after_attempt(5),
+        wait=wait_random_exponential(multiplier=1.0, min=2, max=10),
         retry=retry_if_exception_type(Exception),
         before_sleep=before_sleep_log(tenacity_logger, logging.INFO)
     )
@@ -229,6 +229,39 @@ class TushareDataProvider(DataProvider):
         logger.debug(f"Retrieved {len(df)} basic information records")
         return df
 
+    def get_bulk_daily_by_date(self, trade_date: str) -> pd.DataFrame:
+        """Fetch daily OHLCV data for all stocks on a specific trade date."""
+        try:
+            df = self._ts_call(self.pro.daily, trade_date=trade_date)
+            return df
+        except Exception as e:
+            logger.error(f"Failed to fetch bulk daily data for {trade_date}: {e}")
+            return pd.DataFrame()
+
+    def get_bulk_ohlcv_by_date_range(self, start_date: str, end_date: str) -> Dict[str, pd.DataFrame]:
+        """Fetch daily OHLCV data for all stocks over a date range."""
+        from backtest.utils.trading_calendar import get_trading_days_between
+        trading_dates = get_trading_days_between(start_date, end_date)
+        all_data = {}
+        for d in trading_dates:
+            df = self.get_bulk_daily_by_date(d)
+            if df is not None and not df.empty:
+                for _, row in df.iterrows():
+                    ts_code = row['ts_code']
+                    if ts_code not in all_data:
+                        all_data[ts_code] = []
+                    all_data[ts_code].append(row.to_dict())
+        
+        # Convert lists of dicts to DataFrames
+        result = {}
+        for ts_code, records in all_data.items():
+            stock_df = pd.DataFrame(records).sort_values('trade_date').reset_index(drop=True)
+            # Ensure proper types
+            for col in ['open', 'high', 'low', 'close', 'vol', 'amount']:
+                if col in stock_df.columns:
+                    stock_df[col] = pd.to_numeric(stock_df[col], errors='coerce')
+            result[ts_code] = stock_df
+        return result
 
     def get_stock_data(self, symbols: Union[str, List[str]], start_date: str | None = None, end_date: str | None = None) -> pd.DataFrame:
         """
@@ -337,18 +370,7 @@ class TushareDataProvider(DataProvider):
 
     def get_index_data(self, index_code: str, start_date: str | None = None, end_date: str | None = None) -> pd.DataFrame:
         """
-        Retrieve index data for benchmarking.
-
-        Args:
-            index_code: Index code (e.g., '000300.SH' for CSI 300, '000905.SH' for CSI 500)
-            start_date: Start date in YYYYMMDD format
-            end_date: End date in YYYYMMDD format
-
-        Returns:
-            DataFrame with columns: ts_code, trade_date, open, high, low, close, vol, amount
-
-        Raises:
-            DataProviderError: If data retrieval fails
+        Retrieve index data for benchmarking. Try Tushare first, fallback to Akshare.
         """
         if not index_code:
             raise DataProviderError("No index code provided")
@@ -361,15 +383,29 @@ class TushareDataProvider(DataProvider):
             logger.debug(f"Retrieved index data from cache for {index_code}")
             return cached_data
 
-        df = self._ts_call(self.pro.index_daily, ts_code=index_code, start_date=start_date, end_date=end_date)
+        df = pd.DataFrame()
+        try:
+            # Try Tushare first (primary provider)
+            df_ts = self._ts_call(self.pro.index_daily, ts_code=index_code, start_date=start_date, end_date=end_date)
+            if not df_ts.empty:
+                df = df_ts
+        except Exception as e:
+            logger.warning(f"Tushare index fetch failed: {e}. Trying Akshare fallback...")
+
+        if df.empty or len(df) < 20:
+            try:
+                ak_provider = AkshareDataProvider()
+                df_ak = ak_provider.get_index_data(index_code, start_date, end_date)
+                if not df_ak.empty and len(df_ak) > len(df):
+                    df = df_ak
+            except Exception as e:
+                logger.warning(f"Akshare index fetch failed: {e}")
+
         if df.empty:
             raise DataProviderError(f"No index data found for {index_code} in date range {start_date}-{end_date}")
 
-        # Normalize and validate data
-        #data = self.validator.normalize_ohlcv_data(data)
-        #self.validator.validate_ohlcv_data(data)
-        #self.validator.validate_date_range(data, start_date, end_date)
-
+        # Sort and cache
+        df = df.sort_values(by='trade_date').reset_index(drop=True)
         self.cache.set(cache_key, df)
         logger.debug(f"Retrieved {len(df)} index records for {index_code}")
         return df
@@ -534,8 +570,8 @@ class AkshareDataProvider(DataProvider):
         return s
 
     @retry(
-        stop=stop_after_attempt(2),
-        wait=wait_random_exponential(multiplier=0.2, min=1, max=2),
+        stop=stop_after_attempt(5),
+        wait=wait_random_exponential(multiplier=1.0, min=2, max=10),
         retry=retry_if_exception_type(Exception),
         before_sleep=before_sleep_log(tenacity_logger, logging.INFO)
     )
@@ -913,6 +949,16 @@ class AkshareDataProvider(DataProvider):
         out['list_status'] = 'L'
         return out
 
+    def get_bulk_daily_by_date(self, trade_date: str) -> pd.DataFrame:
+        # Akshare doesn't have a direct equivalent that is easy to map to tushare format quickly, fallback to Tushare if needed, or return empty.
+        # But this is a fallback provider, so we'll just log and return empty for now.
+        logger.warning("get_bulk_daily_by_date not fully supported in AkshareDataProvider")
+        return pd.DataFrame()
+
+    def get_bulk_ohlcv_by_date_range(self, start_date: str, end_date: str) -> Dict[str, pd.DataFrame]:
+        logger.warning("get_bulk_ohlcv_by_date_range not fully supported in AkshareDataProvider")
+        return {}
+
     def get_stock_data(self, symbols: Union[str, List[str]], start_date: str | None = None, end_date: str | None = None) -> pd.DataFrame:
         if not symbols:
             raise DataProviderError("No symbol provided")
@@ -1114,8 +1160,8 @@ class TdxDataProvider(DataProvider):
             return []
 
     @retry(
-        stop=stop_after_attempt(2),
-        wait=wait_random_exponential(multiplier=0.2, min=1, max=2),
+        stop=stop_after_attempt(5),
+        wait=wait_random_exponential(multiplier=1.0, min=2, max=10),
         retry=retry_if_exception_type(Exception),
         before_sleep=before_sleep_log(tenacity_logger, logging.INFO)
     )
@@ -1598,6 +1644,14 @@ class TdxDataProvider(DataProvider):
     def get_basic_information(self, symbol: Optional[str] = None) -> pd.DataFrame:
         """Retrieve basic stock information using TDX API."""
         return AkshareDataProvider().get_basic_information(symbol)
+
+    def get_bulk_daily_by_date(self, trade_date: str) -> pd.DataFrame:
+        logger.warning("get_bulk_daily_by_date not supported in TDXDataProvider")
+        return pd.DataFrame()
+
+    def get_bulk_ohlcv_by_date_range(self, start_date: str, end_date: str) -> Dict[str, pd.DataFrame]:
+        logger.warning("get_bulk_ohlcv_by_date_range not supported in TDXDataProvider")
+        return {}
 
     def get_stock_data(self, symbols: Union[str, List[str]], start_date: str | None = None, end_date: str | None = None) -> pd.DataFrame:
         """Get stock data for single or multiple symbols."""

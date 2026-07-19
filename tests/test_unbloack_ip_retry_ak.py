@@ -27,6 +27,7 @@ real_time_data = AkshareConfig.REAL_TIME_MONITOR.get_stock_spot()
 这样的实现能够更好地处理 AKShare API 的各种异常情况，同时保持良好的性能和可维护性。
 """
 
+import pytest
 import logging
 import time
 import adata
@@ -38,6 +39,9 @@ from tenacity import (
 from typing import Optional, Callable
 
 import akshare as ak
+
+pytestmark = pytest.mark.integration
+
 
 tenacity_logger = logging.getLogger("tenacity")
 tenacity_logger.setLevel(logging.INFO)

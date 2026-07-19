@@ -1,0 +1,60 @@
+[
+  {
+    "type": "FastAgentInputEvent"
+  },
+  {
+    "type": "FastAgentResponseEvent",
+    "thought": "I see '\u4eca\u65e5\u89e6\u53d1' is available at index 66. I will tap it and then wait for 0.1 seconds as requested.",
+    "code": "<function_calls>\n<invoke name=\"click\">\n<parameter name=\"index\">66</parameter>\n</invoke>\n<invoke name=\"wait\">\n<parameter name=\"duration\">0.1</parameter>\n</invoke>\n<invoke name=\"complete\">\n<parameter name=\"success\">true</parameter>\n<parameter name=\"message\">Tapped &#x27;\u4eca\u65e5\u89e6\u53d1&#x27; and waited 0.1s.</parameter>\n</invoke>\n</function_calls>",
+    "usage": {
+      "request_tokens": 6860,
+      "response_tokens": 146,
+      "total_tokens": 7006,
+      "requests": 1
+    }
+  },
+  {
+    "type": "FastAgentToolCallEvent",
+    "tool_calls_repr": "<function_calls>\n<invoke name=\"click\">\n<parameter name=\"index\">66</parameter>\n</invoke>\n<invoke name=\"wait\">\n<parameter name=\"duration\">0.1</parameter>\n</invoke>\n<invoke name=\"complete\">\n<parameter name=\"success\">true</parameter>\n<parameter name=\"message\">Tapped &#x27;\u4eca\u65e5\u89e6\u53d1&#x27; and waited 0.1s.</parameter>\n</invoke>\n</function_calls>"
+  },
+  {
+    "type": "ToolExecutionEvent",
+    "tool_name": "click",
+    "tool_args": {
+      "index": 66
+    },
+    "success": true,
+    "summary": "Clicked on Text: '\u4eca\u65e5\u89e6\u53d1' | Class: TextView | Type: unknown | Coordinates: (745, 1835)"
+  },
+  {
+    "type": "ToolExecutionEvent",
+    "tool_name": "wait",
+    "tool_args": {
+      "duration": 0.1
+    },
+    "success": true,
+    "summary": "Waited for 0.1 seconds"
+  },
+  {
+    "type": "ToolExecutionEvent",
+    "tool_name": "complete",
+    "tool_args": {
+      "success": true,
+      "message": "Tapped '\u4eca\u65e5\u89e6\u53d1' and waited 0.1s."
+    },
+    "success": true,
+    "summary": "Tapped '\u4eca\u65e5\u89e6\u53d1' and waited 0.1s."
+  },
+  {
+    "type": "FastAgentEndEvent",
+    "success": true,
+    "reason": "Tapped '\u4eca\u65e5\u89e6\u53d1' and waited 0.1s.",
+    "tool_call_count": 3
+  },
+  {
+    "type": "FastAgentEndEvent",
+    "success": true,
+    "reason": "Tapped '\u4eca\u65e5\u89e6\u53d1' and waited 0.1s.",
+    "tool_call_count": 3
+  }
+]

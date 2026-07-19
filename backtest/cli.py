@@ -16,7 +16,6 @@ from pathlib import Path
 from typing import Dict, Any, Tuple, Optional, List
 import pandas as pd
 
-from .core.backtest import ASharesBacktestWrapper
 from .strategies.manager import StrategyManager
 from .strategies.normal import NormalMarketStrategy
 from .strategies.bull import BullMarketStrategy
@@ -24,8 +23,6 @@ from .strategies.bear import BearMarketStrategy
 from .strategies.volatile import VolatileMarketStrategy
 from .analysis.pattern_detector import ChinaMarketPatternDetector
 from .strategies.picker import ASharesStockPicker
-from .analysis.performance import PerformanceAnalyzer
-from .analysis.reporting import generate_quick_report
 from .utils.exceptions import IBacktestError
 
 from . import CONFIG_FILE, data_provider, global_cm
@@ -63,60 +60,6 @@ def create_parser() -> argparse.ArgumentParser:
     )
 
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
-
-    # Run backtest command
-    run_parser = subparsers.add_parser('run', help='Run a backtest')
-    run_parser.add_argument(
-        '--start-date', '-s',
-        type=str,
-        help='Start date in YYYY-MM-DD format'
-    )
-    run_parser.add_argument(
-        '--end-date', '-e',
-        type=str,
-        help='End date in YYYY-MM-DD format'
-    )
-    run_parser.add_argument(
-        '--initial-cash', '-c',
-        type=float,
-        help='Initial cash amount.'
-    )
-    run_parser.add_argument(
-        '--commission',
-        type=float,
-        help='Commission rate'
-    )
-    run_parser.add_argument(
-        '--max-positions', '-p',
-        type=int,
-        help='Maximum number of positions'
-    )
-    run_parser.add_argument(
-        '--strategy',
-        type=str,
-        choices=['auto', 'simple', 'normal_market', 'bull_market', 'bear_market', 'volatile_market'],
-        help='Trading strategy to use'
-    )
-    run_parser.add_argument(
-        '--config',
-        type=str,
-        help='Path to configuration file (JSON format)'
-    )
-    run_parser.add_argument(
-        '--output-dir', '-o',
-        type=str,
-        help='Output directory for results'
-    )
-    run_parser.add_argument(
-        '--formats', '-f',
-        type=str,
-        help='Output formats: json,html,csv'
-    )
-    run_parser.add_argument(
-        '--benchmarks',
-        type=str,       # Benchmark Indexes: '000001.SH,...'
-        help='Benchmarking options'
-    )
 
     # Config command
     config_parser = subparsers.add_parser('config', help='Manage configuration')
@@ -176,29 +119,31 @@ def create_parser() -> argparse.ArgumentParser:
         type=str,
         help='Output file path for smart orders JSON'
     )
+    analyze_parser.add_argument(
+        '--initial-cash',
+        type=float,
+        help='Override initial cash for position sizing (used for compounding)'
+    )
+    analyze_parser.add_argument(
+        '--remaining-slots',
+        type=int,
+        help='Number of slots remaining for new orders'
+    )
+    analyze_parser.add_argument(
+        '--current-cash',
+        type=float,
+        help='Current available cash to restrict new buy orders'
+    )
+    analyze_parser.add_argument('--date', type=str, help='Target trading date (YYYY-MM-DD or YYYYMMDD)')
+    analyze_parser.add_argument(
+        '--held-symbols',
+        type=str,
+        help='Comma-separated list of symbols currently held (e.g. 000001,600519)'
+    )
 
     subparsers.add_parser('version', help='Show version information')
 
     return parser
-
-
-def validate_date_format(date_str: str) -> bool:
-    """Validate date string format."""
-    try:
-        datetime.strptime(date_str, '%Y-%m-%d')
-        return True
-    except ValueError:
-        return False
-
-
-def validate_date_range(start_date: str, end_date: str) -> bool:
-    """Validate that end_date is after start_date."""
-    try:
-        start = datetime.strptime(start_date, '%Y-%m-%d')
-        end = datetime.strptime(end_date, '%Y-%m-%d')
-        return end >= start
-    except ValueError:
-        return False
 
 
 def create_components() -> Tuple[ChinaMarketPatternDetector, ASharesStockPicker, StrategyManager]:
@@ -234,208 +179,6 @@ def create_components() -> Tuple[ChinaMarketPatternDetector, ASharesStockPicker,
     logger.debug(f"✓ Stock picker configured for max {global_cm.get('stock_picker.max_pick')} stocks")
 
     return pattern_detector, stock_picker, strategy_manager
-
-def combined_args_and_config(args: argparse.Namespace) -> argparse.Namespace:
-    """Combine command line arguments and configuration settings."""
-    args.config = args.config or CONFIG_FILE
-    global_cm = ConfigManager(args.config)
-
-    date = global_cm.get('init_info.start_date', None)
-    start_date = datetime.now().strftime('%Y-01-01') if not date or 'year-01-01' in date else date
-    date = global_cm.get('init_info.end_date', None)
-    end_date = datetime.now().strftime('%Y-%m-%d') if not date or 'today' in date else date
-
-    args.start_date = args.start_date or start_date
-    args.end_date = args.end_date or end_date
-    args.initial_cash = args.initial_cash or global_cm.get('init_info.initial_cash')
-    args.commission = args.commission or global_cm.get('init_info.commission')
-    args.max_positions = args.max_positions or global_cm.get('trading_rules.position_sizing.max_positions')
-    args.strategy = args.strategy or global_cm.get('init_info.strategy')
-    args.output_dir = args.output_dir or global_cm.get('reporting.output_dir')
-    args.formats = args.formats or global_cm.get('reporting.formats')
-    args.benchmarks = args.benchmarks or global_cm.get('reporting.benchmarks')
-
-    if not validate_date_format(args.start_date):
-        raise IBacktestError(f"Invalid start date format: {args.start_date}. Use YYYY-MM-DD")
-    if not validate_date_format(args.end_date):
-        raise IBacktestError(f"Invalid end date format: {args.end_date}. Use YYYY-MM-DD")
-    if not validate_date_range(args.start_date, args.end_date):
-        raise IBacktestError("End date must be after start date")
-    return args
-
-def run_backtest(args) -> Dict[str, Any]:
-    """Run the backtest with given arguments."""
-
-    logger.debug(f"Starting backtest from {args.start_date} to {args.end_date}")
-    logger.debug(f"Initial cash: ¥{args.initial_cash:,.2f}")
-    logger.debug(f"Commission: {args.commission:.3%}")
-    logger.debug(f"Max positions: {args.max_positions}")
-    logger.debug(f"Strategy: {args.strategy}")
-
-    pattern_detector, stock_picker, strategy_manager = create_components()
-    backtest = ASharesBacktestWrapper(
-        data_provider=data_provider,
-        strategy_manager=strategy_manager,
-        pattern_detector=pattern_detector,
-        stock_picker=stock_picker
-    )
-
-    logger.debug("Running backtest...")
-
-    import time
-    start_time = time.time()
-
-    results = backtest.run_portfolio_backtest(
-        start_date=args.start_date,
-        end_date=args.end_date,
-        initial_cash=args.initial_cash,
-        commission=args.commission,
-        max_positions=args.max_positions,
-    )
-
-    backtest_time = time.time() - start_time
-    logger.debug(f"✓ Backtest completed in {backtest_time:.2f} seconds")
-
-    # Add benchmark comparison
-    logger.debug("Running benchmark comparison...")
-
-    benchmark_start = time.time()
-    try:
-        # Create performance analyzer
-        analyzer = PerformanceAnalyzer()
-
-        # Get benchmark comparison (沪深300 and 中证A500)
-        benchmark_results = analyzer.analyze_with_benchmarks(
-            results,
-            benchmarks=args.benchmarks,
-            data_provider=data_provider
-        )
-
-        # Merge benchmark results into main results
-        results['benchmark_analysis'] = benchmark_results.get('benchmark_comparisons', {})
-        results['performance_metrics'] = benchmark_results.get('performance', {})
-
-        benchmark_time = time.time() - benchmark_start
-        logger.debug(f"✓ Benchmark comparison completed in {benchmark_time:.2f} seconds")
-
-    except Exception as e:
-        benchmark_time = time.time() - benchmark_start
-        logger.warning(f"Benchmark comparison failed in {benchmark_time:.2f} seconds: {e}")
-
-    logger.debug("✓ Backtest completed successfully")
-
-    return results
-
-
-def save_results(results: Dict[str, Any], output_dir: str, formats: str):
-    """Save backtest results in specified formats."""
-    # Create output directory
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
-
-    # Parse formats
-    format_list = [f.strip().lower() for f in formats.split(',')]
-
-    logger.info(f"Saving results to {output_dir} in formats: {', '.join(format_list)}")
-
-    # Generate timestamp for unique filenames
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-
-    saved_files = {}
-
-    # Save in requested formats
-    if 'json' in format_list:
-        json_path = os.path.join(output_dir, f'backtest_results_{timestamp}.json')
-        with open(json_path, 'w', encoding='utf-8') as f:
-            json.dump(results, f, indent=2, default=str)
-        saved_files['json'] = json_path
-        logger.debug(f"✓ JSON results saved to {json_path}")
-
-    # For HTML and CSV, we need to use the reporting system
-    if 'html' in format_list or 'csv' in format_list:
-        try:
-            # Generate performance report using proper analysis
-            from .analysis.performance import PerformanceAnalyzer
-            analyzer = PerformanceAnalyzer()
-            performance_report = analyzer.analyze(results)
-
-            # Extract benchmark comparisons from results
-            benchmark_comparisons = results.get('benchmark_analysis', {})
-
-            # Generate reports using the reporting system
-            report_files = generate_quick_report(
-                performance_report,
-                benchmark_comparisons=benchmark_comparisons,
-                output_dir=output_dir,
-                formats=format_list
-            )
-
-            saved_files.update(report_files)
-
-            for fmt, path in report_files.items():
-                logger.debug(f"✓ {fmt.upper()} report saved to {path}")
-
-        except Exception as e:
-            logger.warning(f"Could not generate HTML/CSV reports: {e}")
-
-    return saved_files
-
-
-def print_summary(results: Dict[str, Any]):
-    """Print a summary of backtest results."""
-    logger.info("BACKTEST RESULTS SUMMARY")
-    logger.info("="*60)
-
-    # Basic metrics
-    initial_cash = results.get('initial_cash', 0)
-    final_value = results.get('final_portfolio_value', 0)
-    total_return = results.get('total_return', 0)
-
-    logger.info(f"Initial Cash:        ¥{initial_cash:,.2f}")
-    logger.info(f"Final Portfolio:     ¥{final_value:,.2f}")
-    logger.info(f"Total Return:        {total_return:.2%}")
-    logger.info(f"Absolute Gain/Loss:  ¥{final_value - initial_cash:,.2f}")
-
-    # Trading activity
-    compliance = results.get('ashares_compliance', {})
-    total_trades = compliance.get('total_trades', 0)
-    compliance_rate = compliance.get('compliance_rate', 1.0)
-
-    logger.info("Trading Activity:")
-    logger.info(f"Total Trades:        {total_trades}")
-    logger.info(f"A-shares Compliance: {compliance_rate:.1%}")
-
-    if compliance.get('t_plus_one_violations', 0) > 0:
-        logger.info(f"T+1 Violations:      {compliance['t_plus_one_violations']}")
-
-    if compliance.get('short_selling_violations', 0) > 0:
-        logger.info(f"Short Sell Attempts: {compliance['short_selling_violations']}")
-
-    # Benchmark comparison
-    benchmark_analysis = results.get('benchmark_analysis', {})
-    if benchmark_analysis:
-        logger.info("Benchmark Comparison:")
-        for benchmark_name, comparison in benchmark_analysis.items():
-            if hasattr(comparison, 'benchmark_name'):
-                logger.info(f"{comparison.benchmark_name}:")
-                logger.info(f"  Strategy Return:   {comparison.strategy_total_return:.2%}")
-                logger.info(f"  Benchmark Return:  {comparison.benchmark_total_return:.2%}")
-                logger.info(f"  Excess Return:     {comparison.excess_return:.2%}")
-                logger.info(f"  Correlation:       {comparison.correlation:.3f}")
-                logger.info(f"  Beta:              {comparison.beta:.2f}")
-                logger.info(f"  Alpha:             {comparison.alpha:.2%}")
-            else:
-                logger.info(f"{benchmark_name}: Comparison data unavailable")
-
-    # Period information
-    start_date = results.get('start_date', 'N/A')
-    end_date = results.get('end_date', 'N/A')
-    trading_days = len(results.get('trading_dates', []))
-
-    logger.info("Period Information:")
-    logger.info(f"Start Date:          {start_date}")
-    logger.info(f"End Date:            {end_date}")
-    logger.info(f"Trading Days:        {trading_days}")
-
 
 def create_default_config(output_path: str):
     """Create a default configuration file."""
@@ -580,10 +323,29 @@ def pick_next_trading_date_stocks(config_path: Optional[str] = None,
         raise IBacktestError(f"Stock picking failed: {str(e)}")
 
 
+def _get_sse_change_pct(base_date: str) -> float | None:
+    """Get SSE Composite change % for the most recent trading session."""
+    try:
+        from ..utils.trading_calendar import calendar
+        prev = calendar.get_trading_days_before(base_date, 1)
+        df = data_provider.get_index_data('000001.SH', prev, base_date)
+        if len(df) >= 2:
+            return ((float(df.iloc[-1]['close']) - float(df.iloc[-2]['close']))
+                    / float(df.iloc[-2]['close'])) * 100
+    except Exception:
+        pass
+    return None
+
+
 def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                                        symbols: List[str] = [],
                                        config_path: Optional[str] = None,
-                                       output_file: Optional[str] = None) -> Dict[str, Any]:
+                                       output_file: Optional[str] = None,
+                                       initial_cash: Optional[float] = None,
+                                       remaining_slots: Optional[int] = None,
+                                       base_date: Optional[str] = None,
+                                       held_symbols: Optional[List[str]] = None,
+                                       current_cash: Optional[float] = None) -> Dict[str, Any]:
     """
     Analyze picked stocks and generate smart orders with entry/exit prices and quantities.
 
@@ -616,21 +378,35 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
         config_manager = ConfigManager(config_path)
 
         # Get analysis parameters from config
-        initial_cash = config_manager.get('init_info.initial_cash', 600000)
+        # Use provided initial_cash if available (for compounding), otherwise from config
+        config_initial_cash = config_manager.get('init_info.initial_cash', 600000)
+        initial_cash = initial_cash if initial_cash is not None else config_initial_cash
+        
         max_positions = config_manager.get('trading_rules.position_sizing.max_positions', 10)
         lookback_days = config_manager.get('pattern_detector.lookback_days', 20)
 
         # Get stock symbols to analyze
         market_pattern = None
-        target_trading_date = datetime.now().strftime('%Y%m%d')
+        
+        if base_date:
+            current_date = convert_trade_date(base_date)
+        else:
+            current_date = convert_trade_date(datetime.now().strftime('%Y-%m-%d'))
+            
+        current_date_trading = get_trading_days_before(current_date, 1)
+        target_trading_date = get_trading_days_after(current_date_trading, 1)
         base_date = get_trading_days_before(target_trading_date, 1)
+        
+        logger.info(f"Target trading date for analysis: {target_trading_date}, Base date: {base_date}")
 
+        symbol_scores = {}
         if stocks_file:
             logger.info(f"Loading picked stocks from {stocks_file}")
             with open(stocks_file, 'r', encoding='utf-8') as f:
                 picked_data = json.load(f)
 
             symbols = [s['symbol'] for s in picked_data.get('selected_stocks', [])]
+            symbol_scores = {s['symbol']: s.get('score', 0) for s in picked_data.get('selected_stocks', [])}
             market_pattern = picked_data.get('market_pattern')
             base_date = picked_data.get('base_date')
             target_trading_date = picked_data.get('target_trading_date')
@@ -638,9 +414,24 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
             logger.info("Using provided symbols list for analysis, current date is today.")
             # Determine market pattern if not provided
             pattern_detector, _, strategy_manager = create_components()
+            # We will fetch index_df below, but for pattern detection in non-file mode we do it here if needed
             start_date = get_trading_days_before(base_date, lookback_days)
             index_df = data_provider.get_index_data('000300.SH', start_date, base_date)
             market_pattern = pattern_detector.detect_pattern(index_df, base_date)
+
+        # Always fetch index data for trend filtering using the correct base_date
+        start_date = get_trading_days_before(base_date, lookback_days)
+        index_df = data_provider.get_index_data('000300.SH', start_date, base_date)
+
+        # Index trend filter: skip all new buy orders if CSI 300 is below MA10
+        _index_filter = os.getenv('INDEX_TREND_FILTER', 'false').lower() in ('true', '1', 'yes')
+        if _index_filter and not index_df.empty and len(index_df) >= 10:
+            index_close = index_df['close']
+            ma10 = index_close.rolling(10).mean().iloc[-1]
+            latest_close = index_close.iloc[-1]
+            if latest_close < ma10:
+                logger.info(f"Market Index (CSI 300) is in a downtrend: Close ({latest_close:.2f}) < MA10 ({ma10:.2f}). Skipping all new BUY orders.")
+                symbols = []
 
         if not symbols:
             logger.warning("No symbols to analyze")
@@ -650,7 +441,17 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
         regime_data: Any = detect_market_regime(base_date)
         stop_loss_ratio = regime_data.get('stop_loss_pct', 0.10)
         take_profit_ratio = regime_data.get('take_profit_pct', 0.10)
-        logger.info(f"Market Regime: {regime_data.get('regime', 'Unknown')}, "
+        
+        regime = regime_data.get('regime', 'normal')
+        regime_max_positions = {
+            'bull': 12,
+            'normal': 10,
+            'volatile': 8,
+            'bear': 5
+        }
+        max_positions = regime_max_positions.get(regime, max_positions)
+        
+        logger.info(f"Market Regime: {regime.upper()}, Max Positions: {max_positions}, "
                     f"SL Ratio: {stop_loss_ratio:.2%}, TP Ratio: {take_profit_ratio:.2%}")
 
         # Get strategy configuration for current market pattern
@@ -662,14 +463,16 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
         stop_loss_pct = 3.0  # default 3%
 
         for signal in sell_signals:
-            if 'profit_target' in signal:
+            if signal is None:
+                continue
+            if 'profit_target' in str(signal):
                 try:
-                    profit_target_pct = float(signal.split('_')[-1].replace('pct', ''))
+                    profit_target_pct = float(str(signal).split('_')[-1].replace('pct', ''))
                 except (ValueError, IndexError):
                     pass
-            if 'stop_loss' in signal:
+            if 'stop_loss' in str(signal):
                 try:
-                    stop_loss_pct = float(signal.split('_')[-1].replace('pct', ''))
+                    stop_loss_pct = float(str(signal).split('_')[-1].replace('pct', ''))
                 except (ValueError, IndexError):
                     pass
         logger.debug(f"Using profit target: {profit_target_pct}%, stop loss: {stop_loss_pct}%")
@@ -679,15 +482,18 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
         logger.info(f"Fetching historical data from {start_date} to {end_date}")
         # Analyze each stock and generate smart orders
         smart_orders = []
-        remaining_cash = float(initial_cash)
-        remaining_slots = int(max_positions)
+        skipped_buy_orders = []
+        if current_cash is not None:
+            remaining_cash = float(current_cash)
+        else:
+            remaining_cash = float(initial_cash)
+        remaining_slots = remaining_slots if remaining_slots is not None else int(max_positions)
 
         for symbol in symbols:
             try:
                 logger.info(f"Analyzing {symbol}...")
-                target_data = data_provider.get_stock_data(symbol, target_trading_date, target_trading_date)
-                # Get historical data
-                stock_data = data_provider.get_stock_data(symbol, start_date, end_date)
+                # Get historical data (up to base_date — always available)
+                stock_data = data_provider.get_stock_data(symbol, start_date, base_date)
                 if stock_data.empty:
                     logger.warning(f"No data found for {symbol}, skipping")
                     continue
@@ -719,34 +525,62 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                 latest_atr = atr.iloc[-1] if not pd.isna(atr.iloc[-1]) else close_price * 0.02
 
                 # Calculate buy price (entry point)
-                # Use lower Bollinger Band or recent support, adjusted for RSI
-                if latest_rsi < 30:  # Oversold
+                # Use lower Bollinger Band or recent support, adjusted for RSI.
+                # Goal: get fills at better-than-close prices; avoid unfilled orders
+                #       in bullish markets where CANSLIM stocks rarely drop to close.
+                if latest_rsi < 30:  # Oversold — deep discount
                     buy_price = min(close_price * 0.98, latest_lower)
-                elif latest_rsi < 50:  # Mild weakness
+                elif latest_rsi < 50:  # Mild weakness — moderate discount
                     buy_price = min(close_price * 0.99, latest_middle * 0.98)
-                else:  # Normal or strong
-                    buy_price = close_price  # Market price
+                else:  # Normal or strong — slight discount for better entry + fill
+                    buy_price = min(close_price * 0.995, latest_middle * 0.99)
 
                 buy_price = max(buy_price, recent_low * 0.99)  # Don't go below recent support
                 buy_price = round(buy_price, 2)
 
                 # [MODIFIED] Regime-dependent entry strategy
-                # Bull Market: Aggressive entry (Buy at Open) to avoid missing out.
+                # Bull Market: Aggressive entry — order triggers near yesterday's close price
+                #   (market hasn't opened yet; the smart order fires when price >= trigger).
                 # Other Markets: Conservative entry (Buy at Limit/Support) to reduce risk.
                 regime = regime_data.get('regime', 'normal')
-                
+
                 if regime == 'bull':
-                    if not target_data.empty:
-                        buy_price = float(target_data['open'].iloc[-1])
-                    else:
-                        # If no target data (e.g. live trading), use close * 1.01 as proxy for open
-                        buy_price = close_price * 1.01
+                    # In pre-market mode OHLCV for the target date is not available yet.
+                    # Smart order trigger: 股价 <= buy_price(触发买入)
+                    # Problem: stock may gap up 3-8% at open → price never drops to close_price
+                    #          → order never fires.
+                    # Solution: set buy_price above close by an ATR-estimated gap, capped well
+                    #           below the daily limit-up to avoid chasing parabolic moves.
+                    #
+                    # ChiNext (300) / STAR (688): daily limit = ±20%, cap gap at 13%.
+                    # Main board everything else:  daily limit = ±10%, cap gap at 7%.
+                    is_wide_limit = symbol.startswith('3') or symbol.startswith('688')
+                    max_gap_pct   = 0.13 if is_wide_limit else 0.07
+                    min_gap_pct   = 0.02  # at least 2% above close so the trigger always fires
+
+                    # Use 0.5×ATR as the expected single-session gap move.
+                    atr_gap = latest_atr * 0.5
+                    gap_pct = atr_gap / close_price if close_price > 0 else min_gap_pct
+                    gap_pct = max(min_gap_pct, min(gap_pct, max_gap_pct))
+
+                    buy_price = round(close_price * (1 + gap_pct), 2)
+
                 else:
                     # Use the calculated buy_price (RSI/BB/Support based)
                     # Ensure it's not higher than yesterday's close in Bear market
                     if regime == 'bear':
                         buy_price = min(buy_price, close_price * 0.99)
-                    pass # Keep calculated buy_price from lines 723-731
+                    
+                    # If SSE is strongly bullish (>0.5%) even in normal regime,
+                    # apply a mild gap-up so orders still fill. CANSLIM stocks in
+                    # a rising market rarely drop to their previous close.
+                    sse_change = _get_sse_change_pct(base_date) if base_date else None
+                    if sse_change is not None and sse_change > 0.5:
+                        is_wide_limit = symbol.startswith('3') or symbol.startswith('688')
+                        max_gap = 0.03 if is_wide_limit else 0.02  # mild 2-3% gap
+                        buy_price = round(close_price * (1 + max_gap), 2)
+                        logger.debug(f"{symbol}: bullish SSE ({sse_change:+.1f}%), "
+                                     f"gap-up entry: {buy_price}")
 
                 # Use pre-calculated regime ratios
                 # stop_loss_ratio and take_profit_ratio are already set outside the loop
@@ -758,53 +592,88 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                 sell_stop_loss = round(buy_price * (1 - stop_loss_ratio), 2)
 
                 # Calculate position size (buy quantity)
-                # Use equal-weight allocation with risk management
+                # Use dynamic rank-weighted portfolio allocation for ts_daily to maximize gains
                 position_sizing = strategy_config.get('position_sizing', {})
-                max_position_pct = position_sizing.get('max_position_pct', 0.15)
+                position_sizing.get('max_position_pct', 0.15)
                 equal_weight = position_sizing.get('equal_weight', True)
 
                 if remaining_slots <= 0 or remaining_cash <= 0:
                     logger.info(f"Skip {symbol}: no remaining cash/slots for new positions.")
+                    skipped_buy_orders.append({
+                        "symbol": symbol,
+                        "name": data_provider.latest.get('name', ''),
+                        "buy_price": buy_price,
+                        "remaining_cash": remaining_cash,
+                        "skip_reason": "no_remaining_cash_or_slots"
+                    })
                     continue
 
-                if equal_weight:
-                    # Equal weight across remaining positions, using remaining_cash
-                    position_value = remaining_cash / remaining_slots
+                is_star_chinext = symbol.startswith('3') or symbol.startswith('688')
+                min_qty = 200 if is_star_chinext else 100
+
+                position_sizing_enabled = os.getenv('POSITION_SIZING_ALGORITHM', 'true').lower() in ('true', '1', 'yes')
+
+                is_held = False
+                if held_symbols:
+                    clean_sym = symbol.split('.')[0] if symbol else ''
+                    is_held = clean_sym in held_symbols or symbol in held_symbols
+
+                if is_held:
+                    buy_quantity = 0
+                    logger.info(f"Symbol {symbol} is already held, assigning 0 buy_quantity to preserve cash.")
                 else:
-                    # Risk-adjusted position sizing based on remaining cash
-                    position_value = remaining_cash * max_position_pct
+                    if position_sizing_enabled:
+                        per_slot_cash = float(initial_cash) / max_positions
+                        # Max 25% of capital per position to avoid concentration (e.g. 中际旭创 at 59%)
+                        max_position_cash = float(initial_cash) * 0.25
+                        effective_slot_cash = min(per_slot_cash, max_position_cash)
+                    else:
+                        # Disable sizing limits — distribute ALL remaining cash evenly across remaining slots
+                        effective_slot_cash = float(remaining_cash) / max(1, remaining_slots)
 
-                # Adjust for risk (stop loss distance)
-                risk_per_share = buy_price - sell_stop_loss
-                if risk_per_share > 0:
-                    # Risk-based position sizing: don't risk more than 2% of portfolio per position
-                    max_risk_amount = remaining_cash * 0.02
-                    risk_adjusted_shares = int(max_risk_amount / risk_per_share)
-                    value_based_shares = int(position_value / buy_price)
-                    buy_quantity = min(risk_adjusted_shares, value_based_shares)
-                else:
-                    buy_quantity = int(position_value / buy_price)
-
-                # Ensure minimum lot size (100 shares in China A-shares)
-                buy_quantity = (buy_quantity // 100) * 100
-
-                # Ensure at least 1 lot when affordable; otherwise skip
-                if buy_quantity < 100:
-                    logger.info(
-                        f"Skip {symbol}: computed position too small (qty={buy_quantity}) "
-                        f"for buy_price={buy_price:.2f}, remaining_cash={remaining_cash:.2f}."
-                    )
-                    continue
+                    if (effective_slot_cash / buy_price) >= min_qty:
+                        buy_quantity = (int(effective_slot_cash / buy_price) // min_qty) * min_qty
+                    elif (effective_slot_cash * 2 / buy_price) >= min_qty:
+                        buy_quantity = (int(effective_slot_cash * 2 / buy_price) // min_qty) * min_qty
+                    elif (remaining_cash / buy_price) >= min_qty:
+                        buy_quantity = min_qty
+                    else:
+                        logger.info(
+                            f"Skip {symbol}: remain cash not enough for buy MIN_QUANTITY (qty=0, min={min_qty}) "
+                            f"for buy_price={buy_price:.2f}, remaining_cash={remaining_cash:.2f}."
+                        )
+                        skipped_buy_orders.append({
+                            "symbol": symbol,
+                            "name": latest.get('name', ''),
+                            "buy_price": buy_price,
+                            "remaining_cash": remaining_cash,
+                            "skip_reason": "insufficient_cash_for_min_qty"
+                        })
+                        continue
+                        
+                    if buy_quantity * buy_price > remaining_cash:
+                        buy_quantity = (int(remaining_cash / buy_price) // min_qty) * min_qty
+                        if buy_quantity < min_qty:
+                            logger.info(f"Skip {symbol}: adjusted qty=0 due to remaining_cash={remaining_cash:.2f}")
+                            skipped_buy_orders.append({
+                                "symbol": symbol,
+                                "name": latest.get('name', ''),
+                                "buy_price": buy_price,
+                                "remaining_cash": remaining_cash,
+                                "skip_reason": "adjusted_qty_below_min_due_to_cash"
+                            })
+                            continue
 
                 # Calculate expected metrics
                 potential_gain_pct = ((sell_take_profit - buy_price) / buy_price) * 100
                 potential_loss_pct = ((sell_stop_loss - buy_price) / buy_price) * 100
                 risk_reward_ratio = abs(potential_gain_pct / potential_loss_pct) if potential_loss_pct != 0 else 0
 
-                # Update remaining cash/slots using this order's planned value
-                used_value = buy_price * buy_quantity
-                remaining_cash = max(0.0, remaining_cash - used_value)
-                remaining_slots = max(0, remaining_slots - 1)
+                if not is_held:
+                    # Update remaining cash/slots using this order's planned value
+                    used_value = buy_price * buy_quantity
+                    remaining_cash = max(0.0, remaining_cash - used_value)
+                    remaining_slots = max(0, remaining_slots - 1)
 
                 # Create smart order
                 smart_order = {
@@ -851,22 +720,50 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                 continue
 
         # Prepare result
+        app_available_cash = current_cash if current_cash is not None else initial_cash
+        total_new_BUY_orders = len(smart_orders)
+        total_new_BUY_orders_cash = sum(order.get('position_value', 0) for order in smart_orders)
+        
+        # Determine no_use_all_app_available_cash_reason
+        if remaining_cash == 0:
+            no_use_all_app_available_cash_reason = "Fully allocated available cash."
+        else:
+            reasons = []
+            if remaining_slots <= 0:
+                reasons.append("All position slots filled.")
+            
+            # Check if any stocks were skipped due to cash
+            skipped_reasons = set(o['skip_reason'] for o in skipped_buy_orders)
+            if 'insufficient_cash_for_min_qty' in skipped_reasons or 'adjusted_qty_below_min_due_to_cash' in skipped_reasons:
+                reasons.append(f"Remaining cash (¥{remaining_cash:.2f}) is less than the minimum lot size required for remaining stocks.")
+                
+            # Check if any stocks were already held
+            if any(o.get('buy_quantity', 0) == 0 for o in smart_orders):
+                reasons.append("Some target stocks are already held in the portfolio.")
+                
+            if not reasons:
+                reasons.append(f"Remaining cash (¥{remaining_cash:.2f}) is less than the minimum lot size required for remaining stocks.")
+                
+            no_use_all_app_available_cash_reason = " ".join(reasons)
+
         result = {
             'analysis_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'target_trading_date': target_trading_date,
             'market_pattern': market_pattern,
-            'regime_data': regime_data,
-            'strategy_config': {
-                'profit_target_pct': take_profit_ratio * 100,
-                'stop_loss_pct': stop_loss_ratio * 100,
-                'max_position_pct': strategy_config.get('position_sizing', {}).get('max_position_pct', 0.15)
-            },
+            'base_date': base_date,
+            'target_trading_date': target_trading_date,
             'portfolio_config': {
                 'initial_cash': initial_cash,
+                'current_available_cash': float(app_available_cash - total_new_BUY_orders_cash),
                 'max_positions': max_positions,
-                'total_allocated': sum(order['position_value'] for order in smart_orders)
+                'total_allocated': float(total_new_BUY_orders_cash)
             },
-            'total_orders': len(smart_orders),
+            'regime_data': regime_data,
+            'app_available_cash': app_available_cash,
+            'total_new_BUY_orders': total_new_BUY_orders,
+            'total_new_BUY_orders_cash': total_new_BUY_orders_cash,
+            'no_use_all_app_available_cash_reason': no_use_all_app_available_cash_reason,
+            'skipped_buy_orders': skipped_buy_orders,
             'smart_orders': smart_orders
         }
 
@@ -913,18 +810,7 @@ def main():
         return
 
     try:
-        if args.command == 'run':
-            args = combined_args_and_config(args)
-            results = run_backtest(args)
-
-            save_results(
-                results,
-                args.output_dir,
-                args.formats,
-            )
-            print_summary(results)
-
-        elif args.command == 'pick':
+        if args.command == 'pick':
             # Pick top 10 stocks for next trading date
             pick_next_trading_date_stocks(
                 config_path=args.config if hasattr(args, 'config') else None,
@@ -934,15 +820,17 @@ def main():
 
         elif args.command == 'analyze':
             # Analyze stocks and generate smart orders
-            symbols_list = []
-            if hasattr(args, 'symbols') and args.symbols:
-                symbols_list = [s.strip() for s in args.symbols.split(',')]
-
+            symbols = args.symbols.split(',') if args.symbols else []
             analyze_stocks_and_generate_orders(
                 stocks_file=args.stocks_file if hasattr(args, 'stocks_file') else None,
-                symbols=symbols_list,
+                symbols=symbols,
                 config_path=args.config if hasattr(args, 'config') else None,
-                output_file=args.output if hasattr(args, 'output') else None
+                output_file=args.output if hasattr(args, 'output') else None,
+                initial_cash=args.initial_cash if hasattr(args, 'initial_cash') else None,
+                remaining_slots=args.remaining_slots if hasattr(args, 'remaining_slots') else None,
+                base_date=args.date if hasattr(args, 'date') else None,
+                held_symbols=args.held_symbols.split(',') if hasattr(args, 'held_symbols') and args.held_symbols else None,
+                current_cash=args.current_cash if hasattr(args, 'current_cash') else None
             )
 
         elif args.command == 'config':

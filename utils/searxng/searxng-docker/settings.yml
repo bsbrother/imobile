@@ -1,0 +1,87 @@
+# SearXNG configuration settings
+# Enabled formats: html and json for API access
+
+use_default_settings: true
+
+server:
+  port: 8080
+  bind_address: "0.0.0.0"
+  secret_key: "searxng_secret_key_placeholder"
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  formats:
+    - html
+    - json
+
+categories:
+  - general
+  - news
+  - social media
+
+engines:
+  # --- Web Engines (General) ---
+  - name: google
+    engine: google
+    shortcut: go
+    timeout: 3.0
+    categories: general
+
+  - name: bing
+    engine: bing
+    shortcut: bi
+    timeout: 3.0
+    categories: general
+
+  - name: duckduckgo
+    engine: duckduckgo
+    shortcut: dd
+    timeout: 3.0
+    categories: general
+
+  - name: qwant
+    engine: qwant
+    shortcut: qw
+    timeout: 3.0
+    categories: general
+
+  # --- Financial & News Engines (Very resilient, bypasses VPN blocks) ---
+  - name: google news
+    engine: google_news
+    shortcut: gn
+    timeout: 3.0
+    categories: news
+
+  - name: bing news
+    engine: bing_news
+    shortcut: bn
+    timeout: 3.0
+    categories: news
+
+  - name: yahoo news
+    engine: yahoo_news
+    shortcut: yn
+    timeout: 3.0
+    categories: news
+
+  - name: qwant news
+    engine: qwant
+    shortcut: qn
+    timeout: 3.0
+    categories: news
+
+  # --- Reference & Academic (100% Non-Blocked, Highly Stable) ---
+  - name: wikipedia
+    engine: wikipedia
+    shortcut: wp
+    timeout: 3.0
+    categories: general
+
+  # --- Social Media & Sentiment Engines ---
+  - name: reddit
+    engine: reddit
+    shortcut: re
+    timeout: 4.0
+    categories: social media
+

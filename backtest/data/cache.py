@@ -14,7 +14,7 @@ from ..utils.exceptions import DataProviderError
 class DataCache:
     """Local caching mechanism for market data."""
 
-    def __init__(self, cache_dir: str = "data_cache", default_ttl: int = 3600):
+    def __init__(self, cache_dir: str = "shared/data_cache", default_ttl: int = 3600):
         """
         Initialize data cache.
 

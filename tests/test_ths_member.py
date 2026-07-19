@@ -6,10 +6,14 @@ print(df)
 df.to_excel(spath, engine='xlsxwriter')
 selected_columns = ['股票代码', '股票简称', '最新价','最新涨跌幅', '首次涨停时间['+date + ']', '连续涨停天数['+date + ']','涨停原因类别['+date + ']','a股市值(不含限售股)['+date + ']','涨停类型['+date + ']']
 """
+import pytest
 from loguru import logger
 import json
 import requests
 import pandas as pd
+
+pytestmark = pytest.mark.integration
+
 
 
 def show_stock_list(code):

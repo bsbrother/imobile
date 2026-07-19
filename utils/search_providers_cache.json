@@ -1,0 +1,38 @@
+{
+  "SearXNG": {
+    "can_search": true,
+    "history_date_for_backtest": false
+  },
+  "Tavily": {
+    "can_search": true,
+    "history_date_for_backtest": false
+  },
+  "SerpAPI": {
+    "can_search": true,
+    "history_date_for_backtest": true
+  },
+  "Brave": {
+    "can_search": false,
+    "history_date_for_backtest": false
+  },
+  "Anspire": {
+    "can_search": false,
+    "history_date_for_backtest": false
+  },
+  "TinyFish": {
+    "can_search": true,
+    "history_date_for_backtest": false
+  },
+  "MiniMax": {
+    "can_search": false,
+    "history_date_for_backtest": false
+  },
+  "Bocha": {
+    "can_search": false,
+    "history_date_for_backtest": false
+  },
+  "DuckDuckGo": {
+    "can_search": true,
+    "history_date_for_backtest": false
+  }
+}

@@ -1,0 +1,2532 @@
+{
+  "macro_schema_version": "2.0",
+  "version": "2.0",
+  "description": "Tap '\u7acb\u5373\u767b\u5f55', then tap ''{GUOTAI_PASSWORD}'' one by one, then tap '\u767b\u5f55'",
+  "timestamp": "20260616_155626",
+  "total_actions": 4,
+  "actions": [
+    {
+      "action_type": "tap",
+      "x": 1260,
+      "y": 305,
+      "pre_state": {
+        "phone_state": {
+          "package": null,
+          "activity": null
+        },
+        "screen": {
+          "width": 1440,
+          "height": 3120
+        },
+        "nodes": [
+          {
+            "resource_id": "",
+            "class": "FrameLayout",
+            "text": "android.widget.FrameLayout",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 0,
+              "right": 1440,
+              "bottom": 3120,
+              "center_x": 720,
+              "center_y": 1560
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/page_indicator_trade_home",
+            "class": "HorizontalScrollView",
+            "text": "com.guotai.dazhihui:id/page_indicator_trade_home",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 16,
+              "top": 94,
+              "right": 532,
+              "bottom": 198,
+              "center_x": 274,
+              "center_y": 146
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "TextView",
+            "text": "\u666e\u901a",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 16,
+              "top": 94,
+              "right": 206,
+              "bottom": 198,
+              "center_x": 111,
+              "center_y": 146
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "TextView",
+            "text": "\u4fe1\u7528",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 203,
+              "top": 106,
+              "right": 369,
+              "bottom": 195,
+              "center_x": 286,
+              "center_y": 150
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "TextView",
+            "text": "\u671f\u8d27",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 366,
+              "top": 106,
+              "right": 532,
+              "bottom": 195,
+              "center_x": 449,
+              "center_y": 150
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/iv_trade_head_xiaojun",
+            "class": "ImageView",
+            "text": "com.guotai.dazhihui:id/iv_trade_head_xiaojun",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 1315,
+              "top": 108,
+              "right": 1392,
+              "bottom": 185,
+              "center_x": 1353,
+              "center_y": 146
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/pager_firm_trade_home",
+            "class": "ViewPager",
+            "text": "com.guotai.dazhihui:id/pager_firm_trade_home",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 217,
+              "right": 1440,
+              "bottom": 2790,
+              "center_x": 720,
+              "center_y": 1503
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/sv_trade_menu",
+            "class": "ScrollView",
+            "text": "com.guotai.dazhihui:id/sv_trade_menu",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 217,
+              "right": 1440,
+              "bottom": 2790,
+              "center_x": 720,
+              "center_y": 1503
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tv_login_remark",
+            "class": "TextView",
+            "text": "\u767b\u5f55\u5373\u4eab\u8d44\u4ea7\u5206\u6790\u7b49\u670d\u52a1",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 48,
+              "top": 277,
+              "right": 543,
+              "bottom": 333,
+              "center_x": 295,
+              "center_y": 305
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/btn_trade_login",
+            "class": "TextView",
+            "text": "\u7acb\u5373\u767b\u5f55",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 1129,
+              "top": 255,
+              "right": 1392,
+              "bottom": 355,
+              "center_x": 1260,
+              "center_y": 305
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/gridview",
+            "class": "GridView",
+            "text": "com.guotai.dazhihui:id/gridview",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 431,
+              "right": 1440,
+              "bottom": 1299,
+              "center_x": 720,
+              "center_y": 865
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "FrameLayout",
+            "text": "android.widget.FrameLayout",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 457,
+              "right": 360,
+              "bottom": 658,
+              "center_x": 180,
+              "center_y": 557
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tvName",
+            "class": "TextView",
+            "text": "\u4e70\u5165",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 13,
+              "top": 591,
+              "right": 347,
+              "bottom": 639,
+              "center_x": 180,
+              "center_y": 615
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "FrameLayout",
+            "text": "android.widget.FrameLayout",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 360,
+              "top": 457,
+              "right": 720,
+              "bottom": 659,
+              "center_x": 540,
+              "center_y": 558
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tvName",
+            "class": "TextView",
+            "text": "\u5356\u51fa",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 373,
+              "top": 591,
+              "right": 707,
+              "bottom": 640,
+              "center_x": 540,
+              "center_y": 615
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "FrameLayout",
+            "text": "android.widget.FrameLayout",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 720,
+              "top": 457,
+              "right": 1080,
+              "bottom": 659,
+              "center_x": 900,
+              "center_y": 558
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tvName",
+            "class": "TextView",
+            "text": "\u64a4\u5355",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 733,
+              "top": 591,
+              "right": 1067,
+              "bottom": 640,
+              "center_x": 900,
+              "center_y": 615
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "FrameLayout",
+            "text": "android.widget.FrameLayout",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 1080,
+              "top": 457,
+              "right": 1440,
+              "bottom": 659,
+              "center_x": 1260,
+              "center_y": 558
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tvName",
+            "class": "TextView",
+            "text": "\u6301\u4ed3",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 1093,
+              "top": 591,
+              "right": 1427,
+              "bottom": 640,
+              "center_x": 1260,
+              "center_y": 615
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "FrameLayout",
+            "text": "android.widget.FrameLayout",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 659,
+              "right": 360,
+              "bottom": 861,
+              "center_x": 180,
+              "center_y": 760
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tvName",
+            "class": "TextView",
+            "text": "\u5f53\u65e5\u4ea4\u6613",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 13,
+              "top": 793,
+              "right": 347,
+              "bottom": 842,
+              "center_x": 180,
+              "center_y": 817
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "FrameLayout",
+            "text": "android.widget.FrameLayout",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 360,
+              "top": 659,
+              "right": 720,
+              "bottom": 861,
+              "center_x": 540,
+              "center_y": 760
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tvName",
+            "class": "TextView",
+            "text": "\u7efc\u5408\u67e5\u8be2",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 373,
+              "top": 793,
+              "right": 707,
+              "bottom": 842,
+              "center_x": 540,
+              "center_y": 817
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "FrameLayout",
+            "text": "android.widget.FrameLayout",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 720,
+              "top": 659,
+              "right": 1080,
+              "bottom": 861,
+              "center_x": 900,
+              "center_y": 760
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tvName",
+            "class": "TextView",
+            "text": "\u8f6c\u8d26",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 733,
+              "top": 793,
+              "right": 1067,
+              "bottom": 842,
+              "center_x": 900,
+              "center_y": 817
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "FrameLayout",
+            "text": "android.widget.FrameLayout",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 1080,
+              "top": 659,
+              "right": 1440,
+              "bottom": 861,
+              "center_x": 1260,
+              "center_y": 760
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tvName",
+            "class": "TextView",
+            "text": "\u65b0\u4e09\u677f\u4ea4\u6613",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 1093,
+              "top": 793,
+              "right": 1427,
+              "bottom": 842,
+              "center_x": 1260,
+              "center_y": 817
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "FrameLayout",
+            "text": "android.widget.FrameLayout",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 861,
+              "right": 360,
+              "bottom": 1063,
+              "center_x": 180,
+              "center_y": 962
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tvName",
+            "class": "TextView",
+            "text": "\u5386\u53f2\u6210\u4ea4",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 13,
+              "top": 995,
+              "right": 347,
+              "bottom": 1044,
+              "center_x": 180,
+              "center_y": 1019
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "FrameLayout",
+            "text": "android.widget.FrameLayout",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 360,
+              "top": 861,
+              "right": 720,
+              "bottom": 1063,
+              "center_x": 540,
+              "center_y": 962
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tvName",
+            "class": "TextView",
+            "text": "\u8d26\u6237\u67e5\u8be2",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 373,
+              "top": 995,
+              "right": 707,
+              "bottom": 1044,
+              "center_x": 540,
+              "center_y": 1019
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "FrameLayout",
+            "text": "android.widget.FrameLayout",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 720,
+              "top": 861,
+              "right": 1080,
+              "bottom": 1063,
+              "center_x": 900,
+              "center_y": 962
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tvName",
+            "class": "TextView",
+            "text": "\u8d44\u91d1\u6d41\u6c34",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 733,
+              "top": 995,
+              "right": 1067,
+              "bottom": 1044,
+              "center_x": 900,
+              "center_y": 1019
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "FrameLayout",
+            "text": "android.widget.FrameLayout",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 1080,
+              "top": 861,
+              "right": 1440,
+              "bottom": 1063,
+              "center_x": 1260,
+              "center_y": 962
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tvName",
+            "class": "TextView",
+            "text": "\u5386\u53f2\u59d4\u6258",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 1093,
+              "top": 995,
+              "right": 1427,
+              "bottom": 1044,
+              "center_x": 1260,
+              "center_y": 1019
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "FrameLayout",
+            "text": "android.widget.FrameLayout",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 1063,
+              "right": 360,
+              "bottom": 1265,
+              "center_x": 180,
+              "center_y": 1164
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tvName",
+            "class": "TextView",
+            "text": "\u66f4\u591a",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 13,
+              "top": 1197,
+              "right": 347,
+              "bottom": 1246,
+              "center_x": 180,
+              "center_y": 1221
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tv_xgsg_upgrade_tag",
+            "class": "TextView",
+            "text": "\u5347\u7ea7",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 313,
+              "top": 1427,
+              "right": 391,
+              "bottom": 1476,
+              "center_x": 352,
+              "center_y": 1451
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/cl_xgsg",
+            "class": "ViewGroup",
+            "text": "com.guotai.dazhihui:id/cl_xgsg",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 89,
+              "top": 1522,
+              "right": 529,
+              "bottom": 1639,
+              "center_x": 309,
+              "center_y": 1580
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tv_xgsg_str",
+            "class": "TextView",
+            "text": "\u65b0\u80a1",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 115,
+              "top": 1558,
+              "right": 191,
+              "bottom": 1605,
+              "center_x": 153,
+              "center_y": 1581
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tv_xgsg_count",
+            "class": "TextView",
+            "text": "0",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 472,
+              "top": 1545,
+              "right": 503,
+              "bottom": 1617,
+              "center_x": 487,
+              "center_y": 1581
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/cl_kzz",
+            "class": "ViewGroup",
+            "text": "com.guotai.dazhihui:id/cl_kzz",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 89,
+              "top": 1677,
+              "right": 529,
+              "bottom": 1794,
+              "center_x": 309,
+              "center_y": 1735
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tv_kzz_str",
+            "class": "TextView",
+            "text": "\u65b0\u503a",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 115,
+              "top": 1712,
+              "right": 191,
+              "bottom": 1759,
+              "center_x": 153,
+              "center_y": 1735
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tv_kzz_count",
+            "class": "TextView",
+            "text": "0",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 472,
+              "top": 1700,
+              "right": 503,
+              "bottom": 1772,
+              "center_x": 487,
+              "center_y": 1736
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/cl_strategy_card",
+            "class": "ViewGroup",
+            "text": "com.guotai.dazhihui:id/cl_strategy_card",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 605,
+              "top": 1388,
+              "right": 1389,
+              "bottom": 1599,
+              "center_x": 997,
+              "center_y": 1493
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "TextView",
+            "text": "\u8f7b\u677e\u4e0b\u5355\u81ea\u52a8\u76ef\u76d8",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 643,
+              "top": 1524,
+              "right": 1127,
+              "bottom": 1570,
+              "center_x": 885,
+              "center_y": 1547
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tv_use_pp",
+            "class": "TextView",
+            "text": "\u521b\u5efa\u8ba2\u5355",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 1135,
+              "top": 1496,
+              "right": 1351,
+              "bottom": 1577,
+              "center_x": 1243,
+              "center_y": 1536
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/cl_smart_card",
+            "class": "ViewGroup",
+            "text": "com.guotai.dazhihui:id/cl_smart_card",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 605,
+              "top": 1637,
+              "right": 1389,
+              "bottom": 1848,
+              "center_x": 997,
+              "center_y": 1742
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "TextView",
+            "text": "\u5b9a\u5236\u4e13\u5c5e\u7b56\u7565",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 643,
+              "top": 1773,
+              "right": 1127,
+              "bottom": 1819,
+              "center_x": 885,
+              "center_y": 1796
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tv_go_use",
+            "class": "TextView",
+            "text": "\u7acb\u5373\u5b9a\u5236",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 1135,
+              "top": 1745,
+              "right": 1351,
+              "bottom": 1826,
+              "center_x": 1243,
+              "center_y": 1785
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "LinearLayout",
+            "text": "android.widget.LinearLayout",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 1937,
+              "right": 1440,
+              "bottom": 2098,
+              "center_x": 720,
+              "center_y": 2017
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/trade_yw_tv",
+            "class": "TextView",
+            "text": "ETF\u57fa\u91d1",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 54,
+              "top": 1937,
+              "right": 246,
+              "bottom": 2097,
+              "center_x": 150,
+              "center_y": 2017
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/trade_yw_sub_tv",
+            "class": "TextView",
+            "text": "HOT",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 262,
+              "top": 1990,
+              "right": 343,
+              "bottom": 2043,
+              "center_x": 302,
+              "center_y": 2016
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/trade_yw_summary_tv",
+            "class": "TextView",
+            "text": "\u65b0\u589e\u7b56\u7565\u3001\u6295\u6559\u3001\u4e92\u52a8\u5708\u5b50",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 343,
+              "top": 1937,
+              "right": 1322,
+              "bottom": 2097,
+              "center_x": 832,
+              "center_y": 2017
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "LinearLayout",
+            "text": "android.widget.LinearLayout",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 2098,
+              "right": 1440,
+              "bottom": 2259,
+              "center_x": 720,
+              "center_y": 2178
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/trade_yw_tv",
+            "class": "TextView",
+            "text": "\u53ef\u8f6c\u503a\u7533\u8d2d",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 54,
+              "top": 2098,
+              "right": 309,
+              "bottom": 2258,
+              "center_x": 181,
+              "center_y": 2178
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/trade_yw_summary_tv",
+            "class": "TextView",
+            "text": "\u652f\u6301\u65b0\u503a\u9884\u7ea6",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 309,
+              "top": 2098,
+              "right": 1322,
+              "bottom": 2258,
+              "center_x": 815,
+              "center_y": 2178
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "LinearLayout",
+            "text": "android.widget.LinearLayout",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 2259,
+              "right": 1440,
+              "bottom": 2420,
+              "center_x": 720,
+              "center_y": 2339
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/trade_yw_tv",
+            "class": "TextView",
+            "text": "\u65b0\u4e09\u677f\u4ea4\u6613",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 54,
+              "top": 2259,
+              "right": 309,
+              "bottom": 2419,
+              "center_x": 181,
+              "center_y": 2339
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/trade_yw_summary_tv",
+            "class": "TextView",
+            "text": "\u5f00\u6743\u9650\u3001\u65b0\u4e09\u677f\u5927\u5b97\u4ea4\u6613",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 309,
+              "top": 2259,
+              "right": 1322,
+              "bottom": 2419,
+              "center_x": 815,
+              "center_y": 2339
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "LinearLayout",
+            "text": "android.widget.LinearLayout",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 2420,
+              "right": 1440,
+              "bottom": 2580,
+              "center_x": 720,
+              "center_y": 2500
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/trade_yw_tv",
+            "class": "TextView",
+            "text": "\u7279\u7075\u4ea4\u6613",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 54,
+              "top": 2420,
+              "right": 258,
+              "bottom": 2580,
+              "center_x": 156,
+              "center_y": 2500
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/trade_yw_summary_tv",
+            "class": "TextView",
+            "text": "\u52a9\u60a8\u73a9\u8f6c\u5e95\u4ed3",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 258,
+              "top": 2420,
+              "right": 1322,
+              "bottom": 2580,
+              "center_x": 790,
+              "center_y": 2500
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "LinearLayout",
+            "text": "android.widget.LinearLayout",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 2580,
+              "right": 1440,
+              "bottom": 2618,
+              "center_x": 720,
+              "center_y": 2599
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "LinearLayout",
+            "text": "android.widget.LinearLayout",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 2618,
+              "right": 1440,
+              "bottom": 2779,
+              "center_x": 720,
+              "center_y": 2698
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/trade_yw_tv",
+            "class": "TextView",
+            "text": "\u4e70\u57fa\u91d1",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 54,
+              "top": 2618,
+              "right": 207,
+              "bottom": 2778,
+              "center_x": 130,
+              "center_y": 2698
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/trade_yw_summary_tv",
+            "class": "TextView",
+            "text": "\u67e5\u7406\u8d22\u8d44\u4ea7\u548c\u6301\u4ed3",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 207,
+              "top": 2618,
+              "right": 1322,
+              "bottom": 2778,
+              "center_x": 764,
+              "center_y": 2698
+            }
+          },
+          {
+            "resource_id": "",
+            "class": "LinearLayout",
+            "text": "android.widget.LinearLayout",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 2779,
+              "right": 1440,
+              "bottom": 2790,
+              "center_x": 720,
+              "center_y": 2784
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/trade_yw_tv",
+            "class": "TextView",
+            "text": "\u573a\u5185\u57fa\u91d1",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 54,
+              "top": 2779,
+              "right": 258,
+              "bottom": 2790,
+              "center_x": 156,
+              "center_y": 2784
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/trade_yw_summary_tv",
+            "class": "TextView",
+            "text": "com.guotai.dazhihui:id/trade_yw_summary_tv",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 258,
+              "top": 2779,
+              "right": 1322,
+              "bottom": 2790,
+              "center_x": 790,
+              "center_y": 2784
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/bottom_menu_button1",
+            "class": "LinearLayout",
+            "text": "com.guotai.dazhihui:id/bottom_menu_button1",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 2790,
+              "right": 288,
+              "bottom": 2966,
+              "center_x": 144,
+              "center_y": 2878
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/btm_image1",
+            "class": "ImageView",
+            "text": "\u53d1\u73b0",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 105,
+              "top": 2813,
+              "right": 182,
+              "bottom": 2890,
+              "center_x": 143,
+              "center_y": 2851
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/btm_text1",
+            "class": "TextView",
+            "text": "\u53d1\u73b0",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 2890,
+              "right": 288,
+              "bottom": 2943,
+              "center_x": 144,
+              "center_y": 2916
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/bottom_menu_button2",
+            "class": "LinearLayout",
+            "text": "com.guotai.dazhihui:id/bottom_menu_button2",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 288,
+              "top": 2790,
+              "right": 576,
+              "bottom": 2966,
+              "center_x": 432,
+              "center_y": 2878
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/btm_image2",
+            "class": "ImageView",
+            "text": "\u884c\u60c5",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 393,
+              "top": 2813,
+              "right": 470,
+              "bottom": 2890,
+              "center_x": 431,
+              "center_y": 2851
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/btm_text2",
+            "class": "TextView",
+            "text": "\u884c\u60c5",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 288,
+              "top": 2890,
+              "right": 576,
+              "bottom": 2943,
+              "center_x": 432,
+              "center_y": 2916
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/bottom_menu_button3",
+            "class": "LinearLayout",
+            "text": "com.guotai.dazhihui:id/bottom_menu_button3",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 576,
+              "top": 2790,
+              "right": 864,
+              "bottom": 2966,
+              "center_x": 720,
+              "center_y": 2878
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/btm_image3",
+            "class": "ImageView",
+            "text": "\u4ea4\u6613",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 681,
+              "top": 2813,
+              "right": 758,
+              "bottom": 2890,
+              "center_x": 719,
+              "center_y": 2851
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/btm_text3",
+            "class": "TextView",
+            "text": "\u4ea4\u6613",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 576,
+              "top": 2890,
+              "right": 864,
+              "bottom": 2943,
+              "center_x": 720,
+              "center_y": 2916
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/bottom_menu_button4",
+            "class": "LinearLayout",
+            "text": "com.guotai.dazhihui:id/bottom_menu_button4",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 864,
+              "top": 2790,
+              "right": 1152,
+              "bottom": 2966,
+              "center_x": 1008,
+              "center_y": 2878
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/btm_image4",
+            "class": "ImageView",
+            "text": "\u7406\u8d22",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 969,
+              "top": 2813,
+              "right": 1046,
+              "bottom": 2890,
+              "center_x": 1007,
+              "center_y": 2851
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/btm_text4",
+            "class": "TextView",
+            "text": "\u7406\u8d22",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 864,
+              "top": 2890,
+              "right": 1152,
+              "bottom": 2943,
+              "center_x": 1008,
+              "center_y": 2916
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/bottom_menu_button5",
+            "class": "LinearLayout",
+            "text": "com.guotai.dazhihui:id/bottom_menu_button5",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 1152,
+              "top": 2790,
+              "right": 1440,
+              "bottom": 2966,
+              "center_x": 1296,
+              "center_y": 2878
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/btm_image5",
+            "class": "ImageView",
+            "text": "\u6211\u7684",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 1257,
+              "top": 2813,
+              "right": 1334,
+              "bottom": 2890,
+              "center_x": 1295,
+              "center_y": 2851
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/btm_text5",
+            "class": "TextView",
+            "text": "\u6211\u7684",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 1152,
+              "top": 2890,
+              "right": 1440,
+              "bottom": 2943,
+              "center_x": 1296,
+              "center_y": 2916
+            }
+          }
+        ]
+      },
+      "screen": {
+        "width": 1440,
+        "height": 3120
+      },
+      "recorded_at_ms": 1781596572620,
+      "elapsed_since_previous_ms": 0
+    },
+    {
+      "action_type": "tap",
+      "x": 691,
+      "y": 621,
+      "pre_state": {
+        "phone_state": {
+          "package": null,
+          "activity": null
+        },
+        "screen": {
+          "width": 1440,
+          "height": 3120
+        },
+        "nodes": [
+          {
+            "resource_id": "",
+            "class": "FrameLayout",
+            "text": "android.widget.FrameLayout",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 0,
+              "right": 1440,
+              "bottom": 3120,
+              "center_x": 720,
+              "center_y": 1560
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/title_back",
+            "class": "LinearLayout",
+            "text": "com.guotai.dazhihui:id/title_back",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 76,
+              "right": 173,
+              "bottom": 236,
+              "center_x": 86,
+              "center_y": 156
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tv_title",
+            "class": "TextView",
+            "text": "\u4ea4\u6613\u767b\u5f55",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 604,
+              "top": 120,
+              "right": 836,
+              "bottom": 192,
+              "center_x": 720,
+              "center_y": 156
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tv_login_question",
+            "class": "TextView",
+            "text": "\u9047\u5230\u95ee\u9898",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 1200,
+              "top": 126,
+              "right": 1392,
+              "bottom": 185,
+              "center_x": 1296,
+              "center_y": 155
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/keyboard_switcher_view",
+            "class": "LinearLayout",
+            "text": "com.guotai.dazhihui:id/keyboard_switcher_view",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 2188,
+              "right": 1440,
+              "bottom": 2326,
+              "center_x": 720,
+              "center_y": 2257
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/num_button",
+            "class": "Button",
+            "text": "123",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 130,
+              "top": 2211,
+              "right": 344,
+              "bottom": 2307,
+              "center_x": 237,
+              "center_y": 2259
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/english_button",
+            "class": "Button",
+            "text": "ABC",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 1095,
+              "top": 2211,
+              "right": 1309,
+              "bottom": 2307,
+              "center_x": 1202,
+              "center_y": 2259
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/keyboard_view",
+            "class": "View",
+            "text": "com.guotai.dazhihui:id/keyboard_view",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 2326,
+              "right": 1440,
+              "bottom": 2966,
+              "center_x": 720,
+              "center_y": 2646
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/layout_account",
+            "class": "RelativeLayout",
+            "text": "com.guotai.dazhihui:id/layout_account",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 274,
+              "right": 1440,
+              "bottom": 530,
+              "center_x": 720,
+              "center_y": 402
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/account_tv",
+            "class": "TextView",
+            "text": "A4 *** 08",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 170,
+              "top": 330,
+              "right": 414,
+              "bottom": 402,
+              "center_x": 292,
+              "center_y": 366
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tv_account_type_tag1",
+            "class": "TextView",
+            "text": "\u80a1\u4e1c\u4ee3\u7801",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 430,
+              "top": 340,
+              "right": 590,
+              "bottom": 392,
+              "center_x": 510,
+              "center_y": 366
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/branch_name_tv",
+            "class": "TextView",
+            "text": "\u5e7f\u897f\u5357\u5b81\u6c11\u65cf\u5927\u9053",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 170,
+              "top": 418,
+              "right": 1270,
+              "bottom": 474,
+              "center_x": 720,
+              "center_y": 446
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/change_account_tv",
+            "class": "TextView",
+            "text": "\u5207\u6362",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 1270,
+              "top": 342,
+              "right": 1392,
+              "bottom": 462,
+              "center_x": 1331,
+              "center_y": 402
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/password_input_et",
+            "class": "EditText",
+            "text": "\u8bf7\u8f93\u5165\u4ea4\u6613\u5bc6\u7801",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 170,
+              "top": 532,
+              "right": 1213,
+              "bottom": 711,
+              "center_x": 691,
+              "center_y": 621
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/password_visibility_iv",
+            "class": "ImageView",
+            "text": "com.guotai.dazhihui:id/password_visibility_iv",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 1296,
+              "top": 573,
+              "right": 1392,
+              "bottom": 669,
+              "center_x": 1344,
+              "center_y": 621
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/login_confirm_btn",
+            "class": "Button",
+            "text": "\u767b\u5f55",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 48,
+              "top": 807,
+              "right": 1392,
+              "bottom": 948,
+              "center_x": 720,
+              "center_y": 877
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tv_timeout_protector",
+            "class": "TextView",
+            "text": "\u4fdd\u6301\u5728\u7ebf\u65f6\u957f 24\u5c0f\u65f6",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 48,
+              "top": 1018,
+              "right": 518,
+              "bottom": 1106,
+              "center_x": 283,
+              "center_y": 1062
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tv_quick_open_account",
+            "class": "TextView",
+            "text": "\u5f00\u6237\u4eab\u6700\u9ad86.88%\u7406\u8d22\u5238",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 895,
+              "top": 1018,
+              "right": 1392,
+              "bottom": 1224,
+              "center_x": 1143,
+              "center_y": 1121
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tv_gm_cert_chips_text",
+            "class": "TextView",
+            "text": "\u5df2\u5f00\u542f\u901a\u4fe1\u536b\u58eb",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 561,
+              "top": 2823,
+              "right": 878,
+              "bottom": 2870,
+              "center_x": 719,
+              "center_y": 2846
+            }
+          }
+        ]
+      },
+      "screen": {
+        "width": 1440,
+        "height": 3120
+      },
+      "recorded_at_ms": 1781596576530,
+      "elapsed_since_previous_ms": 3910
+    },
+    {
+      "action_type": "input_text",
+      "text": "'{GUOTAI_PASSWORD}'",
+      "clear": false,
+      "pre_state": {
+        "phone_state": {
+          "package": null,
+          "activity": null
+        },
+        "screen": {
+          "width": 1440,
+          "height": 3120
+        },
+        "nodes": [
+          {
+            "resource_id": "",
+            "class": "FrameLayout",
+            "text": "android.widget.FrameLayout",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 0,
+              "right": 1440,
+              "bottom": 3120,
+              "center_x": 720,
+              "center_y": 1560
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/title_back",
+            "class": "LinearLayout",
+            "text": "com.guotai.dazhihui:id/title_back",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 76,
+              "right": 173,
+              "bottom": 236,
+              "center_x": 86,
+              "center_y": 156
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tv_title",
+            "class": "TextView",
+            "text": "\u4ea4\u6613\u767b\u5f55",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 604,
+              "top": 120,
+              "right": 836,
+              "bottom": 192,
+              "center_x": 720,
+              "center_y": 156
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tv_login_question",
+            "class": "TextView",
+            "text": "\u9047\u5230\u95ee\u9898",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 1200,
+              "top": 126,
+              "right": 1392,
+              "bottom": 185,
+              "center_x": 1296,
+              "center_y": 155
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/keyboard_switcher_view",
+            "class": "LinearLayout",
+            "text": "com.guotai.dazhihui:id/keyboard_switcher_view",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 2188,
+              "right": 1440,
+              "bottom": 2326,
+              "center_x": 720,
+              "center_y": 2257
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/num_button",
+            "class": "Button",
+            "text": "123",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 130,
+              "top": 2211,
+              "right": 344,
+              "bottom": 2307,
+              "center_x": 237,
+              "center_y": 2259
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/english_button",
+            "class": "Button",
+            "text": "ABC",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 1095,
+              "top": 2211,
+              "right": 1309,
+              "bottom": 2307,
+              "center_x": 1202,
+              "center_y": 2259
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/keyboard_view",
+            "class": "View",
+            "text": "com.guotai.dazhihui:id/keyboard_view",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 2326,
+              "right": 1440,
+              "bottom": 2966,
+              "center_x": 720,
+              "center_y": 2646
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/layout_account",
+            "class": "RelativeLayout",
+            "text": "com.guotai.dazhihui:id/layout_account",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 274,
+              "right": 1440,
+              "bottom": 530,
+              "center_x": 720,
+              "center_y": 402
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/account_tv",
+            "class": "TextView",
+            "text": "A4 *** 08",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 170,
+              "top": 330,
+              "right": 414,
+              "bottom": 402,
+              "center_x": 292,
+              "center_y": 366
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tv_account_type_tag1",
+            "class": "TextView",
+            "text": "\u80a1\u4e1c\u4ee3\u7801",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 430,
+              "top": 340,
+              "right": 590,
+              "bottom": 392,
+              "center_x": 510,
+              "center_y": 366
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/branch_name_tv",
+            "class": "TextView",
+            "text": "\u5e7f\u897f\u5357\u5b81\u6c11\u65cf\u5927\u9053",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 170,
+              "top": 418,
+              "right": 1270,
+              "bottom": 474,
+              "center_x": 720,
+              "center_y": 446
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/change_account_tv",
+            "class": "TextView",
+            "text": "\u5207\u6362",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 1270,
+              "top": 342,
+              "right": 1392,
+              "bottom": 462,
+              "center_x": 1331,
+              "center_y": 402
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/password_input_et",
+            "class": "EditText",
+            "text": "\u8bf7\u8f93\u5165\u4ea4\u6613\u5bc6\u7801",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 170,
+              "top": 532,
+              "right": 1213,
+              "bottom": 711,
+              "center_x": 691,
+              "center_y": 621
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/password_visibility_iv",
+            "class": "ImageView",
+            "text": "com.guotai.dazhihui:id/password_visibility_iv",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 1296,
+              "top": 573,
+              "right": 1392,
+              "bottom": 669,
+              "center_x": 1344,
+              "center_y": 621
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/login_confirm_btn",
+            "class": "Button",
+            "text": "\u767b\u5f55",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 48,
+              "top": 807,
+              "right": 1392,
+              "bottom": 948,
+              "center_x": 720,
+              "center_y": 877
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tv_timeout_protector",
+            "class": "TextView",
+            "text": "\u4fdd\u6301\u5728\u7ebf\u65f6\u957f 24\u5c0f\u65f6",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 48,
+              "top": 1018,
+              "right": 518,
+              "bottom": 1106,
+              "center_x": 283,
+              "center_y": 1062
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tv_quick_open_account",
+            "class": "TextView",
+            "text": "\u5f00\u6237\u4eab\u6700\u9ad86.88%\u7406\u8d22\u5238",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 895,
+              "top": 1018,
+              "right": 1392,
+              "bottom": 1224,
+              "center_x": 1143,
+              "center_y": 1121
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tv_gm_cert_chips_text",
+            "class": "TextView",
+            "text": "\u5df2\u5f00\u542f\u901a\u4fe1\u536b\u58eb",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 561,
+              "top": 2823,
+              "right": 878,
+              "bottom": 2870,
+              "center_x": 719,
+              "center_y": 2846
+            }
+          }
+        ]
+      },
+      "screen": {
+        "width": 1440,
+        "height": 3120
+      },
+      "recorded_at_ms": 1781596578032,
+      "elapsed_since_previous_ms": 1502
+    },
+    {
+      "action_type": "tap",
+      "x": 720,
+      "y": 877,
+      "pre_state": {
+        "phone_state": {
+          "package": null,
+          "activity": null
+        },
+        "screen": {
+          "width": 1440,
+          "height": 3120
+        },
+        "nodes": [
+          {
+            "resource_id": "",
+            "class": "FrameLayout",
+            "text": "android.widget.FrameLayout",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 0,
+              "right": 1440,
+              "bottom": 3120,
+              "center_x": 720,
+              "center_y": 1560
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/title_back",
+            "class": "LinearLayout",
+            "text": "com.guotai.dazhihui:id/title_back",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 76,
+              "right": 173,
+              "bottom": 236,
+              "center_x": 86,
+              "center_y": 156
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tv_title",
+            "class": "TextView",
+            "text": "\u4ea4\u6613\u767b\u5f55",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 604,
+              "top": 120,
+              "right": 836,
+              "bottom": 192,
+              "center_x": 720,
+              "center_y": 156
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tv_login_question",
+            "class": "TextView",
+            "text": "\u9047\u5230\u95ee\u9898",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 1200,
+              "top": 126,
+              "right": 1392,
+              "bottom": 185,
+              "center_x": 1296,
+              "center_y": 155
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/keyboard_switcher_view",
+            "class": "LinearLayout",
+            "text": "com.guotai.dazhihui:id/keyboard_switcher_view",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 2188,
+              "right": 1440,
+              "bottom": 2326,
+              "center_x": 720,
+              "center_y": 2257
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/num_button",
+            "class": "Button",
+            "text": "123",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 130,
+              "top": 2211,
+              "right": 344,
+              "bottom": 2307,
+              "center_x": 237,
+              "center_y": 2259
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/english_button",
+            "class": "Button",
+            "text": "ABC",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 1095,
+              "top": 2211,
+              "right": 1309,
+              "bottom": 2307,
+              "center_x": 1202,
+              "center_y": 2259
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/keyboard_view",
+            "class": "View",
+            "text": "com.guotai.dazhihui:id/keyboard_view",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 2326,
+              "right": 1440,
+              "bottom": 2966,
+              "center_x": 720,
+              "center_y": 2646
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/layout_account",
+            "class": "RelativeLayout",
+            "text": "com.guotai.dazhihui:id/layout_account",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 0,
+              "top": 274,
+              "right": 1440,
+              "bottom": 530,
+              "center_x": 720,
+              "center_y": 402
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/account_tv",
+            "class": "TextView",
+            "text": "A4 *** 08",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 170,
+              "top": 330,
+              "right": 414,
+              "bottom": 402,
+              "center_x": 292,
+              "center_y": 366
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tv_account_type_tag1",
+            "class": "TextView",
+            "text": "\u80a1\u4e1c\u4ee3\u7801",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 430,
+              "top": 340,
+              "right": 590,
+              "bottom": 392,
+              "center_x": 510,
+              "center_y": 366
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/branch_name_tv",
+            "class": "TextView",
+            "text": "\u5e7f\u897f\u5357\u5b81\u6c11\u65cf\u5927\u9053",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 170,
+              "top": 418,
+              "right": 1270,
+              "bottom": 474,
+              "center_x": 720,
+              "center_y": 446
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/change_account_tv",
+            "class": "TextView",
+            "text": "\u5207\u6362",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 1270,
+              "top": 342,
+              "right": 1392,
+              "bottom": 462,
+              "center_x": 1331,
+              "center_y": 402
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/password_input_et",
+            "class": "EditText",
+            "text": "'{GUOTAI_PASSWORD}'",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 170,
+              "top": 532,
+              "right": 1213,
+              "bottom": 711,
+              "center_x": 691,
+              "center_y": 621
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/password_delete_iv",
+            "class": "ImageView",
+            "text": "com.guotai.dazhihui:id/password_delete_iv",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 1213,
+              "top": 580,
+              "right": 1296,
+              "bottom": 663,
+              "center_x": 1254,
+              "center_y": 621
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/password_visibility_iv",
+            "class": "ImageView",
+            "text": "com.guotai.dazhihui:id/password_visibility_iv",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 1296,
+              "top": 573,
+              "right": 1392,
+              "bottom": 669,
+              "center_x": 1344,
+              "center_y": 621
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/login_confirm_btn",
+            "class": "Button",
+            "text": "\u767b\u5f55",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 48,
+              "top": 807,
+              "right": 1392,
+              "bottom": 948,
+              "center_x": 720,
+              "center_y": 877
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tv_timeout_protector",
+            "class": "TextView",
+            "text": "\u4fdd\u6301\u5728\u7ebf\u65f6\u957f 24\u5c0f\u65f6",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 48,
+              "top": 1018,
+              "right": 518,
+              "bottom": 1106,
+              "center_x": 283,
+              "center_y": 1062
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tv_quick_open_account",
+            "class": "TextView",
+            "text": "\u5f00\u6237\u4eab\u6700\u9ad86.88%\u7406\u8d22\u5238",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 895,
+              "top": 1018,
+              "right": 1392,
+              "bottom": 1224,
+              "center_x": 1143,
+              "center_y": 1121
+            }
+          },
+          {
+            "resource_id": "com.guotai.dazhihui:id/tv_gm_cert_chips_text",
+            "class": "TextView",
+            "text": "\u5df2\u5f00\u542f\u901a\u4fe1\u536b\u58eb",
+            "content_description": null,
+            "clickable": null,
+            "enabled": null,
+            "focused": null,
+            "bounds": {
+              "left": 561,
+              "top": 2823,
+              "right": 878,
+              "bottom": 2870,
+              "center_x": 719,
+              "center_y": 2846
+            }
+          }
+        ]
+      },
+      "screen": {
+        "width": 1440,
+        "height": 3120
+      },
+      "recorded_at_ms": 1781596579037,
+      "elapsed_since_previous_ms": 1005
+    }
+  ]
+}

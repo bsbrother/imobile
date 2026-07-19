@@ -12,11 +12,9 @@ Sources:
 
 import asyncio
 import aiohttp
-import requests
 import json
-import re
 import time
-from typing import List, Dict, Optional, Set
+from typing import List
 from loguru import logger
 from dataclasses import dataclass
 from urllib.parse import urljoin

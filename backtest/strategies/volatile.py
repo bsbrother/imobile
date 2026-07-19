@@ -4,7 +4,6 @@ Volatile market strategy implementation.
 
 from typing import Dict, Any
 import pandas as pd
-import numpy as np
 from ..core.strategy import ASharesStrategy
 from ..analysis.indicators import TechnicalIndicators
 
@@ -174,7 +173,7 @@ class VolatileMarketStrategy(ASharesStrategy):
             # Volatile market - quick entry (need momentum or mean reversion)
             return len(buy_signals) >= 1 and (has_momentum or has_mean_reversion)
             
-        except Exception as e:
+        except Exception:
             # Return False if any calculation fails
             return False
     
@@ -209,7 +208,7 @@ class VolatileMarketStrategy(ASharesStrategy):
             current_rsi = rsi.iloc[current_idx] if not pd.isna(rsi.iloc[current_idx]) else 50
             current_price = close_prices.iloc[current_idx]
             current_bb_upper = bb_upper.iloc[current_idx] if not pd.isna(bb_upper.iloc[current_idx]) else current_price
-            current_bb_middle = bb_middle.iloc[current_idx] if not pd.isna(bb_middle.iloc[current_idx]) else current_price
+            bb_middle.iloc[current_idx] if not pd.isna(bb_middle.iloc[current_idx]) else current_price
             current_macd = macd_line.iloc[current_idx] if not pd.isna(macd_line.iloc[current_idx]) else 0
             current_macd_signal = macd_signal.iloc[current_idx] if not pd.isna(macd_signal.iloc[current_idx]) else 0
             prev_macd = macd_line.iloc[current_idx-1] if current_idx > 0 and not pd.isna(macd_line.iloc[current_idx-1]) else 0
@@ -294,6 +293,6 @@ class VolatileMarketStrategy(ASharesStrategy):
             
             return len(sell_signals) >= 1 or has_quick_exit
             
-        except Exception as e:
+        except Exception:
             # Return False if any calculation fails
             return False

@@ -5,7 +5,6 @@ Technical indicators for market pattern detection.
 import numpy as np
 import pandas as pd
 from typing import Tuple
-from ..utils.util import dfs_concat
 
 
 class TechnicalIndicators:

@@ -1,67 +1,72 @@
-python-dotenv
+# iMobile — A-Shares Automated Trading System
+# =============================================
+# Install: pip install -r requirements.txt
+#
+# Sub-projects with their own requirements:
+#   utils/searxng/requirements.txt       — SearXNG search engine
+#   utils/daily_stock_analysis/requirements.txt — Daily stock analysis
 
-loguru
+# ── Environment & Logging ──────────────────────
+python-dotenv>=1.0.0
+loguru>=0.7.0
 
-agno
+# ── Data & Numeric ────────────────────────────
+pandas>=2.0.0
+numpy>=2.0.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+plotly>=5.15.0
 
-google-genai
-genai_processors
+# ── Stock Market Data Providers ───────────────
+tushare>=1.4.0
+akshare>=1.12.0
+pytdx>=1.72
 
-yfinance
+# ── Backtesting Engine ────────────────────────
+backtesting>=0.6.0
+ta>=0.10.0
+tenacity>=8.2.0
+tqdm>=4.60.0
+adata>=0.1.0
 
-mcp
+# ── AI / LLM ──────────────────────────────────
+google-genai>=1.0.0
+openai>=1.0.0
+litellm>=1.80.0
+# evoagentx  # removed: pulled torch+cuda ~5G; not used anywhere in codebase
+json5>=0.9.0
+markdown2>=2.4.0
 
-googlesearch-python
-ddgs
-pycountry
-baidusearch
+# ── Mobile Automation (ADB + Vision agent) ────
+# mobilerun is the new name for droidrun (v0.6+).
+# It pulls llama-index, google-genai integration, httpx, pydantic, mcp, etc.
+mobilerun>=0.6.0
+Levenshtein>=0.21.0
 
+# ── Web Dashboard (Reflex) ────────────────────
+reflex==0.8.26
+sqlmodel>=0.0.14
+sqlalchemy>=2.0.0
+
+# ── Utilities ─────────────────────────────────
+requests>=2.31.0
+pyyaml>=6.0
+python-dateutil>=2.8.0
+isodate>=0.6.0
+httpx>=0.24.0
 curl-cffi==0.8.1b9
-wasmtime
-numpy
-nodriver
-drissionpage
-fastapi
-uvicorn
-pyvirtualdisplay
+lxml>=4.9.0
+jinja2>=3.1.0
+babel>=2.12.0
+flask>=2.3.0            # SearXNG web frontend
+werkzeug>=2.3.0         # SearXNG
+pygments>=2.15.0        # SearXNG syntax highlighting
+typer>=0.9.0            # SearXNG CLI
+msgspec>=0.18.0         # SearXNG JSON parsing
+pytz>=2023.3            # Timezone support
+valkey>=5.0.0           # SearXNG caching
 
-# pip install droidrun[google] -e utils/droidrun/.
-
-# ~/apps/illm/utils/EvoAgentX/Wonderful_workflow_corpus/invest/stock_analysis.py
-# pip install -r  ~/apps/illm/utils/EvoAgentX/requirements.txt
-evoagentx
-matplotlib
-akshare
-telethon
-
-# Reflex project
-reflex
-
-# ibacktest
-backtesting
-pandas
-numpy
-
-# Stock API
-tushare
-akshare
-
-# Data analysis and visualization
-matplotlib
-seaborn
-plotly
-
-# Technical indicators
-ta
-
-# Utilities
-python-dateutil
-requests
-pyyaml
-
-# Optional: Jupyter support
-jupyter
-ipywidgets
-
-reflex==0.8.15
-adata
+# ── Optional: Development & Analysis ──────────
+# jupyter
+# ipywidgets
+# pytest

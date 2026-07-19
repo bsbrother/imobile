@@ -29,36 +29,36 @@ def calculate_trailing_stop(
     
     profit_pct = (current_price - entry_price) / entry_price * 100
     
-    # Aggressive trailing for large profits
+    # Ultra-Aggressive trailing to capture maximum short-term profits
     if profit_pct > 20:
-        # Lock in 15% profit
-        new_stop = entry_price * 1.15
-        reason = 'trailing_lock_15pct'
+        # Lock in 16% profit
+        new_stop = entry_price * 1.16
+        reason = 'trailing_lock_16pct'
     
     elif profit_pct > 15:
-        # Lock in 10% profit
-        new_stop = entry_price * 1.10
-        reason = 'trailing_lock_10pct'
+        # Lock in 12% profit
+        new_stop = entry_price * 1.12
+        reason = 'trailing_lock_12pct'
     
     elif profit_pct > 10:
+        # Lock in 8% profit
+        new_stop = entry_price * 1.08
+        reason = 'trailing_lock_8pct'
+
+    elif profit_pct > 7:
         # Lock in 5% profit
         new_stop = entry_price * 1.05
         reason = 'trailing_lock_5pct'
-
-    elif profit_pct > 8:
-        # Lock in 3% profit
-        new_stop = entry_price * 1.03
-        reason = 'trailing_lock_3pct'
     
-    elif profit_pct > 5:
-        # Lock in 1% profit
-        new_stop = entry_price * 1.01
-        reason = 'trailing_lock_1pct'
+    elif profit_pct > 4:
+        # Lock in 2% profit
+        new_stop = entry_price * 1.02
+        reason = 'trailing_lock_2pct'
 
-    elif profit_pct > 3:
-        # Move to break-even
-        new_stop = entry_price * 1.00
-        reason = 'trailing_breakeven'
+    elif profit_pct > 2:
+        # Move to break-even + 0.5% (protect commissions)
+        new_stop = entry_price * 1.005
+        reason = 'trailing_breakeven_plus'
     
     else:
         # Keep initial stop loss

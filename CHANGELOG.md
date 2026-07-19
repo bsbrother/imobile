@@ -18,8 +18,33 @@ Key changes and milestones in iMobile development.
 - **Integration markers**: tagged 10 network-dependent test files with `@pytest.mark.integration` — they now skip by default instead of hanging on real API calls.
 - **xfail markers**: marked 2 pre-existing `test_freeride.py` failures (`test_freeride_model_initialization`, `test_model_configuration`) as `xfail` with reasons — they test the old OpenRouter client API, not the current `_try_completion` helper.
 - **Bug fix**: `pd.io.json.dumps` (non-existent API) replaced with `json.dumps` in conftest fixture.
-- **Makefile**: added with `test`, `test-integration`, `backtest`, `lint`, `clean` targets.
+- **Makefile**: added with `test`, `test-integration`, `test-fast`, `backtest`, `lint`, `clean` targets.
 - Test suite: 31 collection errors → 0; 9 pass, 16 skip, 2 xfail in 45s (was 38s + 31 errors).
+
+### Phase B — Performance optimization & error handling
+- **Memoized `detect_market_regime()`** via `_detect_market_regime_cached()` wrapper with `_REGIME_CACHE` dict — eliminates ~120 redundant Tushare API calls per full backtest (the same date was queried 2-3× by `pick_stocks_to_file()` + `pick_orders_trading()`).
+- **Replaced 11 `os.system()` calls** with `subprocess.run()` via `_run_strategy_script()` and `_run_cli_command()` helpers — captures stderr for error messages, eliminates shell injection risk, passes args as a list (no `shell=True`).
+- **Dynamic `VENV_PYTHON`** — replaced hard-coded `/home/kasm-user/apps/imobile/.venv/bin/python` with `sys.executable`, making the engine portable across machines/venvs.
+- **Strategy dispatch refactored** to table-driven `_STRATEGY_SCRIPTS` dict — eliminated 10-branch if/elif chain.
+- Verified: 1-week backtest runs clean, 9/16/2 test suite still green.
+
+### Phase C — Real test coverage (+34 unit tests)
+- **`tests/test_engine_helpers.py`** (16 tests, 0.29s):
+  - `KaufmanEfficiencyRatio`: strong uptrend (ER→1.0), downtrend (ER→1.0), choppy (ER<0.5), flat (NaN), insufficient data (NaN), empty series (NaN).
+  - `_detect_market_regime_cached`: cache hit avoids repeated calls, different dates trigger separate calls, cache persists across 10 calls.
+  - `_run_strategy_script`: success doesn't raise, failure raises RuntimeError with stderr, args passed as list (not shell string), uses `sys.executable`.
+  - `_run_cli_command`: success, failure includes command name, invokes `python -m backtest.cli`.
+- **`tests/test_canslim_scoring.py`** (18 tests, 0.03s):
+  - `compute_rps`: strong uptrend (RPS>90), declining (RPS<0), flat (RPS≈0), insufficient data (0.0).
+  - `canslim_score_stock`: all-7-factors-pass, each factor failure case (C/A/N/S/I/M), technical=None returns None.
+  - CANSLIM constants: 7 threshold sanity checks (EPS 25%, ROE 17%, 52W 85%, cap 500亿, RPS 80, turnover 2%-15%).
+- Full suite: **43 passed, 16 skipped, 2 xfailed in 23s** (was 9 passed at Phase A start).
+
+### Phase D — Documentation
+- **CHANGELOG.md**: added all 4 phases with detailed bullet points.
+- **docs/REFACTORING.md**: new — documents the refactor branch's goals, changes per phase, before/after metrics, and merge checklist.
+- **docs/TODO.md**: updated with completed refactor items.
+- **README.md**: added "Development" section with `make` targets and test instructions.
 
 ## 2026-07
 

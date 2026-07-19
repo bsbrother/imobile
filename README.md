@@ -94,6 +94,50 @@ For a deep dive into how these systems interact, please read [ARCHITECTURE.md](A
 
 ---
 
+## 🛠️ Development
+
+### Running Tests
+
+```bash
+# Unit tests only (skips integration, ~23s)
+make test
+
+# Fast tests only (baseline regression + freeride, ~5s)
+make test-fast
+
+# All tests including network-dependent ones (needs API keys)
+make test-integration
+```
+
+### Running Backtests
+
+```bash
+# Full ts_7AZ baseline backtest (~44min)
+make backtest
+
+# Or with specific date range
+.venv/bin/python backtest/engine.py 20260101 20260619 ts_7AZ --no-search --no-ai
+```
+
+### Code Quality
+
+```bash
+make lint    # ruff + pyright
+make clean   # remove __pycache__, .pytest_cache, .ruff_cache
+```
+
+### Test Structure
+
+- `tests/test_baseline_regression.py` — pins ts_7AZ return at 70.59% ±0.2%
+- `tests/test_engine_helpers.py` — Kaufman ER, regime memoization, subprocess helpers
+- `tests/test_canslim_scoring.py` — CANSLIM 7-factor scoring logic
+- `tests/test_freeride.py` — FreeRide/OpenRouter integration
+- Integration tests (Tushare, Gemini, SearXNG) are tagged `@pytest.mark.integration` and skip by default
+
+See [docs/REFACTORING.md](docs/REFACTORING.md) for the full refactor changelog.
+
+---
+
 ## 📚 Documentation
 
 | Doc | Description |

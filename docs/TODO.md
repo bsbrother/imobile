@@ -1,5 +1,17 @@
 # TODO — Current Tasks
 
+## Completed — 2026-07 Refactor (refactor/optimize-and-clean branch)
+
+- [x] **Test infrastructure**: pytest.ini, conftest.py, integration marker auto-skip, Makefile
+- [x] **Characterization test**: ts_7AZ 70.59% baseline pinned (±0.2% band, 65% floor)
+- [x] **Ghost test cleanup**: deleted 2 broken, moved 3 to scripts/, renamed 2 dot-filenames
+- [x] **Performance: regime memoization** — eliminates ~120 redundant API calls per backtest
+- [x] **Error handling: subprocess.run()** — replaced 11 os.system() calls, captures stderr
+- [x] **Portability: sys.executable** — replaced hard-coded venv path
+- [x] **Strategy dispatch**: table-driven _STRATEGY_SCRIPTS dict (was 10-branch if/elif)
+- [x] **Unit test coverage**: +34 tests (engine helpers + CANSLIM scoring), 0.32s total
+- [x] **Documentation**: REFACTORING.md, CHANGELOG, TODO, README updates
+
 ## Active
 
 ### Backtest Optimization

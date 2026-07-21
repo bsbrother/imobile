@@ -24,12 +24,14 @@ Strategy signals (scored 0-100):
   2. MA96 slope up/flat (5-day slope >= -0.5%)
   3. Pullback proximity: price within 1-5% above MA96 (sweet spot)
   4. Chasing guard: reject if >15% above MA96
-  5. 60MA > 96MA (medium-term golden cross alignment)
-  6. Volume contraction on pullback (5d vol < 20d vol)
-  7. Volume expansion on recent bounce (latest day vol > 5d avg)
-  8. 24MA > 96MA (short-term cross confirmation)
-  9. Relative strength vs CSI300 index
+  5. Fake breakout guard: reject if 1-3 days above MA96 then long bearish candle below
+  6. 60MA > 96MA: recent cross (15 pts) vs persistent state (8 pts)
+  7. Volume contraction on pullback (5d vol < 20d vol)
+  8. Volume expansion on recent bounce (latest day vol > 5d avg)
+  9. 24MA > 96MA: recent cross (10 pts) vs persistent state (5 pts)
  10. ADX > 20 (trending, not choppy)
+ 11. Relative strength vs CSI300 index
+ 12. Stop-loss exported: 2.5% below MA96
 
 Usage:
     python backtest/strategies/ts_96mv.py YYYYMMDD [--lookahead]
@@ -115,6 +117,65 @@ def calculate_adx(high: pd.Series, low: pd.Series, close: pd.Series, period: int
     return {'adx': adx, 'plus_di': plus_di, 'minus_di': minus_di}
 
 
+def detect_recent_cross(fast_ma: pd.Series, slow_ma: pd.Series, lookback: int = 10) -> tuple[bool, int]:
+    """
+    Detect if fast MA crossed above slow MA within the last N days.
+    
+    Returns:
+        (crossed_recently, days_ago): True if cross happened within lookback days
+    """
+    if len(fast_ma) < lookback + 2 or len(slow_ma) < lookback + 2:
+        return False, -1
+    
+    # Check each day in the lookback window for a cross
+    for i in range(-1, -lookback - 1, -1):
+        if pd.isna(fast_ma.iloc[i]) or pd.isna(slow_ma.iloc[i]):
+            continue
+        if pd.isna(fast_ma.iloc[i - 1]) or pd.isna(slow_ma.iloc[i - 1]):
+            continue
+        # Cross: fast was below slow, now above
+        if fast_ma.iloc[i - 1] <= slow_ma.iloc[i - 1] and fast_ma.iloc[i] > slow_ma.iloc[i]:
+            return True, abs(i)
+    
+    return False, -1
+
+
+def detect_fake_breakout(close: pd.Series, ma96: pd.Series, lookback: int = 10) -> bool:
+    """
+    Detect fake breakout: price broke above MA96 but fell back below with a long bearish candle.
+    
+    Article 2: "如果站上去没两天就一根长阴砸穿，那这次突破大概率是虚晃一枪"
+    
+    Returns:
+        True if fake breakout detected (should reject)
+    """
+    if len(close) < lookback + 5:
+        return False
+    
+    # Find the most recent day where close was above MA96
+    above_days = 0
+    for i in range(-1, -lookback - 1, -1):
+        if pd.isna(ma96.iloc[i]):
+            break
+        if close.iloc[i] > ma96.iloc[i]:
+            above_days += 1
+        else:
+            break
+    
+    # If price was above MA96 for 1-3 days, then fell below with a bearish candle
+    if 1 <= above_days <= 3:
+        # Check if the breakdown day had a long bearish candle
+        breakdown_idx = -above_days - 1
+        if abs(breakdown_idx) < len(close):
+            day_open = close.iloc[breakdown_idx - 1] if breakdown_idx - 1 >= -len(close) else close.iloc[breakdown_idx]
+            day_close = close.iloc[breakdown_idx]
+            # Long bearish candle: close drops >3% from open
+            if day_close < day_open * 0.97:
+                return True
+    
+    return False
+
+
 def get_index_returns(end_date: str, period: int = 20) -> float:
     """Get CSI300 index returns over the given period for relative strength."""
     try:
@@ -192,11 +253,17 @@ def analyze_stock_96mv(ts_code: str, df: pd.DataFrame,
         if ma96_slope < -0.5:
             return None
 
+        # ─── HARD FILTER 4: Fake breakout detection ───
+        # Article 2: "如果站上去没两天就一根长阴砸穿，那这次突破大概率是虚晃一枪"
+        if detect_fake_breakout(close, ma96):
+            return None
+
         # ─── Scoring System (0-100) ───
         score = 0.0
         signals = []
 
         # 1. MA96 Slope (25 pts): up or flat = bullish
+        # Article 2: "只看价格是否站上均线，不看均线自身的方向，等于只看了一半"
         if ma96_slope > 1.0:
             score += 25.0
             signals.append(f"MA96_slope_up({ma96_slope:.2f}%)")
@@ -218,19 +285,27 @@ def analyze_stock_96mv(ts_code: str, df: pd.DataFrame,
                 signals.append(f"pullback_zone({pct_above_ma96:.1f}%)")
         # 5-15% above MA96: no consolation points — too far from pullback zone
 
-        # 3. 60MA / 96MA Cross (15 pts)
-        # Article: "60日均线上穿96日均线，同时96日均线本身开始走平上翘"
+        # 3. 60MA / 96MA Cross (15 pts): recent cross = strongest signal
+        # Article 2: "60日均线上穿96日均线，同时96日均线本身开始走平上翘"
         if not pd.isna(latest_ma60) and latest_ma60 > latest_ma96:
-            score += 15.0
-            signals.append("MA60>MA96_golden_cross")
-        # 60MA below 96MA: no consolation points
+            cross_recently, cross_days_ago = detect_recent_cross(ma60, ma96, lookback=20)
+            if cross_recently:
+                score += 15.0
+                signals.append(f"MA60>MA96_cross_{cross_days_ago}d_ago")
+            else:
+                score += 8.0
+                signals.append("MA60>MA96_above")
 
-        # 4. 24MA / 96MA Cross (10 pts)
-        # Article: "24日线上穿96日线形成金叉"
+        # 4. 24MA / 96MA Cross (10 pts): recent cross = strongest signal
+        # Article 1: "24日线上穿96日线形成金叉"
         if not pd.isna(latest_ma24) and latest_ma24 > latest_ma96:
-            score += 10.0
-            signals.append("MA24>MA96_cross")
-        # 24MA below 96MA: no consolation points
+            cross_recently, cross_days_ago = detect_recent_cross(ma24, ma96, lookback=10)
+            if cross_recently:
+                score += 10.0
+                signals.append(f"MA24>MA96_cross_{cross_days_ago}d_ago")
+            else:
+                score += 5.0
+                signals.append("MA24>MA96_above")
 
         # 5. Volume Contraction on Pullback (15 pts)
         # Article: "回踩时成交量明显收窄" + "股价在96日线附近稳稳守住"
@@ -274,6 +349,10 @@ def analyze_stock_96mv(ts_code: str, df: pd.DataFrame,
                 signals.append(f"rel_strength(+{excess_return:.1f}%)")
             # Moderate or negative excess return: no consolation points
 
+        # ─── Stop-loss: 2-3% below MA96 (Article 1) ───
+        stop_loss_price = round(latest_ma96 * 0.975, 2)  # 2.5% below MA96
+        stop_loss_pct = round((latest_close - stop_loss_price) / latest_close * 100, 2)
+
         # ─── Minimum score threshold ───
         if score < MIN_SCORE_THRESHOLD:
             return None
@@ -287,6 +366,8 @@ def analyze_stock_96mv(ts_code: str, df: pd.DataFrame,
             'ma96_slope': round(ma96_slope, 3),
             'pct_above_ma96': round(pct_above_ma96, 2),
             'adx': round(latest_adx, 1) if not pd.isna(latest_adx) else 0,
+            'stop_loss_price': stop_loss_price,
+            'stop_loss_pct': stop_loss_pct,
             'composite_score': round(score, 2),
             'signals': signals,
         }

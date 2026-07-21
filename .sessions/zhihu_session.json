@@ -1,0 +1,43 @@
+{
+  "source": "zhihu.com",
+  "url": "https://zhuanlan.zhihu.com/p/2058913391817838725",
+  "saved_at": "2026-07-21T16:57:00",
+  "cookies": [
+    {
+      "name": "z_c0",
+      "value": "2|1:0|10:1784620830|4:z_c0|92:Mi4xNEJVWEJnQUFBQUNoMGhoMEJmaWdIQ1lBQUFCZ0FsVk43M1JNYXdCeW0zbW51VTI0cjFSeTkzdlhhTnVxcVF6THZB|641d403ba8499cc43d7228e5e9b28cf3040e5d470d92576278e2b7afa554fc51",
+      "domain": ".zhihu.com",
+      "path": "/"
+    },
+    {
+      "name": "_zap",
+      "value": "c2d3abc7-6122-4965-8082-d9cdefe97ec1",
+      "domain": ".zhihu.com",
+      "path": "/"
+    },
+    {
+      "name": "_xsrf",
+      "value": "CjO5GEms3aqXl0rV39CN9PC0qNwJIEIH",
+      "domain": ".zhihu.com",
+      "path": "/"
+    },
+    {
+      "name": "d_c0",
+      "value": "odIYdAX4oByPToxG_Vw79uipVyjfSu785a0=|1784618772",
+      "domain": ".zhihu.com",
+      "path": "/"
+    },
+    {
+      "name": "q_c1",
+      "value": "22049371ca7e4d15959a2378970c6ce4|1784620803000|1784620803000",
+      "domain": "www.zhihu.com",
+      "path": "/"
+    },
+    {
+      "name": "__zse_ck",
+      "value": "005_XRh5g5iZFTnI=fCRTqnZUoAbzIZWpTq6DdO7dqsOxGvOJvCMfwkOqzKL3uWLRJA5wc57ACYQypY2J37rXrGOHb=HQxHNShRCqltX28JEp7CcRkzkZc=LU7saKcq0acrp-/ftVmJbTjyDk45sM40GEVRHuD4ioWPymadaCK4wipcuwBSfQ1dpL9b1MTfv34J5CNf9jVVv8w9WEQNuUz2cDWK7F4uSJoCmQB2ERywr2IywtuTp0XgeaisQB7QQEwfLa",
+      "domain": ".zhihu.com",
+      "path": "/"
+    }
+  ]
+}

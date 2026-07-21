@@ -1,5 +1,5 @@
 """
-ts_96mv: 96-Moving-Average Strategy (黄金生命线)
+ts_96MA: 96-Moving-Average Strategy (黄金生命线)
 
 Based on two articles on the 96-movement-average technique:
 1. Toutiao: "精准预判趋势方向：96均线的实战拆解与应用"
@@ -34,7 +34,7 @@ Strategy signals (scored 0-100):
  12. Stop-loss exported: 2.5% below MA96
 
 Usage:
-    python backtest/strategies/ts_96mv.py YYYYMMDD [--lookahead]
+    python backtest/strategies/ts_96MA.py YYYYMMDD [--lookahead]
 """
 
 import os
@@ -388,7 +388,7 @@ def pick_96mv_stocks(end_date: str, max_picks: int = 10) -> pd.DataFrame:
     Returns:
         DataFrame with picked stocks
     """
-    logger.info(f"[ts_96mv] Starting 96-MA stock picking for {end_date}")
+    logger.info(f"[ts_96MA] Starting 96-MA stock picking for {end_date}")
 
     # Get stock universe
     stock_basic = data_provider.get_basic_information_api()
@@ -399,18 +399,18 @@ def pick_96mv_stocks(end_date: str, max_picks: int = 10) -> pd.DataFrame:
     total_stocks = len(stock_basic)
     risky_free_list = no_risky_stocks(stock_basic)
     stock_basic = stock_basic[stock_basic['ts_code'].isin(risky_free_list)].reset_index(drop=True)
-    logger.info(f"[ts_96mv] Universe: {total_stocks} total -> {len(stock_basic)} mainboard stocks")
+    logger.info(f"[ts_96MA] Universe: {total_stocks} total -> {len(stock_basic)} mainboard stocks")
 
     # Detect market regime for adaptive filtering
     regime_data = detect_market_regime(end_date)
     regime = regime_data.get('regime', 'normal')
-    logger.info(f"[ts_96mv] Market Regime: {regime}")
+    logger.info(f"[ts_96MA] Market Regime: {regime}")
 
     # Adjust max picks and min score based on regime
     # Article: "股价运行于96日均线下方...避免在均线下方进行左侧抄底"
     # In bear regime, 0 picks is intentional — capital protection
     if regime == 'bear':
-        logger.warning("[ts_96mv] 🛑 CIRCUIT BREAKER: Bear market detected. Returning 0 picks (capital protection).")
+        logger.warning("[ts_96MA] 🛑 CIRCUIT BREAKER: Bear market detected. Returning 0 picks (capital protection).")
         return pd.DataFrame()
 
     regime_max_picks = {
@@ -426,17 +426,17 @@ def pick_96mv_stocks(end_date: str, max_picks: int = 10) -> pd.DataFrame:
     max_picks = regime_max_picks.get(regime, max_picks)
     min_score = regime_min_scores.get(regime, 40)
 
-    logger.info(f"[ts_96mv] Adaptive: max_picks={max_picks}, min_score={min_score}")
+    logger.info(f"[ts_96MA] Adaptive: max_picks={max_picks}, min_score={min_score}")
 
     # Get index returns for relative strength calculation
     index_returns_20d = get_index_returns(end_date, 20)
-    logger.info(f"[ts_96mv] CSI300 20d return: {index_returns_20d:.2f}%")
+    logger.info(f"[ts_96MA] CSI300 20d return: {index_returns_20d:.2f}%")
 
     # === BULK DATA FETCH ===
     start_date = get_trading_days_before(end_date, LOOKBACK_DAYS)
-    logger.info(f"[ts_96mv] Bulk fetching OHLCV data from {start_date} to {end_date}...")
+    logger.info(f"[ts_96MA] Bulk fetching OHLCV data from {start_date} to {end_date}...")
     all_stock_data = data_provider.get_bulk_ohlcv_by_date_range(start_date, end_date)
-    logger.info(f"[ts_96mv] Bulk fetch complete: {len(all_stock_data)} stocks with data")
+    logger.info(f"[ts_96MA] Bulk fetch complete: {len(all_stock_data)} stocks with data")
 
     # Analyze all stocks
     results = []
@@ -445,7 +445,7 @@ def pick_96mv_stocks(end_date: str, max_picks: int = 10) -> pd.DataFrame:
 
     for idx, row in stock_basic.iterrows():
         if idx % 500 == 0:
-            logger.info(f"[ts_96mv] Analyzing stocks: {idx}/{total}")
+            logger.info(f"[ts_96MA] Analyzing stocks: {idx}/{total}")
 
         ts_code = row['ts_code']
         stock_df = all_stock_data.get(ts_code)
@@ -457,10 +457,10 @@ def pick_96mv_stocks(end_date: str, max_picks: int = 10) -> pd.DataFrame:
                 results.append(analysis)
                 analyzed += 1
 
-    logger.info(f"[ts_96mv] Analyzed {analyzed} stocks passed initial filters")
+    logger.info(f"[ts_96MA] Analyzed {analyzed} stocks passed initial filters")
 
     if not results:
-        logger.warning("[ts_96mv] No stocks passed the analysis criteria")
+        logger.warning("[ts_96MA] No stocks passed the analysis criteria")
         return pd.DataFrame()
 
     # Create DataFrame and sort by composite score
@@ -470,10 +470,10 @@ def pick_96mv_stocks(end_date: str, max_picks: int = 10) -> pd.DataFrame:
     # Apply score threshold
     before_filter = len(df)
     df = df[df['composite_score'] >= min_score]
-    logger.info(f"[ts_96mv] Score filter (>={min_score}): {before_filter} -> {len(df)} stocks")
+    logger.info(f"[ts_96MA] Score filter (>={min_score}): {before_filter} -> {len(df)} stocks")
 
     if len(df) == 0 and before_filter > 0:
-        logger.warning(f"[ts_96mv] Min score {min_score} filtered all stocks. Picking 0 stocks.")
+        logger.warning(f"[ts_96MA] Min score {min_score} filtered all stocks. Picking 0 stocks.")
         return pd.DataFrame()
 
     # Limit to max picks
@@ -483,13 +483,13 @@ def pick_96mv_stocks(end_date: str, max_picks: int = 10) -> pd.DataFrame:
     df = df.reset_index(drop=True)
     df['rank'] = range(1, len(df) + 1)
 
-    logger.info(f"[ts_96mv] Selected {len(df)} stocks for regime={regime}")
+    logger.info(f"[ts_96MA] Selected {len(df)} stocks for regime={regime}")
 
     # Log top picks
     for _, row in df.head(8).iterrows():
         signals_str = ', '.join(row.get('signals', [])[:3])
         logger.info(
-            f"[ts_96mv] #{row['rank']}: {row['name']}({row['ts_code']}) "
+            f"[ts_96MA] #{row['rank']}: {row['name']}({row['ts_code']}) "
             f"score={row['composite_score']:.1f} MA96_slope={row.get('ma96_slope', 0):.2f}% "
             f"pct_above={row.get('pct_above_ma96', 0):.1f}% ADX={row.get('adx', 0):.0f} "
             f"| {signals_str}"
@@ -517,7 +517,7 @@ if __name__ == "__main__":
     if not lookahead:
         date = get_trading_days_before(date, 1)
 
-    logger.info(f"[ts_96mv] Picking stocks for target date {target_date} with reference date: {date}")
+    logger.info(f"[ts_96MA] Picking stocks for target date {target_date} with reference date: {date}")
 
     df = pick_96mv_stocks(end_date=date)
 
@@ -537,4 +537,4 @@ if __name__ == "__main__":
     with open(output_file, 'w') as f:
         json.dump({'selected_stocks': selected_stocks}, f)
 
-    logger.info(f"[ts_96mv] Saved {len(selected_stocks)} picked stocks to {output_file}")
+    logger.info(f"[ts_96MA] Saved {len(selected_stocks)} picked stocks to {output_file}")

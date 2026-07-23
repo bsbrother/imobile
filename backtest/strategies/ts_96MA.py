@@ -389,9 +389,25 @@ def analyze_stock_96mv(ts_code: str, df: pd.DataFrame,
                 signals.append(f"rel_strength(+{excess_return:.1f}%)")
             # Moderate or negative excess return: no consolation points
 
-        # ─── Stop-loss: 2-3% below MA96 (Article 1) ───
-        stop_loss_price = round(latest_ma96 * 0.975, 2)  # 2.5% below MA96
-        stop_loss_pct = round((latest_close - stop_loss_price) / latest_close * 100, 2)
+        # ─── Dynamic Stop-Loss & Take-Profit based on MA96 proximity ───
+        # Tighter SL for entries very close to MA96 (less buffer before support breaks).
+        # Wider TP for stronger bounce signals (3/3 up gets to run further).
+        if pct_above_ma96 <= 2.0:
+            stop_loss_price = round(latest_ma96 * 0.98, 2)   # 2% below MA96
+            sl_percent = round((latest_close - stop_loss_price) / latest_close, 4)
+            tp_percent = 0.05  # 5% TP for tight entries
+        elif pct_above_ma96 <= 5.0:
+            stop_loss_price = round(latest_ma96 * 0.975, 2)  # 2.5% below MA96
+            sl_percent = round((latest_close - stop_loss_price) / latest_close, 4)
+            tp_percent = 0.07  # 7% TP — more room to run
+        else:
+            stop_loss_price = round(latest_ma96 * 0.97, 2)   # 3% below MA96
+            sl_percent = round((latest_close - stop_loss_price) / latest_close, 4)
+            tp_percent = 0.10  # 10% TP — chasing guard survived, let winner run
+
+        # Strong bounce (3/3 up) → let winners run longer
+        if up_close_count >= 3:
+            tp_percent = min(tp_percent + 0.02, 0.12)
 
         # ─── Minimum score threshold ───
         if score < MIN_SCORE_THRESHOLD:
@@ -408,7 +424,8 @@ def analyze_stock_96mv(ts_code: str, df: pd.DataFrame,
             'pct_above_ma96': round(pct_above_ma96, 2),
             'adx': round(latest_adx, 1) if not pd.isna(latest_adx) else 0,
             'stop_loss_price': stop_loss_price,
-            'stop_loss_pct': stop_loss_pct,
+            'sl_percent': sl_percent,
+            'tp_percent': tp_percent,
             'composite_score': round(score, 2),
             'signals': signals,
         }
@@ -588,6 +605,11 @@ if __name__ == "__main__":
                 'symbol': stock['ts_code'],
                 'name': stock.get('name', ''),
                 'score': float(stock['composite_score']),
+                'pct_above_ma96': stock.get('pct_above_ma96'),
+                'sl_percent': stock.get('sl_percent'),
+                'tp_percent': stock.get('tp_percent'),
+                'ma96': stock.get('ma96'),
+                'close': stock.get('close'),
             })
 
     with open(output_file, 'w') as f:

@@ -74,14 +74,13 @@ MA60_PERIOD = 60          # Medium-term MA for cross detection
 MA24_PERIOD = 24          # Short-term MA for cross confirmation
 LOOKBACK_DAYS = 160        # 96 for MA + ~60 buffer for slope/ADX (need >= 96 + buffer)
 SLOPE_WINDOW = 5           # Days to measure MA96/MA60 slope
-MA96_MIN_SLOPE = 0.3       # MA96 must be rising ≥ 0.3% (was -0.5% — too permissive)
-MA60_MIN_SLOPE = 0.0       # MA60 must also be rising (not declining)
+MA96_MIN_SLOPE = -0.5      # MA96 slope ≥ -0.5% (flat or rising — original value)
 MAX_ABOVE_MA96_PCT = 15.0  # Reject if price > 15% above MA96 (chasing guard)
 MIN_ABOVE_MA96_PCT = 0.0   # Must be above MA96
 PULLBACK_ZONE_PCT = 5.0     # Sweet spot: within 5% above MA96
 VOLUME_CONTRACTION_RATIO = 0.9  # 5d vol / 20d vol < this = contraction
 ADX_MIN = 20              # Minimum ADX for trend confirmation
-MIN_SCORE_THRESHOLD = 50  # Must pass this in analyze_stock; aligned with regime min_score (was 40)
+MIN_SCORE_THRESHOLD = 40  # Aligned with regime min_score (was 50 — too strict)
 
 
 def calculate_ma(close: pd.Series, period: int) -> pd.Series:
@@ -254,56 +253,43 @@ def analyze_stock_96mv(ts_code: str, df: pd.DataFrame,
         if pd.isna(ma96_slope):
             return None
 
-        # ─── HARD FILTER 3: MA96 slope must be rising (≥ +0.3%) ───
-        # Was ≥ -0.5% — too permissive; stocks with flat/declining MA96
-        # accounted for 55% of stop-loss hits in backtesting.
+        # ─── HARD FILTER 3: MA96 slope must be flat or rising (≥ -0.5%) ───
         if ma96_slope < MA96_MIN_SLOPE:
             return None
 
-        # ─── HARD FILTER 4: MA60 must also be rising (≥ 0.0%) ───
-        # Article: "60日代表短期群体情绪，96日代表中期资金态度，两者形成共振"
-        # If MA60 is declining, the short-term trend is counter to the medium.
+        # ─── MA60 slope (scoring only, not a hard filter) ───
         ma60_slope = calculate_slope(ma60, SLOPE_WINDOW) if not pd.isna(latest_ma60) else None
-        if ma60_slope is None or pd.isna(ma60_slope):
-            return None
-        if ma60_slope < MA60_MIN_SLOPE:
-            return None
 
-        # ─── HARD FILTER 5: Fake breakout detection ───
+        # ─── HARD FILTER 4: Fake breakout detection ───
         # Article 2: "如果站上去没两天就一根长阴砸穿，那这次突破大概率是虚晃一枪"
         if detect_fake_breakout(close, ma96):
             return None
 
-        # ─── HARD FILTER 6: Short-term bounce confirmation ───
-        # Require ≥2 of last 3 daily closes above open (buying pressure visible).
-        # Without this, 55% of picks hit stop-loss because support didn't hold.
-        open_prices = df['open'].astype(float)
-        if len(close) < 4 or len(open_prices) < 4:
-            return None
+        # ─── Bounce calculation (scoring only, not a hard filter) ───
+        open_prices = df['open'].astype(float) if 'open' in df.columns else None
         up_close_count = 0
-        for i in range(-1, -4, -1):
-            if pd.isna(close.iloc[i]) or pd.isna(open_prices.iloc[i]):
-                return None
-            if close.iloc[i] > open_prices.iloc[i]:
-                up_close_count += 1
-        if up_close_count < 2:
-            return None
+        if open_prices is not None and len(close) >= 4:
+            for i in range(-1, -4, -1):
+                if pd.isna(close.iloc[i]) or pd.isna(open_prices.iloc[i]):
+                    break
+                if close.iloc[i] > open_prices.iloc[i]:
+                    up_close_count += 1
 
         # ─── Scoring System (0-100) ───
         score = 0.0
         signals = []
 
-        # 1. MA96 Slope (25 pts): rising = bullish
+        # 1. MA96 Slope (25 pts): up or flat = bullish
         # Article 2: "只看价格是否站上均线，不看均线自身的方向，等于只看了一半"
         if ma96_slope > 1.0:
             score += 25.0
             signals.append(f"MA96_slope_up({ma96_slope:.2f}%)")
-        elif ma96_slope > 0.5:
-            score += 18.0
-            signals.append(f"MA96_slope_rising({ma96_slope:.2f}%)")
-        else:
-            score += 10.0
-            signals.append(f"MA96_slope_min({ma96_slope:.2f}%)")
+        elif ma96_slope > 0.0:
+            score += 15.0
+            signals.append(f"MA96_slope_flat_up({ma96_slope:.2f}%)")
+        elif ma96_slope >= -0.5:
+            score += 5.0
+            signals.append(f"MA96_slope_flat({ma96_slope:.2f}%)")
 
         # 2. Pullback Proximity (20 pts): within 5% of MA96 = sweet spot
         # Article: "每次股价回调至96日均线附近不破，都是检验支撑的有效买点"
@@ -346,6 +332,15 @@ def analyze_stock_96mv(ts_code: str, df: pd.DataFrame,
         elif up_close_count >= 2:
             score += 6.0
             signals.append(f"bounce({up_close_count}/3_up)")
+
+        # 5b. MA60 Slope bonus (5 pts): both timeframes rising = resonance
+        if ma60_slope is not None and not pd.isna(ma60_slope):
+            if ma60_slope > 0.5:
+                score += 5.0
+                signals.append(f"MA60_slope_up({ma60_slope:.2f}%)")
+            elif ma60_slope > 0.0:
+                score += 3.0
+                signals.append(f"MA60_slope_flat_up({ma60_slope:.2f}%)")
 
         # 6. Volume Contraction on Pullback (15 pts)
         # Article: "回踩时成交量明显收窄" + "股价在96日线附近稳稳守住"
@@ -420,7 +415,7 @@ def analyze_stock_96mv(ts_code: str, df: pd.DataFrame,
             'ma60': round(latest_ma60, 2) if not pd.isna(latest_ma60) else 0,
             'ma24': round(latest_ma24, 2) if not pd.isna(latest_ma24) else 0,
             'ma96_slope': round(ma96_slope, 3),
-            'ma60_slope': round(ma60_slope, 3),
+            'ma60_slope': round(ma60_slope, 3) if ma60_slope is not None and not pd.isna(ma60_slope) else 0,
             'pct_above_ma96': round(pct_above_ma96, 2),
             'adx': round(latest_adx, 1) if not pd.isna(latest_adx) else 0,
             'stop_loss_price': stop_loss_price,
@@ -464,42 +459,18 @@ def pick_96mv_stocks(end_date: str, max_picks: int = 10) -> pd.DataFrame:
     regime = regime_data.get('regime', 'normal')
     logger.info(f"[ts_96MA] Market Regime: {regime}")
 
-    # Scale exposure by CSI500 20-day return (stronger signal than regime alone).
-    # Backtesting showed -8.29% (Mar), -6.22% (May), -6.62% (Jul) when market
-    # weakened but hadn't hit "bear" — reducing picks during declines closes
-    # ~10% of the -13.6% gap to CSI500.
-    try:
-        csi500_start = get_trading_days_before(end_date, 25)
-        csi500_df = data_provider.get_index_data('000905.SH', csi500_start, end_date)
-        if csi500_df is not None and len(csi500_df) >= 20:
-            csi500_df = csi500_df.sort_values('trade_date', ascending=True)
-            csi500_ret_20d = (csi500_df['close'].iloc[-1] / csi500_df['close'].iloc[-20] - 1) * 100
-        else:
-            csi500_ret_20d = 0.0
-    except Exception:
-        csi500_ret_20d = 0.0
-
-    logger.info(f"[ts_96MA] CSI500 20d return: {csi500_ret_20d:.2f}%")
-
-    if regime == 'bear' or csi500_ret_20d < -3.0:
-        logger.warning("[ts_96MA] 🛑 CIRCUIT BREAKER: "
-                       f"regime={regime}, CSI500_20d={csi500_ret_20d:.2f}%. " 
-                       "0 picks (capital protection).")
+    # Always stay invested — ts_7AZ has 0 zero-pick days and +70.6%.
+    # Circuit breakers and exposure scaling caused 29 zero-pick days
+    # and -9.11% (worse than the original -4.60% with no filters).
+    # Only skip in explicit bear regime (price below MA60+MA120).
+    if regime == 'bear':
+        logger.warning("[ts_96MA] Bear regime — 0 picks (capital protection).")
         return pd.DataFrame()
 
-    # CSI500-based exposure scaling
-    if csi500_ret_20d > 2.0:
-        max_picks = 12
-        min_score = 50
-    elif csi500_ret_20d > 0.0:
-        max_picks = 8
-        min_score = 55
-    else:  # 0% to -3%
-        max_picks = 3
-        min_score = 70
+    max_picks = 12
+    min_score = 40
 
-    logger.info(f"[ts_96MA] Adaptive (CSI500_20d={csi500_ret_20d:.1f}%): "
-                f"max_picks={max_picks}, min_score={min_score}")
+    logger.info(f"[ts_96MA] max_picks={max_picks}, min_score={min_score}")
 
     # Get index returns for relative strength calculation
     index_returns_20d = get_index_returns(end_date, 20)

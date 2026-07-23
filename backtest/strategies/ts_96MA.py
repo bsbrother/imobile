@@ -35,7 +35,8 @@ Strategy signals (scored 0-100):
  13. ADX > 20 (trending, not choppy)
  14. Relative strength vs CSI300 index
  15. Stop-loss exported: 2.5% below MA96
- 16. CSI500 20d return exposure scaling: >2%=12picks, 0-2%=8, <0%=3
+ 16. RPS filter: 250-day return percentile ≥ 70 (ts_7AZ uses 80)
+ 17. Near 52-week high: price ≥ 85% of 52w high (ts_7AZ uses same)
 
 Usage:
     python backtest/strategies/ts_96MA.py YYYYMMDD [--lookahead]
@@ -72,7 +73,7 @@ configure_logger(log_level=LOG_LEVEL, log_path=LOG_PATH)
 MA96_PERIOD = 96          # The core 96-day moving average
 MA60_PERIOD = 60          # Medium-term MA for cross detection
 MA24_PERIOD = 24          # Short-term MA for cross confirmation
-LOOKBACK_DAYS = 160        # 96 for MA + ~60 buffer for slope/ADX (need >= 96 + buffer)
+LOOKBACK_DAYS = 280        # 96 for MA + 250 for RPS/52w-high + buffer
 SLOPE_WINDOW = 5           # Days to measure MA96/MA60 slope
 MA96_MIN_SLOPE = -0.5      # MA96 slope ≥ -0.5% (flat or rising — original value)
 MAX_ABOVE_MA96_PCT = 15.0  # Reject if price > 15% above MA96 (chasing guard)
@@ -81,6 +82,9 @@ PULLBACK_ZONE_PCT = 5.0     # Sweet spot: within 5% above MA96
 VOLUME_CONTRACTION_RATIO = 0.9  # 5d vol / 20d vol < this = contraction
 ADX_MIN = 20              # Minimum ADX for trend confirmation
 MIN_SCORE_THRESHOLD = 40  # Aligned with regime min_score (was 50 — too strict)
+RPS_MIN = 70              # 250-day return percentile ≥ 70 (ts_7AZ uses 80)
+RPS_LOOKBACK = 250        # Days for RPS calculation
+HIGH_52W_RATIO = 0.85     # Price ≥ 85% of 52-week high (ts_7AZ uses same)
 
 
 def calculate_ma(close: pd.Series, period: int) -> pd.Series:
@@ -248,6 +252,19 @@ def analyze_stock_96mv(ts_code: str, df: pd.DataFrame,
         if pct_above_ma96 > MAX_ABOVE_MA96_PCT:
             return None
 
+        # ─── HARD FILTER 2b: Near 52-week high (momentum filter like ts_7AZ) ───
+        # ts_7AZ requires price ≥ 85% of 52w high. Stocks near highs have
+        # momentum and are more likely to break out vs flat MA96 pullbacks.
+        if len(close) >= 250:
+            high_52w = float(close.tail(250).max())
+            if high_52w > 0 and latest_close / high_52w < HIGH_52W_RATIO:
+                return None
+        elif len(close) >= 120:
+            # Fallback: use 120-day high if not enough data
+            high_120d = float(close.tail(120).max())
+            if high_120d > 0 and latest_close / high_120d < HIGH_52W_RATIO:
+                return None
+
         # ─── MA96 Slope (5-day) ───
         ma96_slope = calculate_slope(ma96, SLOPE_WINDOW)
         if pd.isna(ma96_slope):
@@ -384,6 +401,11 @@ def analyze_stock_96mv(ts_code: str, df: pd.DataFrame,
                 signals.append(f"rel_strength(+{excess_return:.1f}%)")
             # Moderate or negative excess return: no consolation points
 
+        # ─── Compute 250-day return for RPS ranking ───
+        ret_250 = 0.0
+        if len(close) >= RPS_LOOKBACK:
+            ret_250 = (latest_close / close.iloc[-RPS_LOOKBACK] - 1) * 100
+
         # ─── Dynamic Stop-Loss & Take-Profit based on MA96 proximity ───
         # Tighter SL for entries very close to MA96 (less buffer before support breaks).
         # Wider TP for stronger bounce signals (3/3 up gets to run further).
@@ -418,6 +440,7 @@ def analyze_stock_96mv(ts_code: str, df: pd.DataFrame,
             'ma60_slope': round(ma60_slope, 3) if ma60_slope is not None and not pd.isna(ma60_slope) else 0,
             'pct_above_ma96': round(pct_above_ma96, 2),
             'adx': round(latest_adx, 1) if not pd.isna(latest_adx) else 0,
+            'ret_250': round(ret_250, 2),
             'stop_loss_price': stop_loss_price,
             'sl_percent': sl_percent,
             'tp_percent': tp_percent,
@@ -509,6 +532,18 @@ def pick_96mv_stocks(end_date: str, max_picks: int = 10) -> pd.DataFrame:
 
     # Create DataFrame and sort by composite score
     df = pd.DataFrame(results)
+
+    # ─── RPS Filter: rank by 250-day return, keep top 30% (RPS ≥ 70) ───
+    # ts_7AZ requires RPS ≥ 80. We relax to 70 since MA96 filter already
+    # pre-screens. This eliminates flat/dead stocks that drag performance.
+    if len(df) >= 20 and 'ret_250' in df.columns:
+        df['rps'] = df['ret_250'].rank(pct=True) * 100
+        before_rps = len(df)
+        df = df[df['rps'] >= RPS_MIN].copy()
+        logger.info(f"[ts_96MA] RPS filter (≥{RPS_MIN}): {before_rps} -> {len(df)} stocks")
+    else:
+        df['rps'] = 0
+
     df = df.sort_values('composite_score', ascending=False)
 
     # Apply score threshold

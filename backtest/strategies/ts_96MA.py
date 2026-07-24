@@ -35,8 +35,8 @@ Strategy signals (scored 0-100):
  13. ADX > 20 (trending, not choppy)
  14. Relative strength vs CSI300 index
  15. Stop-loss exported: 2.5% below MA96
- 18. CANSLIM bonus: EPS≥25% +10, ROE≥17% +10 (from ts_7AZ)
- 19. Re-entry bonus: +15 pts for previously picked stocks (stick with winners)
+ 16. RPS filter: 250-day return percentile ≥ 70 (ts_7AZ uses 80)
+ 17. Near 52-week high: price ≥ 85% of 52w high (ts_7AZ uses same)
 
 Usage:
     python backtest/strategies/ts_96MA.py YYYYMMDD [--lookahead]
@@ -62,13 +62,6 @@ from backtest.utils.market_regime import detect_market_regime
 from backtest.utils.logging_config import configure_logger
 from backtest.strategies.ts_ths_dc import no_risky_stocks
 
-# Import CANSLIM fundamentals from ts_7AZ (EPS/ROE filter)
-try:
-    from backtest.strategies.ts_7AZ import fetch_financial_data, PRO
-    HAS_CANSLIM = True
-except ImportError:
-    HAS_CANSLIM = False
-
 warnings.filterwarnings("ignore", category=UserWarning)
 
 load_dotenv()
@@ -92,9 +85,6 @@ MIN_SCORE_THRESHOLD = 40  # Aligned with regime min_score (was 50 — too strict
 RPS_MIN = 70              # 250-day return percentile ≥ 70 (ts_7AZ uses 80)
 RPS_LOOKBACK = 250        # Days for RPS calculation
 HIGH_52W_RATIO = 0.85     # Price ≥ 85% of 52-week high (ts_7AZ uses same)
-CANSLIM_EPS_MIN = 0.25    # EPS growth ≥ 25% (ts_7AZ C threshold)
-CANSLIM_ROE_MIN = 0.17    # ROE ≥ 17% (ts_7AZ A threshold)
-REENTRY_BONUS = 15        # Score bonus for re-picked stocks (stick with winners)
 
 
 def calculate_ma(close: pd.Series, period: int) -> pd.Series:
@@ -411,13 +401,6 @@ def analyze_stock_96mv(ts_code: str, df: pd.DataFrame,
                 signals.append(f"rel_strength(+{excess_return:.1f}%)")
             # Moderate or negative excess return: no consolation points
 
-        # ─── CANSLIM Fundamentals Check (deferred to pick_96mv_stocks) ───
-        # Per-stock API call is too slow for 841 stocks. We'll do it in
-        # pick_96mv_stocks only for top candidates after RPS filter.
-        canslim_score = 0
-        eps_growth = None
-        roe = None
-
         # ─── Compute 250-day return for RPS ranking ───
         ret_250 = 0.0
         if len(close) >= RPS_LOOKBACK:
@@ -447,9 +430,6 @@ def analyze_stock_96mv(ts_code: str, df: pd.DataFrame,
         if score < MIN_SCORE_THRESHOLD:
             return None
 
-        # Add CANSLIM bonus to composite score
-        final_score = score + canslim_score
-
         return {
             'ts_code': ts_code,
             'close': latest_close,
@@ -464,11 +444,7 @@ def analyze_stock_96mv(ts_code: str, df: pd.DataFrame,
             'stop_loss_price': stop_loss_price,
             'sl_percent': sl_percent,
             'tp_percent': tp_percent,
-            'composite_score': round(final_score, 2),
-            'base_score': round(score, 2),
-            'canslim_score': canslim_score,
-            'eps_growth': eps_growth,
-            'roe': roe,
+            'composite_score': round(score, 2),
             'signals': signals,
         }
 
@@ -567,64 +543,6 @@ def pick_96mv_stocks(end_date: str, max_picks: int = 10) -> pd.DataFrame:
         logger.info(f"[ts_96MA] RPS filter (≥{RPS_MIN}): {before_rps} -> {len(df)} stocks")
     else:
         df['rps'] = 0
-
-    # ─── Re-entry bonus: previous winners get score boost (stick with winners) ───
-    # ts_7AZ re-enters its best picks repeatedly (avg 4.5 buys/symbol).
-    # ts_96MA rotates too fast (1.4 buys/symbol). This tracks yesterday's picks
-    # and gives them a score bonus if they still qualify today.
-    import glob as _glob
-    yesterday_picks = set()
-    pick_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                            'results')
-    if os.path.isdir(pick_dir):
-        # Find the most recent pick file
-        pick_files = sorted(_glob.glob(os.path.join(pick_dir, '*_ts_96MA/pick_stocks_*.json')))
-        if pick_files:
-            latest_pick_file = pick_files[-1]
-            try:
-                with open(latest_pick_file) as f:
-                    latest_picks = json.load(f)
-                yesterday_picks = {s['symbol'] for s in latest_picks.get('selected_stocks', [])}
-                logger.info(f"[ts_96MA] Loaded {len(yesterday_picks)} re-entry candidates from {latest_pick_file.split('/')[-1]}")
-            except Exception:
-                pass
-
-    if yesterday_picks and len(df) > 0:
-        df['reentry'] = [ts_code in yesterday_picks for ts_code in df['ts_code'].tolist()]
-        reentry_count = sum(df['reentry'])
-        if reentry_count > 0:
-            df.loc[df['reentry'], 'composite_score'] = df.loc[df['reentry'], 'composite_score'] + REENTRY_BONUS
-            logger.info(f"[ts_96MA] Re-entry bonus: {reentry_count} stocks get +{REENTRY_BONUS} pts")
-    else:
-        df['reentry'] = False
-
-    # ─── CANSLIM Fundamentals Check (top candidates only, ~30 API calls) ───
-    # ts_7AZ requires EPS≥25% + ROE≥17%. We check only top candidates after
-    # RPS filter to avoid 841 API calls. This is what makes ts_7AZ picks run.
-    if HAS_CANSLIM and len(df) > 0:
-        # Take top 30 by composite_score for CANSLIM check
-        top_candidates = df.sort_values('composite_score', ascending=False).head(min(30, len(df)))
-        logger.info(f"[ts_96MA] CANSLIM check on top {len(top_candidates)} candidates...")
-        canslim_count = 0
-        for _, row in top_candidates.iterrows():
-            try:
-                fin = fetch_financial_data(str(row['ts_code']))
-                eps_growth = fin.get('eps_growth')
-                roe = fin.get('roe')
-                bonus = 0
-                if eps_growth is not None and eps_growth >= CANSLIM_EPS_MIN:
-                    bonus += 10
-                if roe is not None and roe >= CANSLIM_ROE_MIN:
-                    bonus += 10
-                if bonus > 0:
-                    mask = df['ts_code'] == row['ts_code']
-                    df.loc[mask, 'composite_score'] = df.loc[mask, 'composite_score'] + bonus
-                    df.loc[mask, 'canslim_score'] = bonus
-                    canslim_count += 1
-            except Exception:
-                pass
-        if canslim_count > 0:
-            logger.info(f"[ts_96MA] CANSLIM bonus: {canslim_count} stocks get +10-20 pts")
 
     df = df.sort_values('composite_score', ascending=False)
 

@@ -66,20 +66,16 @@ LOOKBACK_DAYS = 280
 RPS_LOOKBACK = 250
 MIN_SCORE_THRESHOLD = 40
 
-# ─── Month-based Strategy Switching (backtest only) ───────────────
-# From monthly analysis: ts_96MA wins Jan/Mar (pullback), ts_7AZ wins Feb/Apr/May/Jun (momentum)
-# July: both negative → reduce exposure
-# This uses look-ahead data (future month) to select which sub-strategy to use.
-# In live trading, this would need to be replaced with a real-time market style detector.
-STRATEGY_BY_MONTH = {
-    1: 'ts_96MA',      # Jan: MA96 pullback wins (+10.60% vs -0.40%)
-    2: 'ts_7AZ',       # Feb: CANSLIM momentum wins (+6.22% vs +3.18%)
-    3: 'ts_96MA',      # Mar: MA96 pullback wins (+1.15% vs -0.73%)
-    4: 'ts_7AZ',       # Apr: CANSLIM momentum wins (+14.12% vs +8.24%)
-    5: 'ts_7AZ',       # May: CANSLIM momentum wins (+14.71% vs -3.35%)
-    6: 'ts_7AZ',       # Jun: CANSLIM momentum wins (+24.08% vs +3.63%)
-    7: 'reduce',       # Jul: Both negative → reduce exposure (0 picks or 3 picks)
-}
+# ─── Real-Time Market Style Detection (no look-ahead) ─────────────
+# Uses only past OHLCV data to classify market style.
+# From backtest analysis:
+#   - Momentum market: CSI500 20d return > 3%, price > MA96, MA96 rising
+#     → Use ts_7AZ filters (CANSLIM momentum)
+#   - Pullback market: CSI500 20d return -3% to 3%, price near MA96
+#     → Use ts_96MA filters (MA96 support)
+#   - Weak market: CSI500 20d return < -3%
+#     → Reduce exposure (fewer picks, higher score threshold)
+# This replaces the hardcoded STRATEGY_BY_MONTH which used look-ahead data.
 
 # Tushare setup
 import tushare as ts
@@ -99,6 +95,59 @@ def calculate_slope(series: pd.Series, window: int = 5) -> float:
     if pd.isna(prev) or pd.isna(curr) or prev == 0:
         return np.nan
     return (curr - prev) / prev * 100
+
+
+def detect_market_style(end_date: str) -> str:
+    """
+    Detect market style using only past data (no look-ahead).
+
+    Returns:
+        'momentum': Strong uptrend — use ts_7AZ CANSLIM filters
+        'pullback': Consolidation/dip — use ts_96MA MA96 support filters
+        'weak': Declining market — reduce exposure
+    """
+    try:
+        # Fetch CSI500 data for market proxy
+        start = get_trading_days_before(end_date, 120)
+        df = data_provider.get_index_data('000905.SH', start, end_date)
+        if df is None or len(df) < 60:
+            logger.warning(f"[ts_7AZ_96MA] Insufficient CSI500 data for style detection")
+            return 'pullback'
+
+        df = df.sort_values('trade_date', ascending=True).reset_index(drop=True)
+        close = df['close'].astype(float)
+
+        # Calculate indicators
+        ma96 = close.rolling(96).mean()
+        ma20 = close.rolling(20).mean()
+
+        latest = close.iloc[-1]
+        latest_ma96 = ma96.iloc[-1]
+        latest_ma20 = ma20.iloc[-1]
+
+        # 20-day return
+        ret_20d = (close.iloc[-1] / close.iloc[-20] - 1) * 100 if len(close) >= 20 else 0
+
+        # MA96 slope (5-day)
+        ma96_slope = (ma96.iloc[-1] / ma96.iloc[-5] - 1) * 100 if len(ma96.dropna()) >= 5 else 0
+
+        # Price position relative to MA96
+        pct_above_ma96 = (latest - latest_ma96) / latest_ma96 * 100 if latest_ma96 > 0 else 0
+
+        logger.info(f"[ts_7AZ_96MA] Market style: CSI500 20d={ret_20d:.1f}% "
+                    f"MA96_slope={ma96_slope:.2f}% pct_above={pct_above_ma96:.1f}%")
+
+        # Classification
+        if ret_20d > 3.0 and latest > latest_ma96 and ma96_slope > 0:
+            return 'momentum'  # Strong uptrend — use ts_7AZ filters
+        elif ret_20d < -3.0 or latest < latest_ma96 * 0.97:
+            return 'weak'      # Declining — reduce exposure
+        else:
+            return 'pullback'  # Consolidation — use ts_96MA filters
+
+    except Exception as e:
+        logger.warning(f"[ts_7AZ_96MA] Market style detection failed: {e}")
+        return 'pullback'
 
 
 def fetch_financial_data(ts_code: str) -> dict:
@@ -360,13 +409,12 @@ def analyze_stock_combined(ts_code: str, df: pd.DataFrame,
         return None
 
 
-def pick_combined_stocks(end_date: str, target_date: str = None, max_picks: int = 12) -> pd.DataFrame:
+def pick_combined_stocks(end_date: str, max_picks: int = 12) -> pd.DataFrame:
     """
     Combined CANSLIM + MA96 strategy.
     
     Args:
         end_date: Reference date for analysis (previous trading day)
-        target_date: Target date for month-based strategy selection (original date)
         max_picks: Maximum number of stocks to return
     """
     logger.info(f"[ts_7AZ_96MA] Starting combined picking for {end_date}")
@@ -390,33 +438,24 @@ def pick_combined_stocks(end_date: str, target_date: str = None, max_picks: int 
         logger.warning("[ts_7AZ_96MA] Bear regime — 0 picks.")
         return pd.DataFrame()
 
-    # ─── Month-based Strategy Switching (backtest only) ───────────
-    # Uses look-ahead data to select which sub-strategy's filters to apply.
-    # In live trading, replace with real-time market style detector.
-    # Use target_date (original date) for month extraction, not end_date (previous trading day).
-    month_date = target_date if target_date else end_date
-    month = int(month_date[4:6])
-    active_strategy = STRATEGY_BY_MONTH.get(month, 'combined')
-    logger.info(f"[ts_7AZ_96MA] Month={month} (from {month_date}) → active strategy: {active_strategy}")
+    # ─── Real-Time Market Style Detection (no look-ahead) ─────────
+    # Uses only past CSI500 data to classify market style.
+    # Replaces hardcoded month switching which used look-ahead data.
+    active_strategy = detect_market_style(end_date)
+    logger.info(f"[ts_7AZ_96MA] Market style: {active_strategy}")
 
-    if active_strategy == 'reduce':
-        logger.warning(f"[ts_7AZ_96MA] Month {month}: Both strategies historically negative. "
-                       "Reducing exposure: max_picks=3, min_score=60.")
+    if active_strategy == 'weak':
+        logger.warning(f"[ts_7AZ_96MA] Weak market: Reducing exposure (max_picks=3, min_score=60)")
         max_picks = 3
         min_score = 60
-    elif active_strategy == 'ts_96MA':
-        # MA96 pullback month — use ts_96MA's looser filters
-        logger.info(f"[ts_7AZ_96MA] Month {month}: Using ts_96MA filters (pullback focus)")
+    elif active_strategy == 'pullback':
+        logger.info(f"[ts_7AZ_96MA] Pullback market: Using ts_96MA filters (support focus)")
         max_picks = 12
         min_score = 40
-    elif active_strategy == 'ts_7AZ':
-        # CANSLIM momentum month — use ts_7AZ's stricter filters
-        logger.info(f"[ts_7AZ_96MA] Month {month}: Using ts_7AZ filters (momentum focus)")
+    else:  # momentum
+        logger.info(f"[ts_7AZ_96MA] Momentum market: Using ts_7AZ filters (quality focus)")
         max_picks = 12
         min_score = 50
-    else:
-        max_picks = 12
-        min_score = 40
 
     # Get daily_basic for turnover/market_cap pre-filter (from ts_7AZ)
     daily_basic_df = None
@@ -451,17 +490,17 @@ def pick_combined_stocks(end_date: str, target_date: str = None, max_picks: int 
     total = len(stock_basic)
     analyzed = 0
 
-    # Strategy-specific filter adjustments based on active month strategy
-    if active_strategy == 'ts_96MA':
-        # MA96 pullback month: relax CANSLIM filters, focus on support
+    # Strategy-specific filter adjustments based on real-time market style
+    if active_strategy == 'pullback':
+        # MA96 pullback market: relax CANSLIM filters, focus on support
         _rps_threshold = 60      # Relaxed from 70
         _canslim_weight = 0.5    # Reduce CANSLIM bonus impact
-    elif active_strategy == 'ts_7AZ':
-        # CANSLIM momentum month: tighten filters, focus on quality
+    elif active_strategy == 'momentum':
+        # CANSLIM momentum market: tighten filters, focus on quality
         _rps_threshold = 80      # Stricter (ts_7AZ default)
         _canslim_weight = 1.5    # Increase CANSLIM bonus impact
-    elif active_strategy == 'reduce':
-        # July reduce: very strict filters, minimal picks
+    elif active_strategy == 'weak':
+        # Weak market: very strict filters, minimal picks
         _rps_threshold = 80
         _canslim_weight = 1.0
     else:
@@ -539,15 +578,15 @@ def pick_combined_stocks(end_date: str, target_date: str = None, max_picks: int 
     if len(df) == 0:
         return pd.DataFrame()
 
-    # July reduce: cap at 3 picks only if we have high-scoring candidates
-    if active_strategy == 'reduce':
+    # Weak market: cap at 3 picks only if we have high-scoring candidates
+    if active_strategy == 'weak':
         high_score_count = len(df[df['composite_score'] >= 70])
         if high_score_count >= 3:
             df = df.head(3)
-            logger.info(f"[ts_7AZ_96MA] REDUCE: Taking top 3 high-scoring stocks (score≥70)")
+            logger.info(f"[ts_7AZ_96MA] WEAK: Taking top 3 high-scoring stocks (score≥70)")
         else:
             df = pd.DataFrame()
-            logger.warning(f"[ts_7AZ_96MA] REDUCE: Only {high_score_count} stocks score≥70. Returning 0 picks.")
+            logger.warning(f"[ts_7AZ_96MA] WEAK: Only {high_score_count} stocks score≥70. Returning 0 picks.")
     else:
         df = df.head(max_picks)
 
@@ -589,7 +628,7 @@ if __name__ == "__main__":
 
     logger.info(f"[ts_7AZ_96MA] Picking for target {target_date} ref={date}")
 
-    df = pick_combined_stocks(end_date=date, target_date=target_date)
+    df = pick_combined_stocks(end_date=date)
 
     output_file = '/tmp/tmp'
     selected_stocks = []

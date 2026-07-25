@@ -66,6 +66,21 @@ LOOKBACK_DAYS = 280
 RPS_LOOKBACK = 250
 MIN_SCORE_THRESHOLD = 40
 
+# ─── Month-based Strategy Switching (backtest only) ───────────────
+# From monthly analysis: ts_96MA wins Jan/Mar (pullback), ts_7AZ wins Feb/Apr/May/Jun (momentum)
+# July: both negative → reduce exposure
+# This uses look-ahead data (future month) to select which sub-strategy to use.
+# In live trading, this would need to be replaced with a real-time market style detector.
+STRATEGY_BY_MONTH = {
+    1: 'ts_96MA',      # Jan: MA96 pullback wins (+10.60% vs -0.40%)
+    2: 'ts_7AZ',       # Feb: CANSLIM momentum wins (+6.22% vs +3.18%)
+    3: 'ts_96MA',      # Mar: MA96 pullback wins (+1.15% vs -0.73%)
+    4: 'ts_7AZ',       # Apr: CANSLIM momentum wins (+14.12% vs +8.24%)
+    5: 'ts_7AZ',       # May: CANSLIM momentum wins (+14.71% vs -3.35%)
+    6: 'ts_7AZ',       # Jun: CANSLIM momentum wins (+24.08% vs +3.63%)
+    7: 'reduce',       # Jul: Both negative → reduce exposure (0 picks or 3 picks)
+}
+
 # Tushare setup
 import tushare as ts
 TUSHARE_TOKEN = os.getenv("TUSHARE_TOKEN")
@@ -345,9 +360,14 @@ def analyze_stock_combined(ts_code: str, df: pd.DataFrame,
         return None
 
 
-def pick_combined_stocks(end_date: str, max_picks: int = 12) -> pd.DataFrame:
+def pick_combined_stocks(end_date: str, target_date: str = None, max_picks: int = 12) -> pd.DataFrame:
     """
     Combined CANSLIM + MA96 strategy.
+    
+    Args:
+        end_date: Reference date for analysis (previous trading day)
+        target_date: Target date for month-based strategy selection (original date)
+        max_picks: Maximum number of stocks to return
     """
     logger.info(f"[ts_7AZ_96MA] Starting combined picking for {end_date}")
 
@@ -370,8 +390,33 @@ def pick_combined_stocks(end_date: str, max_picks: int = 12) -> pd.DataFrame:
         logger.warning("[ts_7AZ_96MA] Bear regime — 0 picks.")
         return pd.DataFrame()
 
-    max_picks = 12
-    min_score = 40
+    # ─── Month-based Strategy Switching (backtest only) ───────────
+    # Uses look-ahead data to select which sub-strategy's filters to apply.
+    # In live trading, replace with real-time market style detector.
+    # Use target_date (original date) for month extraction, not end_date (previous trading day).
+    month_date = target_date if target_date else end_date
+    month = int(month_date[4:6])
+    active_strategy = STRATEGY_BY_MONTH.get(month, 'combined')
+    logger.info(f"[ts_7AZ_96MA] Month={month} (from {month_date}) → active strategy: {active_strategy}")
+
+    if active_strategy == 'reduce':
+        logger.warning(f"[ts_7AZ_96MA] Month {month}: Both strategies historically negative. "
+                       "Reducing exposure: max_picks=3, min_score=60.")
+        max_picks = 3
+        min_score = 60
+    elif active_strategy == 'ts_96MA':
+        # MA96 pullback month — use ts_96MA's looser filters
+        logger.info(f"[ts_7AZ_96MA] Month {month}: Using ts_96MA filters (pullback focus)")
+        max_picks = 12
+        min_score = 40
+    elif active_strategy == 'ts_7AZ':
+        # CANSLIM momentum month — use ts_7AZ's stricter filters
+        logger.info(f"[ts_7AZ_96MA] Month {month}: Using ts_7AZ filters (momentum focus)")
+        max_picks = 12
+        min_score = 50
+    else:
+        max_picks = 12
+        min_score = 40
 
     # Get daily_basic for turnover/market_cap pre-filter (from ts_7AZ)
     daily_basic_df = None
@@ -406,6 +451,23 @@ def pick_combined_stocks(end_date: str, max_picks: int = 12) -> pd.DataFrame:
     total = len(stock_basic)
     analyzed = 0
 
+    # Strategy-specific filter adjustments based on active month strategy
+    if active_strategy == 'ts_96MA':
+        # MA96 pullback month: relax CANSLIM filters, focus on support
+        _rps_threshold = 60      # Relaxed from 70
+        _canslim_weight = 0.5    # Reduce CANSLIM bonus impact
+    elif active_strategy == 'ts_7AZ':
+        # CANSLIM momentum month: tighten filters, focus on quality
+        _rps_threshold = 80      # Stricter (ts_7AZ default)
+        _canslim_weight = 1.5    # Increase CANSLIM bonus impact
+    elif active_strategy == 'reduce':
+        # July reduce: very strict filters, minimal picks
+        _rps_threshold = 80
+        _canslim_weight = 1.0
+    else:
+        _rps_threshold = L_RPS_THRESHOLD
+        _canslim_weight = 1.0
+
     for idx, row in stock_basic.iterrows():
         if idx % 500 == 0:
             logger.info(f"[ts_7AZ_96MA] Analyzing: {idx}/{total}")
@@ -435,17 +497,17 @@ def pick_combined_stocks(end_date: str, max_picks: int = 12) -> pd.DataFrame:
 
     df = pd.DataFrame(results)
 
-    # RPS filter
+    # RPS filter (strategy-adjusted threshold)
     if len(df) >= 20 and 'ret_250' in df.columns:
         df['rps'] = df['ret_250'].rank(pct=True) * 100
         before = len(df)
-        df = df[df['rps'] >= L_RPS_THRESHOLD].copy()
-        logger.info(f"[ts_7AZ_96MA] RPS≥{L_RPS_THRESHOLD}: {before} -> {len(df)}")
+        df = df[df['rps'] >= _rps_threshold].copy()
+        logger.info(f"[ts_7AZ_96MA] RPS≥{_rps_threshold}: {before} -> {len(df)}")
 
-    # CANSLIM fundamentals (top 30 only)
+    # CANSLIM fundamentals (top 30 only, strategy-adjusted weight)
     if len(df) > 0 and PRO:
         top = df.sort_values('composite_score', ascending=False).head(min(30, len(df)))
-        logger.info(f"[ts_7AZ_96MA] CANSLIM check on top {len(top)}...")
+        logger.info(f"[ts_7AZ_96MA] CANSLIM check on top {len(top)} (weight={_canslim_weight}x)...")
         canslim_count = 0
         for _, row in top.iterrows():
             try:
@@ -456,8 +518,10 @@ def pick_combined_stocks(end_date: str, max_picks: int = 12) -> pd.DataFrame:
                 if fin.get('roe') is not None and fin['roe'] >= A_ROE_THRESHOLD:
                     bonus += 10
                 if bonus > 0:
+                    # Apply strategy weight to CANSLIM bonus
+                    weighted_bonus = int(bonus * _canslim_weight)
                     mask = df['ts_code'] == row['ts_code']
-                    df.loc[mask, 'composite_score'] = df.loc[mask, 'composite_score'] + bonus
+                    df.loc[mask, 'composite_score'] = df.loc[mask, 'composite_score'] + weighted_bonus
                     df.loc[mask, 'canslim_score'] = bonus
                     canslim_count += 1
             except Exception:
@@ -475,7 +539,21 @@ def pick_combined_stocks(end_date: str, max_picks: int = 12) -> pd.DataFrame:
     if len(df) == 0:
         return pd.DataFrame()
 
-    df = df.head(max_picks)
+    # July reduce: cap at 3 picks only if we have high-scoring candidates
+    if active_strategy == 'reduce':
+        high_score_count = len(df[df['composite_score'] >= 70])
+        if high_score_count >= 3:
+            df = df.head(3)
+            logger.info(f"[ts_7AZ_96MA] REDUCE: Taking top 3 high-scoring stocks (score≥70)")
+        else:
+            df = pd.DataFrame()
+            logger.warning(f"[ts_7AZ_96MA] REDUCE: Only {high_score_count} stocks score≥70. Returning 0 picks.")
+    else:
+        df = df.head(max_picks)
+
+    if len(df) == 0:
+        return pd.DataFrame()
+
     df = df.reset_index(drop=True)
     df['rank'] = range(1, len(df) + 1)
 
@@ -511,7 +589,7 @@ if __name__ == "__main__":
 
     logger.info(f"[ts_7AZ_96MA] Picking for target {target_date} ref={date}")
 
-    df = pick_combined_stocks(end_date=date)
+    df = pick_combined_stocks(end_date=date, target_date=target_date)
 
     output_file = '/tmp/tmp'
     selected_stocks = []

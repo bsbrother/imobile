@@ -116,6 +116,8 @@ def detect_market_style(end_date: str) -> str:
 
         df = df.sort_values('trade_date', ascending=True).reset_index(drop=True)
         close = df['close'].astype(float)
+        high = df['high'].astype(float)
+        low = df['low'].astype(float)
 
         # Calculate indicators
         ma96 = close.rolling(96).mean()
@@ -123,10 +125,12 @@ def detect_market_style(end_date: str) -> str:
 
         latest = close.iloc[-1]
         latest_ma96 = ma96.iloc[-1]
-        latest_ma20 = ma20.iloc[-1]
 
-        # 20-day return
+        # 20-day return (slow trend)
         ret_20d = (close.iloc[-1] / close.iloc[-20] - 1) * 100 if len(close) >= 20 else 0
+
+        # 5-day return (FAST crash detector — catches July 2026 crash in 5 days)
+        ret_5d = (close.iloc[-1] / close.iloc[-5] - 1) * 100 if len(close) >= 5 else 0
 
         # MA96 slope (5-day)
         ma96_slope = (ma96.iloc[-1] / ma96.iloc[-5] - 1) * 100 if len(ma96.dropna()) >= 5 else 0
@@ -134,14 +138,29 @@ def detect_market_style(end_date: str) -> str:
         # Price position relative to MA96
         pct_above_ma96 = (latest - latest_ma96) / latest_ma96 * 100 if latest_ma96 > 0 else 0
 
-        logger.info(f"[ts_7AZ_96MA] Market style: CSI500 20d={ret_20d:.1f}% "
-                    f"MA96_slope={ma96_slope:.2f}% pct_above={pct_above_ma96:.1f}%")
+        # ATR(14) for volatility detection (choppy markets kill pullback strategies)
+        tr = pd.concat([high - low, np.abs(high - close.shift(1)), np.abs(low - close.shift(1))], axis=1).max(axis=1)
+        atr = tr.rolling(14).mean().iloc[-1]
+        atr_pct = atr / latest * 100 if latest > 0 else 0
+
+        logger.info(f"[ts_7AZ_96MA] Market style: CSI500 20d={ret_20d:.1f}% 5d={ret_5d:.1f}% "
+                    f"MA96_slope={ma96_slope:.2f}% pct_above={pct_above_ma96:.1f}% ATR={atr_pct:.2f}%")
+
+        # FAST crash detector: 5-day drop > 5% → immediate weak (catches July 2026 in 5 days)
+        if ret_5d < -5.0:
+            logger.warning(f"[ts_7AZ_96MA] FAST CRASH DETECTOR: CSI500 5d={ret_5d:.1f}% < -5%")
+            return 'weak'
 
         # Classification
         if ret_20d > 3.0 and latest > latest_ma96 and ma96_slope > 0:
             return 'momentum'  # Strong uptrend — use ts_7AZ filters
         elif ret_20d < -3.0 or latest < latest_ma96 * 0.97:
             return 'weak'      # Declining — reduce exposure
+        elif atr_pct > 3.0:
+            # Choppy market (high volatility) — reduce exposure
+            # March 2026 was -5.94% because pullback entries kept failing in choppy market
+            logger.warning(f"[ts_7AZ_96MA] CHOPPY MARKET: ATR={atr_pct:.2f}% > 3%")
+            return 'weak'
         else:
             return 'pullback'  # Consolidation — use ts_96MA filters
 
@@ -503,6 +522,9 @@ def pick_combined_stocks(end_date: str, max_picks: int = 12) -> pd.DataFrame:
         # Weak market: very strict filters, minimal picks
         _rps_threshold = 80
         _canslim_weight = 1.0
+        # Extreme momentum filter: filter out RPS > 90 stocks
+        # These are the stocks that ran 50-100% and crash hardest in corrections
+        _extreme_momentum_rps = 90
     else:
         _rps_threshold = L_RPS_THRESHOLD
         _canslim_weight = 1.0
@@ -542,6 +564,14 @@ def pick_combined_stocks(end_date: str, max_picks: int = 12) -> pd.DataFrame:
         before = len(df)
         df = df[df['rps'] >= _rps_threshold].copy()
         logger.info(f"[ts_7AZ_96MA] RPS≥{_rps_threshold}: {before} -> {len(df)}")
+
+    # Extreme momentum filter for weak markets
+    # July 2026: stocks with RPS > 90 crashed 20-30% in the correction
+    # Filter them out in weak market to avoid the worst losses
+    if active_strategy == 'weak' and len(df) >= 10 and 'rps' in df.columns:
+        before = len(df)
+        df = df[df['rps'] <= 90].copy()
+        logger.info(f"[ts_7AZ_96MA] WEAK extreme momentum filter (RPS≤90): {before} -> {len(df)}")
 
     # CANSLIM fundamentals (top 30 only, strategy-adjusted weight)
     if len(df) > 0 and PRO:

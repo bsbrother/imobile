@@ -104,7 +104,7 @@ def detect_market_style(end_date: str) -> str:
     Returns:
         'momentum': Strong uptrend — use ts_7AZ CANSLIM filters
         'pullback': Consolidation/dip — use ts_96MA MA96 support filters
-        'weak': Declining market — reduce exposure
+        'weak': Declining market — NO BUYING (0 picks)
     """
     try:
         # Fetch CSI500 data for market proxy
@@ -119,14 +119,15 @@ def detect_market_style(end_date: str) -> str:
 
         # Calculate indicators
         ma96 = close.rolling(96).mean()
-        ma20 = close.rolling(20).mean()
 
         latest = close.iloc[-1]
         latest_ma96 = ma96.iloc[-1]
-        latest_ma20 = ma20.iloc[-1]
 
         # 20-day return
         ret_20d = (close.iloc[-1] / close.iloc[-20] - 1) * 100 if len(close) >= 20 else 0
+
+        # 5-day return (FAST crash detector)
+        ret_5d = (close.iloc[-1] / close.iloc[-5] - 1) * 100 if len(close) >= 5 else 0
 
         # MA96 slope (5-day)
         ma96_slope = (ma96.iloc[-1] / ma96.iloc[-5] - 1) * 100 if len(ma96.dropna()) >= 5 else 0
@@ -134,20 +135,69 @@ def detect_market_style(end_date: str) -> str:
         # Price position relative to MA96
         pct_above_ma96 = (latest - latest_ma96) / latest_ma96 * 100 if latest_ma96 > 0 else 0
 
-        logger.info(f"[ts_7AZ_96MA] Market style: CSI500 20d={ret_20d:.1f}% "
-                    f"MA96_slope={ma96_slope:.2f}% pct_above={pct_above_ma96:.1f}%")
+        # Consecutive down days (for crash confirmation)
+        down_days = 0
+        for i in range(-1, -6, -1):
+            if len(close) + i >= 0 and close.iloc[i] < close.iloc[i-1]:
+                down_days += 1
+            else:
+                break
+
+        logger.info(f"[ts_7AZ_96MA] Market style: CSI500 20d={ret_20d:.1f}% 5d={ret_5d:.1f}% "
+                    f"MA96_slope={ma96_slope:.2f}% pct_above={pct_above_ma96:.1f}% "
+                    f"down_days={down_days}")
+
+        # FAST crash detector: 5-day drop > 5% OR 3+ consecutive down days
+        # → weak (NO BUYING, 0 picks)
+        if ret_5d < -5.0 or down_days >= 3:
+            logger.warning(f"[ts_7AZ_96MA] CRASH DETECTOR: 5d={ret_5d:.1f}% down_days={down_days}")
+            return 'weak'
 
         # Classification
         if ret_20d > 3.0 and latest > latest_ma96 and ma96_slope > 0:
             return 'momentum'  # Strong uptrend — use ts_7AZ filters
         elif ret_20d < -3.0 or latest < latest_ma96 * 0.97:
-            return 'weak'      # Declining — reduce exposure
+            return 'weak'      # Declining — NO BUYING
         else:
             return 'pullback'  # Consolidation — use ts_96MA filters
 
     except Exception as e:
         logger.warning(f"[ts_7AZ_96MA] Market style detection failed: {e}")
         return 'pullback'
+
+
+def is_recovery_day(end_date: str) -> bool:
+    """
+    Check if today is a recovery day after a crash.
+    Recovery = CSI500 rises today after 3+ down days.
+    Uses only past data (no look-ahead).
+    """
+    try:
+        start = get_trading_days_before(end_date, 10)
+        df = data_provider.get_index_data('000905.SH', start, end_date)
+        if df is None or len(df) < 3:
+            return False
+        df = df.sort_values('trade_date', ascending=True).reset_index(drop=True)
+        close = df['close'].astype(float)
+
+        # Count consecutive down days before today
+        down_days = 0
+        for i in range(-2, -7, -1):  # Start from yesterday
+            if len(close) + i >= 0 and close.iloc[i] < close.iloc[i-1]:
+                down_days += 1
+            else:
+                break
+
+        # Recovery: today rises after 3+ down days
+        today_up = close.iloc[-1] > close.iloc[-2]
+        recovery = today_up and down_days >= 3
+
+        if recovery:
+            logger.info(f"[ts_7AZ_96MA] RECOVERY DAY: {down_days} down days before today")
+        return recovery
+
+    except Exception:
+        return False
 
 
 def fetch_financial_data(ts_code: str) -> dict:
@@ -439,15 +489,23 @@ def pick_combined_stocks(end_date: str, max_picks: int = 12) -> pd.DataFrame:
         return pd.DataFrame()
 
     # ─── Real-Time Market Style Detection (no look-ahead) ─────────
+    # ─── Real-Time Market Style Detection (no look-ahead) ─────────
     # Uses only past CSI500 data to classify market style.
-    # Replaces hardcoded month switching which used look-ahead data.
     active_strategy = detect_market_style(end_date)
     logger.info(f"[ts_7AZ_96MA] Market style: {active_strategy}")
 
+    # Weak market: NO BUYING (0 picks), unless it's a recovery day
     if active_strategy == 'weak':
-        logger.warning(f"[ts_7AZ_96MA] Weak market: Reducing exposure (max_picks=3, min_score=60)")
-        max_picks = 3
-        min_score = 60
+        # Check if today is a recovery day (market bounced after crash)
+        recovery = is_recovery_day(end_date)
+        if recovery:
+            logger.info(f"[ts_7AZ_96MA] Recovery day detected — resume buying with pullback filters")
+            active_strategy = 'pullback'
+            max_picks = 8  # Cautious: fewer picks on recovery day
+            min_score = 50
+        else:
+            logger.warning(f"[ts_7AZ_96MA] Weak market: NO BUYING (0 picks)")
+            return pd.DataFrame()
     elif active_strategy == 'pullback':
         logger.info(f"[ts_7AZ_96MA] Pullback market: Using ts_96MA filters (support focus)")
         max_picks = 12

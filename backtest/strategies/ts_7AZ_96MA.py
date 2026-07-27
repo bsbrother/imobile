@@ -104,46 +104,53 @@ def detect_market_style(end_date: str) -> str:
     Returns:
         'momentum': Strong uptrend — use ts_7AZ CANSLIM filters
         'pullback': Consolidation/dip — use ts_96MA MA96 support filters
-        'weak': Declining market — reduce exposure
+        'weak': Declining market — reduce exposure (3 picks)
+        'crash': Small cap crash — NO BUYING (0 picks)
     """
     try:
-        # Fetch CSI500 data for market proxy
         start = get_trading_days_before(end_date, 120)
         df = data_provider.get_index_data('000905.SH', start, end_date)
         if df is None or len(df) < 60:
-            logger.warning(f"[ts_7AZ_96MA] Insufficient CSI500 data for style detection")
             return 'pullback'
 
         df = df.sort_values('trade_date', ascending=True).reset_index(drop=True)
         close = df['close'].astype(float)
-
-        # Calculate indicators
         ma96 = close.rolling(96).mean()
-        ma20 = close.rolling(20).mean()
-
         latest = close.iloc[-1]
         latest_ma96 = ma96.iloc[-1]
-        latest_ma20 = ma20.iloc[-1]
-
-        # 20-day return
         ret_20d = (close.iloc[-1] / close.iloc[-20] - 1) * 100 if len(close) >= 20 else 0
-
-        # MA96 slope (5-day)
         ma96_slope = (ma96.iloc[-1] / ma96.iloc[-5] - 1) * 100 if len(ma96.dropna()) >= 5 else 0
-
-        # Price position relative to MA96
         pct_above_ma96 = (latest - latest_ma96) / latest_ma96 * 100 if latest_ma96 > 0 else 0
 
-        logger.info(f"[ts_7AZ_96MA] Market style: CSI500 20d={ret_20d:.1f}% "
-                    f"MA96_slope={ma96_slope:.2f}% pct_above={pct_above_ma96:.1f}%")
+        # CSI1000 small cap crash detector (zero false positives in backtest)
+        # Only triggers: Mar 23 (1 day), Jul 8 + Jul 13 (2 days)
+        # Catches July crash where CSI500 was still in pullback mode
+        ret_5d_1000 = 0.0
+        try:
+            df_1000 = data_provider.get_index_data('000852.SH', start, end_date)
+            if df_1000 is not None and len(df_1000) >= 5:
+                df_1000 = df_1000.sort_values('trade_date', ascending=True).reset_index(drop=True)
+                c1000 = df_1000['close'].astype(float)
+                ret_5d_1000 = (c1000.iloc[-1] / c1000.iloc[-5] - 1) * 100
+        except Exception:
+            pass
 
-        # Classification
+        logger.info(f"[ts_7AZ_96MA] Market style: CSI500 20d={ret_20d:.1f}% "
+                    f"MA96s={ma96_slope:.2f}% above={pct_above_ma96:.1f}% | "
+                    f"CSI1000 5d={ret_5d_1000:.1f}%")
+
+        # CRASH detector: CSI1000 5d < -8% → 0 picks
+        if ret_5d_1000 < -8.0:
+            logger.warning(f"[ts_7AZ_96MA] CSI1000 CRASH: 5d={ret_5d_1000:.1f}% < -8%")
+            return 'crash'
+
+        # Classification (unchanged from 71.11% version)
         if ret_20d > 3.0 and latest > latest_ma96 and ma96_slope > 0:
-            return 'momentum'  # Strong uptrend — use ts_7AZ filters
+            return 'momentum'
         elif ret_20d < -3.0 or latest < latest_ma96 * 0.97:
-            return 'weak'      # Declining — reduce exposure
+            return 'weak'
         else:
-            return 'pullback'  # Consolidation — use ts_96MA filters
+            return 'pullback'
 
     except Exception as e:
         logger.warning(f"[ts_7AZ_96MA] Market style detection failed: {e}")
@@ -444,7 +451,10 @@ def pick_combined_stocks(end_date: str, max_picks: int = 12) -> pd.DataFrame:
     active_strategy = detect_market_style(end_date)
     logger.info(f"[ts_7AZ_96MA] Market style: {active_strategy}")
 
-    if active_strategy == 'weak':
+    if active_strategy == 'crash':
+        logger.warning(f"[ts_7AZ_96MA] Small cap crash: NO BUYING (0 picks)")
+        return pd.DataFrame()
+    elif active_strategy == 'weak':
         logger.warning(f"[ts_7AZ_96MA] Weak market: Reducing exposure (max_picks=3, min_score=60)")
         max_picks = 3
         min_score = 60

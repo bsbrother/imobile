@@ -112,9 +112,11 @@ def detect_market_style(end_date: str) -> str:
     try:
         start = get_trading_days_before(end_date, 120)
 
-        # Fetch CSI500 (mid cap) and CSI1000 (small cap) data
+        # Fetch CSI500 (mid cap), CSI1000 (small cap), STAR50 (growth), ChiNext (growth) data
         df_500 = data_provider.get_index_data('000905.SH', start, end_date)
         df_1000 = data_provider.get_index_data('000852.SH', start, end_date)
+        df_star = data_provider.get_index_data('000688.SH', start, end_date)
+        df_chinext = data_provider.get_index_data('399006.SZ', start, end_date)
 
         if df_500 is None or len(df_500) < 60:
             logger.warning(f"[ts_7AZ_96MA] Insufficient CSI500 data")
@@ -139,14 +141,52 @@ def detect_market_style(end_date: str) -> str:
             ret_5d_1000 = (close_1000.iloc[-1] / close_1000.iloc[-5] - 1) * 100 if len(close_1000) >= 5 else 0
             ret_20d_1000 = (close_1000.iloc[-1] / close_1000.iloc[-20] - 1) * 100
 
+        # Process STAR50 (growth — earliest crash detector)
+        ret_5d_star = 0
+        ret_20d_star = 0
+        if df_star is not None and len(df_star) >= 20:
+            df_star = df_star.sort_values('trade_date', ascending=True).reset_index(drop=True)
+            close_star = df_star['close'].astype(float)
+            ret_5d_star = (close_star.iloc[-1] / close_star.iloc[-5] - 1) * 100 if len(close_star) >= 5 else 0
+            ret_20d_star = (close_star.iloc[-1] / close_star.iloc[-20] - 1) * 100
+
+        # Process ChiNext (growth — confirms STAR Market signals)
+        ret_5d_chinext = 0
+        ret_20d_chinext = 0
+        if df_chinext is not None and len(df_chinext) >= 20:
+            df_chinext = df_chinext.sort_values('trade_date', ascending=True).reset_index(drop=True)
+            close_chinext = df_chinext['close'].astype(float)
+            ret_5d_chinext = (close_chinext.iloc[-1] / close_chinext.iloc[-5] - 1) * 100 if len(close_chinext) >= 5 else 0
+            ret_20d_chinext = (close_chinext.iloc[-1] / close_chinext.iloc[-20] - 1) * 100
+
         logger.info(f"[ts_7AZ_96MA] Market style: "
                     f"CSI500 20d={ret_20d_500:.1f}% MA96s={ma96_slope_500:.2f}% above={pct_above_500:.1f}% | "
-                    f"CSI1000 5d={ret_5d_1000:.1f}% 20d={ret_20d_1000:.1f}%")
+                    f"CSI1000 5d={ret_5d_1000:.1f}% 20d={ret_20d_1000:.1f}% | "
+                    f"STAR50 5d={ret_5d_star:.1f}% 20d={ret_20d_star:.1f}% | "
+                    f"ChiNext 5d={ret_5d_chinext:.1f}% 20d={ret_20d_chinext:.1f}%")
+
+        # STAR Market crash detector (earliest — catches July 2026 in 2 days)
+        # July 2026: 科创50 5d=-16.9%, 科创综指 5d=-17.5%
+        if ret_5d_star < -10.0:
+            logger.warning(f"[ts_7AZ_96MA] STAR MARKET CRASH: 科创50 5d={ret_5d_star:.1f}% < -10%")
+            return 'weak'
+
+        # ChiNext crash detector (confirms STAR Market)
+        # July 2026: 创业板指 5d=-10.8%
+        if ret_5d_chinext < -10.0:
+            logger.warning(f"[ts_7AZ_96MA] CHINEXT CRASH: 创业板指 5d={ret_5d_chinext:.1f}% < -10%")
+            return 'weak'
 
         # CSI1000 crash detector (small cap leads — catches July 2026 in 3 days)
         # July 2026: CSI1000 5d=-12.6%, 20d=-18.3% while CSI500 only -1.6%
         if ret_5d_1000 < -8.0:
             logger.warning(f"[ts_7AZ_96MA] CSI1000 CRASH: 5d={ret_5d_1000:.1f}% < -8%")
+            return 'weak'
+
+        # March 2026: STAR Market crash (科创50 20d=-9.5%, 科创综指 20d=-6.4%)
+        # STAR Market leads tech/growth selloffs
+        if ret_20d_star < -8.0:
+            logger.warning(f"[ts_7AZ_96MA] STAR MARKET SELLOFF: 科创50 20d={ret_20d_star:.1f}% < -8%")
             return 'weak'
 
         # March 2026: ALL indices weak (broad selloff)

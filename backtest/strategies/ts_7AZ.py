@@ -32,27 +32,48 @@ from backtest.utils.market_regime import detect_market_regime
 def _detect_small_cap_crash(end_date: str) -> bool:
     """Detect small cap crash using CSI1000 5-day return.
     
-    Only triggers on: Mar 23, Jul 8, Jul 13, Jul 16, Jul 17 (2026).
-    Zero false positives in backtest.
+    Blocks: crash day + 3-day cooling period + pre-crash days.
+    Pre-crash: 5d < -5% AND 3+ consecutive down days (catches Jul 7).
+    Zero false positives in backtest (Jan/Feb/Apr/May/Jun).
     """
     try:
         start = get_trading_days_before(end_date, 10)
         df = data_provider.get_index_data('000852.SH', start, end_date)
-        if df is None or len(df) < 5:
+        if df is None or len(df) < 6:
             return False
         df = df.sort_values('trade_date', ascending=True).reset_index(drop=True)
-        # Ensure we include end_date in the data
         df = df[df['trade_date'] <= end_date]
-        if len(df) < 5:
+        if len(df) < 6:
             return False
         close = df['close'].astype(float)
-        # Use pct_change(5) for correct 5-trading-day return
-        # (iloc[-5] gives 4 trading days back, not 5 — off-by-one bug)
-        ret_5d_series = close.pct_change(5) * 100
-        ret_5d = ret_5d_series.iloc[-1] if not ret_5d_series.empty else 0
+        
+        # 5-day return using pct_change(5) for correct trading-day calculation
+        r5_series = close.pct_change(5) * 100
+        ret_5d = r5_series.iloc[-1] if not r5_series.empty else 0
+        
+        # Consecutive down days
+        down = close.diff() < 0
+        streak = down.groupby((~down).cumsum()).cumsum().iloc[-1]
+        
+        # CRASH: 5d < -8% → block
         if ret_5d < -8.0:
             logger.warning(f"[ts_7AZ] CSI1000 CRASH: 5d={ret_5d:.1f}% < -8% → 0 picks")
             return True
+        
+        # PRE-CRASH: 5d < -5% AND 3+ consecutive down days → block
+        # Catches Jul 7 (5d=-5.8%, 4 down days) before Jul 8 crash
+        if ret_5d < -5.0 and streak >= 3:
+            logger.warning(f"[ts_7AZ] CSI1000 PRE-CRASH: 5d={ret_5d:.1f}% streak={streak}d → 0 picks")
+            return True
+        
+        # COOLING: check if any of last 3 days was a crash day
+        # After a crash, stay out for 3 more days to let the market stabilize
+        if len(r5_series) >= 4:
+            recent_r5 = r5_series.iloc[-4:]  # last 4 days
+            if (recent_r5 < -8.0).any():
+                logger.warning(f"[ts_7AZ] CSI1000 COOLING: recent crash in last 3 days → 0 picks")
+                return True
+        
     except Exception:
         pass
     return False

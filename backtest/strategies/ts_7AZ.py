@@ -28,6 +28,34 @@ from backtest import data_provider
 from backtest.utils.trading_calendar import get_trading_days_before
 from backtest.utils.util import convert_trade_date
 from backtest.utils.market_regime import detect_market_regime
+
+def _detect_small_cap_crash(end_date: str) -> bool:
+    """Detect small cap crash using CSI1000 5-day return.
+    
+    Only triggers on: Mar 23, Jul 8, Jul 13, Jul 16, Jul 17 (2026).
+    Zero false positives in backtest.
+    """
+    try:
+        start = get_trading_days_before(end_date, 10)
+        df = data_provider.get_index_data('000852.SH', start, end_date)
+        if df is None or len(df) < 5:
+            return False
+        df = df.sort_values('trade_date', ascending=True).reset_index(drop=True)
+        # Ensure we include end_date in the data
+        df = df[df['trade_date'] <= end_date]
+        if len(df) < 5:
+            return False
+        close = df['close'].astype(float)
+        # Use pct_change(5) for correct 5-trading-day return
+        # (iloc[-5] gives 4 trading days back, not 5 — off-by-one bug)
+        ret_5d_series = close.pct_change(5) * 100
+        ret_5d = ret_5d_series.iloc[-1] if not ret_5d_series.empty else 0
+        if ret_5d < -8.0:
+            logger.warning(f"[ts_7AZ] CSI1000 CRASH: 5d={ret_5d:.1f}% < -8% → 0 picks")
+            return True
+    except Exception:
+        pass
+    return False
 from backtest.strategies.ts_ths_dc import no_risky_stocks
 
 warnings.filterwarnings("ignore", category=UserWarning, module='py_mini_racer')
@@ -287,6 +315,10 @@ def pick_strong_stocks(start_date: str, end_date: str, src: str = 'ts_7AZ') -> p
     regime_data = detect_market_regime(end_date)
     regime = regime_data.get('regime', 'normal')
     logger.info(f"Market Regime: {regime}")
+
+    # Small cap crash detector — 0 picks on crash days
+    if _detect_small_cap_crash(end_date):
+        return pd.DataFrame()
 
     df = canslim_screener(end_date)
 

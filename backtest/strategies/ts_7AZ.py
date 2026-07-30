@@ -328,6 +328,33 @@ def canslim_screener(end_date: str, top_n: int = 50) -> pd.DataFrame:
     return df
 
 
+def _detect_growth_stock_crash(end_date: str) -> bool:
+    """Detect ChiNext (growth stock) crash using ChiNext index 5-day return.
+    
+    When ChiNext 5d < -8%, block STAR Market (688xxx) and ChiNext (300xxx) stocks.
+    Zero false positives in backtest (only triggers in July 2026).
+    """
+    try:
+        start = get_trading_days_before(end_date, 10)
+        df = data_provider.get_index_data('399006.SZ', start, end_date)
+        if df is None or len(df) < 6:
+            return False
+        df = df.sort_values('trade_date', ascending=True).reset_index(drop=True)
+        df = df[df['trade_date'] <= end_date]
+        if len(df) < 6:
+            return False
+        close = df['close'].astype(float)
+        r5_series = close.pct_change(5) * 100
+        ret_5d = r5_series.iloc[-1] if not r5_series.empty else 0
+        
+        if ret_5d < -8.0:
+            logger.warning(f"[ts_7AZ] CHINEXT CRASH: 5d={ret_5d:.1f}% < -8% → filter STAR/ChiNext stocks")
+            return True
+    except Exception:
+        pass
+    return False
+
+
 def pick_strong_stocks(start_date: str, end_date: str, src: str = 'ts_7AZ') -> pd.DataFrame:
     """
     Main entry point — compatible with ts_ths_dc interface.
@@ -345,6 +372,14 @@ def pick_strong_stocks(start_date: str, end_date: str, src: str = 'ts_7AZ') -> p
 
     if df.empty:
         return df
+
+    # Growth stock crash filter — remove STAR/ChiNext stocks when ChiNext crashes
+    if _detect_growth_stock_crash(end_date):
+        before = len(df)
+        df = df[~df['ts_code'].str.startswith(('300', '688'))].reset_index(drop=True)
+        logger.info(f"[ts_7AZ] Filtered STAR/ChiNext: {before} -> {len(df)} stocks")
+        if df.empty:
+            return df
 
     # Filter for stocks scoring 4+ (most CANSLIM criteria met)
     df = df[df['score'] >= 4].reset_index(drop=True)

@@ -382,8 +382,8 @@ def _load_sl_blacklist(end_date: str, cooldown_days: int = 5) -> set:
             check_dt = end_dt - timedelta(days=days_back)
             check_date = check_dt.strftime('%Y%m%d')
             
-            pattern = os.path.join(results_dir, f'report_orders_{check_date}.md')
-            for filepath in glob_mod.glob(pattern):
+            pattern = os.path.join(results_dir, '**', f'report_orders_{check_date}.md')
+            for filepath in glob_mod.glob(pattern, recursive=True):
                 try:
                     with open(filepath) as f:
                         content = f.read()

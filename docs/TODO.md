@@ -1,5 +1,18 @@
 # TODO — Current Tasks
 
+
+## 20260730 Current .env is the sweet spot.
+The 80.76% version is already well-optimized. Further improvement would require a fundamentally different approach, not SL tweaking.
+SL_BULL=0.025
+SL_NORMAL=0.02
+SL_VOLATILE=0.015
+SL_BEAR=0.01
+SL_WITH_RE_PICK=false
+SL_WIDEN_STEP=0.005
+SL_WIDEN_AFTER=2
+SL_ENABLED=true
+
+
 ## Completed — 2026-07 Refactor (refactor/optimize-and-clean branch)
 
 - [x] **Test infrastructure**: pytest.ini, conftest.py, integration marker auto-skip, Makefile

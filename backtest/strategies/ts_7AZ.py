@@ -66,10 +66,17 @@ def _detect_small_cap_crash(end_date: str) -> bool:
             logger.warning(f"[ts_7AZ] CSI1000 PRE-CRASH: 5d={ret_5d:.1f}% streak={streak}d → 0 picks")
             return True
         
-        # COOLING: check if any of last 3 days was a crash day
-        # After a crash, stay out for 3 more days to let the market stabilize
-        if len(r5_series) >= 4:
-            recent_r5 = r5_series.iloc[-4:]  # last 4 days
+        # COOLING: check if any crash happened in last 7 trading days
+        # AND market is still weak (5d < 0) — don't resume during weak bounce
+        # Extended from 3 to 7 days to catch Jul 29-31 recovery picks that crashed
+        if len(r5_series) >= 8:
+            recent_r5 = r5_series.iloc[-8:]  # last 7 trading days
+            if (recent_r5 < -8.0).any() and ret_5d < 0:
+                logger.warning(f"[ts_7AZ] CSI1000 COOLING: crash in last 7d AND 5d={ret_5d:.1f}% < 0 → 0 picks")
+                return True
+        # Keep original 3-day cooling (no 5d gate) for immediate post-crash days
+        elif len(r5_series) >= 4:
+            recent_r5 = r5_series.iloc[-4:]
             if (recent_r5 < -8.0).any():
                 logger.warning(f"[ts_7AZ] CSI1000 COOLING: recent crash in last 3 days → 0 picks")
                 return True

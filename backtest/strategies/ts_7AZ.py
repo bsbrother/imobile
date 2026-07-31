@@ -355,6 +355,22 @@ def _detect_growth_stock_crash(end_date: str) -> bool:
     return False
 
 
+def _is_index_stressed(end_date: str, index_code: str, threshold: float) -> bool:
+    """Check if an index 5-day return is below threshold (market stress)."""
+    try:
+        start = get_trading_days_before(end_date, 10)
+        df = data_provider.get_index_data(index_code, start, end_date)
+        if df is None or len(df) < 6:
+            return False
+        df = df.sort_values('trade_date', ascending=True).reset_index(drop=True)
+        df = df[df['trade_date'] <= end_date]
+        close = df['close'].astype(float)
+        r5 = close.pct_change(5).iloc[-1] * 100
+        return r5 < threshold
+    except Exception:
+        return False
+
+
 def _load_repeat_sl_blacklist(end_date: str, cooldown_days: int = 5) -> set:
     """Load blacklist of stocks with 2+ stop-loss hits in last cooldown_days.
     
@@ -436,15 +452,19 @@ def pick_strong_stocks(start_date: str, end_date: str, src: str = 'ts_7AZ') -> p
     # Filter for stocks scoring 4+ (most CANSLIM criteria met)
     df = df[df['score'] >= 4].reset_index(drop=True)
     
-    # Repeat SL blacklist — only block stocks with 2+ SL hits in last 5 days
-    # Prevents death spiral (BUY→SL→BUY→SL) without hurting one-time SL stocks that recover
-    repeat_blacklist = _load_repeat_sl_blacklist(end_date, cooldown_days=5)
-    if repeat_blacklist and not df.empty:
-        before = len(df)
-        df = df[~df['ts_code'].isin(repeat_blacklist)].reset_index(drop=True)
-        filtered_count = before - len(df)
-        if filtered_count > 0:
-            logger.info(f"[ts_7AZ] Repeat SL blacklist filtered {filtered_count} stocks")
+    # Repeat SL blacklist — only during market stress (both indices crashing)
+    # Prevents death spiral (BUY→SL→BUY→SL) without hurting recovery stocks
+    # Gate: CSI1000 5d < -5% AND ChiNext 5d < -5% (zero false positives in backtest)
+    _csi_stressed = _is_index_stressed(end_date, '000852.SH', -5.0)
+    _chinext_stressed = _is_index_stressed(end_date, '399006.SZ', -5.0)
+    if _csi_stressed and _chinext_stressed:
+        repeat_blacklist = _load_repeat_sl_blacklist(end_date, cooldown_days=5)
+        if repeat_blacklist and not df.empty:
+            before = len(df)
+            df = df[~df['ts_code'].isin(repeat_blacklist)].reset_index(drop=True)
+            filtered_count = before - len(df)
+            if filtered_count > 0:
+                logger.info(f"[ts_7AZ] Repeat SL blacklist (market stress) filtered {filtered_count} stocks")
     
     df['rank'] = df.index + 1
 

@@ -355,58 +355,6 @@ def _detect_growth_stock_crash(end_date: str) -> bool:
     return False
 
 
-def _load_sl_blacklist(end_date: str, cooldown_days: int = 5) -> set:
-    """Load stop-loss blacklist from backtest results.
-    
-    Scans recent daily report files for stop_loss sells.
-    Returns set of stock symbols that hit SL within the last cooldown_days.
-    This prevents the 'death spiral' pattern: BUY → SL → BUY → SL.
-    """
-    blacklist = set()
-    try:
-        import glob as glob_mod
-        import re as re_mod
-        from datetime import datetime, timedelta
-        
-        # Look for report files in the results directory
-        results_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'results')
-        if not os.path.isdir(results_dir):
-            results_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'backtest', 'results')
-        
-        if not os.path.isdir(results_dir):
-            return blacklist
-        
-        end_dt = datetime.strptime(end_date, '%Y%m%d')
-        
-        for days_back in range(1, cooldown_days + 1):
-            check_dt = end_dt - timedelta(days=days_back)
-            check_date = check_dt.strftime('%Y%m%d')
-            
-            pattern = os.path.join(results_dir, '**', f'report_orders_{check_date}.md')
-            for filepath in glob_mod.glob(pattern, recursive=True):
-                try:
-                    with open(filepath) as f:
-                        content = f.read()
-                    # Find stocks with STOP_LOSS exit
-                    # Format: "### 000657.SZ - 中钨高新" ... "Exit Reason: STOP_LOSS"
-                    sections = content.split('### ')
-                    for section in sections[1:]:  # skip first empty section
-                        if 'STOP_LOSS' in section:
-                            # Extract stock symbol from first line
-                            match = re_mod.match(r'(\d{6}\.S[HZ])', section)
-                            if match:
-                                blacklist.add(match.group(1))
-                except Exception:
-                    pass
-        
-        if blacklist:
-            logger.info(f"[ts_7AZ] SL blacklist ({len(blacklist)} stocks): {sorted(blacklist)[:10]}")
-    except Exception as e:
-        logger.debug(f"[ts_7AZ] SL blacklist loading failed: {e}")
-    
-    return blacklist
-
-
 def pick_strong_stocks(start_date: str, end_date: str, src: str = 'ts_7AZ') -> pd.DataFrame:
     """
     Main entry point — compatible with ts_ths_dc interface.
@@ -435,17 +383,6 @@ def pick_strong_stocks(start_date: str, end_date: str, src: str = 'ts_7AZ') -> p
 
     # Filter for stocks scoring 4+ (most CANSLIM criteria met)
     df = df[df['score'] >= 4].reset_index(drop=True)
-    
-    # SL blacklist — exclude stocks that hit SL in last 5 days
-    # Prevents 'death spiral': BUY → SL → BUY → SL on same stock
-    sl_blacklist = _load_sl_blacklist(end_date, cooldown_days=5)
-    if sl_blacklist and not df.empty:
-        before = len(df)
-        df = df[~df['ts_code'].isin(sl_blacklist)].reset_index(drop=True)
-        filtered = before - len(df)
-        if filtered > 0:
-            logger.info(f"[ts_7AZ] SL blacklist filtered {filtered} stocks (blacklist: {len(sl_blacklist)})")
-    
     df['rank'] = df.index + 1
 
     # Save to /tmp/tmp in standard format

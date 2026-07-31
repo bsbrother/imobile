@@ -332,7 +332,8 @@ def _detect_growth_stock_crash(end_date: str) -> bool:
     """Detect ChiNext (growth stock) crash using ChiNext index 5-day return.
     
     When ChiNext 5d < -8%, block STAR Market (688xxx) and ChiNext (300xxx) stocks.
-    Zero false positives in backtest (only triggers in July 2026).
+    Includes 3-day cooling period to prevent whipsaw (signal disappears during
+    partial recovery then returns).
     """
     try:
         start = get_trading_days_before(end_date, 10)
@@ -347,9 +348,18 @@ def _detect_growth_stock_crash(end_date: str) -> bool:
         r5_series = close.pct_change(5) * 100
         ret_5d = r5_series.iloc[-1] if not r5_series.empty else 0
         
+        # CRASH: ChiNext 5d < -8% → filter STAR/ChiNext
         if ret_5d < -8.0:
             logger.warning(f"[ts_7AZ] CHINEXT CRASH: 5d={ret_5d:.1f}% < -8% → filter STAR/ChiNext stocks")
             return True
+        
+        # COOLING: ChiNext crashed in last 3 days → keep filter active
+        # Prevents whipsaw: Jul 3 crash → Jul 6-7 partial recovery → Jul 8 crash again
+        if len(r5_series) >= 4:
+            recent_r5 = r5_series.iloc[-4:]  # last 4 days
+            if (recent_r5 < -8.0).any():
+                logger.warning(f"[ts_7AZ] CHINEXT COOLING: recent crash in last 3 days → filter STAR/ChiNext")
+                return True
     except Exception:
         pass
     return False

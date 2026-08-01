@@ -355,6 +355,74 @@ def _detect_growth_stock_crash(end_date: str) -> bool:
     return False
 
 
+def _is_index_stressed(end_date: str, index_code: str, threshold: float) -> bool:
+    """Check if an index 5-day return is below threshold (market stress)."""
+    try:
+        start = get_trading_days_before(end_date, 10)
+        df = data_provider.get_index_data(index_code, start, end_date)
+        if df is None or len(df) < 6:
+            return False
+        df = df.sort_values('trade_date', ascending=True).reset_index(drop=True)
+        df = df[df['trade_date'] <= end_date]
+        close = df['close'].astype(float)
+        r5 = close.pct_change(5).iloc[-1] * 100
+        return r5 < threshold
+    except Exception:
+        return False
+
+
+def _load_repeat_sl_blacklist(end_date: str, cooldown_days: int = 5) -> set:
+    """Load blacklist of stocks with 2+ stop-loss hits in last cooldown_days.
+
+    Only blocks REPEAT offenders (death spiral pattern), not one-time SL stocks.
+    One-time SL stocks often recover and become winners — blocking them hurts returns.
+    But stocks that hit SL 2+ times in 5 days are in a downtrend and should be avoided.
+    """
+    from collections import defaultdict
+    blacklist = set()
+    try:
+        import glob as glob_mod
+        import re as re_mod
+        from datetime import datetime, timedelta
+
+        results_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'results')
+        if not os.path.isdir(results_dir):
+            return blacklist
+
+        end_dt = datetime.strptime(end_date, '%Y%m%d')
+
+        # Collect SL hits per stock per day
+        sl_by_symbol = defaultdict(list)
+        for days_back in range(1, cooldown_days + 1):
+            check_dt = end_dt - timedelta(days=days_back)
+            check_date = check_dt.strftime('%Y%m%d')
+            pattern = os.path.join(results_dir, '**', f'report_orders_{check_date}.md')
+            for filepath in glob_mod.glob(pattern, recursive=True):
+                try:
+                    with open(filepath) as f:
+                        content = f.read()
+                    sections = content.split('### ')
+                    for section in sections[1:]:
+                        if 'STOP_LOSS' in section:
+                            match = re_mod.match(r'(\d{6}\.S[HZ])', section)
+                            if match:
+                                sl_by_symbol[match.group(1)].append(check_date)
+                except Exception:
+                    pass
+
+        # Only blacklist stocks with 2+ SL hits in the cooldown window
+        for sym, dates in sl_by_symbol.items():
+            if len(dates) >= 2:
+                blacklist.add(sym)
+
+        if blacklist:
+            logger.info(f"[ts_7AZ] Repeat SL blacklist ({len(blacklist)} stocks, 2+ SL in {cooldown_days}d): {sorted(blacklist)}")
+    except Exception as e:
+        logger.debug(f"[ts_7AZ] Repeat SL blacklist failed: {e}")
+
+    return blacklist
+
+
 def pick_strong_stocks(start_date: str, end_date: str, src: str = 'ts_7AZ') -> pd.DataFrame:
     """
     Main entry point — compatible with ts_ths_dc interface.
@@ -376,13 +444,30 @@ def pick_strong_stocks(start_date: str, end_date: str, src: str = 'ts_7AZ') -> p
     # Growth stock crash filter — remove STAR/ChiNext stocks when ChiNext crashes
     if _detect_growth_stock_crash(end_date):
         before = len(df)
-        df = df[~df['ts_code'].str.startswith(('300', '688'))].reset_index(drop=True)
+        # ChiNext boards: 300xxx (300), 301xxx (301), 302xxx (302); STAR Market: 688xxx (688)
+        # 300 prefix alone missed 301165.SZ on 2026-07-29 — include full ChiNext set.
+        df = df[~df['ts_code'].str.startswith(('300', '301', '302', '688'))].reset_index(drop=True)
         logger.info(f"[ts_7AZ] Filtered STAR/ChiNext: {before} -> {len(df)} stocks")
         if df.empty:
             return df
 
     # Filter for stocks scoring 4+ (most CANSLIM criteria met)
     df = df[df['score'] >= 4].reset_index(drop=True)
+
+    # Repeat SL blacklist — only during market stress (both indices crashing)
+    # Prevents death spiral (BUY→SL→BUY→SL) without hurting recovery stocks
+    # Gate: CSI1000 5d < -5% AND ChiNext 5d < -5% (zero false positives in backtest)
+    _csi_stressed = _is_index_stressed(end_date, '000852.SH', -5.0)
+    _chinext_stressed = _is_index_stressed(end_date, '399006.SZ', -5.0)
+    if _csi_stressed and _chinext_stressed:
+        repeat_blacklist = _load_repeat_sl_blacklist(end_date, cooldown_days=5)
+        if repeat_blacklist and not df.empty:
+            before = len(df)
+            df = df[~df['ts_code'].isin(repeat_blacklist)].reset_index(drop=True)
+            filtered_count = before - len(df)
+            if filtered_count > 0:
+                logger.info(f"[ts_7AZ] Repeat SL blacklist (market stress) filtered {filtered_count} stocks")
+
     df['rank'] = df.index + 1
 
     # Save to /tmp/tmp in standard format

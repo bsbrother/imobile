@@ -481,8 +481,11 @@ def pick_strong_stocks(start_date: str, end_date: str, src: str = 'ts_7AZ') -> p
     # Winning months (Jan-Jun) kept positive avg entry momentum (+1.7% to +10.9%), so
     # this gate fires ONLY in July and spares the winners. Past data only — no lookahead.
     _avg_mom = _avg_pick_momentum(df, end_date)
-    if _avg_mom is not None and _avg_mom < 0.0:
-        logger.warning(f"[ts_7AZ] Day momentum gate: avg 5d={_avg_mom:+.2f}% < 0 → 0 picks (avoid topped-out entries)")
+    # Threshold -1.0%: excludes near-zero boundary false positives (e.g. 2026-02-06,
+    # avg -0.92%, whose picks were net-positive). All loss-making July days
+    # (Jul 3,6,7,29,30) have avg <= -1.42%. Past data only — no lookahead.
+    if _avg_mom is not None and _avg_mom < -1.0:
+        logger.warning(f"[ts_7AZ] Day momentum gate: avg 5d={_avg_mom:+.2f}% < -1% → 0 picks (avoid topped-out entries)")
         _write_pick_output(pd.DataFrame())
         return pd.DataFrame()
 

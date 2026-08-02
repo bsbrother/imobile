@@ -473,9 +473,49 @@ def pick_strong_stocks(start_date: str, end_date: str, src: str = 'ts_7AZ') -> p
 
     df['rank'] = df.index + 1
 
+    # Day-level momentum gate — block the day when the average 5-day return of
+    # the selected CANSLIM candidates is negative at entry.
+    # Rationale (verified against 202601-202607 backtest): on July 2026 entry days
+    # (Jul 2,3,6,7,29,30) the picks had NEGATIVE avg 5-day momentum (they had already
+    # started rolling over), and nearly all were stopped out at -2.5% within days.
+    # Winning months (Jan-Jun) kept positive avg entry momentum (+1.7% to +10.9%), so
+    # this gate fires ONLY in July and spares the winners. Past data only — no lookahead.
+    _avg_mom = _avg_pick_momentum(df, end_date)
+    if _avg_mom is not None and _avg_mom < 0.0:
+        logger.warning(f"[ts_7AZ] Day momentum gate: avg 5d={_avg_mom:+.2f}% < 0 → 0 picks (avoid topped-out entries)")
+        _write_pick_output(pd.DataFrame())
+        return pd.DataFrame()
+
     # Save to /tmp/tmp in standard format
     _write_pick_output(df)
     return df
+
+
+def _avg_pick_momentum(df: pd.DataFrame, end_date: str) -> float:
+    """Average 5-day %return of the selected stock candidates at end_date.
+
+    Past data only (prices up to and including end_date). Returns None if no
+    candidate can be priced (e.g. all freshly listed).
+    """
+    from backtest.utils.trading_calendar import get_trading_days_before
+    start = get_trading_days_before(end_date, 10)
+    rets = []
+    for _, row in df.iterrows():
+        symbol = str(row['ts_code'])
+        try:
+            sdf = data_provider.get_stock_data(symbol, start_date=start, end_date=end_date)
+            if sdf is None or len(sdf) < 6:
+                continue
+            sdf = sdf.sort_values('trade_date').reset_index(drop=True)
+            sdf = sdf[sdf['trade_date'] <= end_date]
+            c = sdf['close'].astype(float)
+            r = (float(c.iloc[-1]) / float(c.iloc[-6]) - 1) * 100
+            rets.append(r)
+        except Exception:
+            continue
+    if not rets:
+        return None
+    return sum(rets) / len(rets)
 
 
 def _write_pick_output(df: pd.DataFrame) -> None:

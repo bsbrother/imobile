@@ -434,11 +434,13 @@ def pick_strong_stocks(start_date: str, end_date: str, src: str = 'ts_7AZ') -> p
 
     # Small cap crash detector — 0 picks on crash days
     if _detect_small_cap_crash(end_date):
+        _write_pick_output(pd.DataFrame())
         return pd.DataFrame()
 
     df = canslim_screener(end_date)
 
     if df.empty:
+        _write_pick_output(df)
         return df
 
     # Growth stock crash filter — remove STAR/ChiNext stocks when ChiNext crashes
@@ -449,6 +451,7 @@ def pick_strong_stocks(start_date: str, end_date: str, src: str = 'ts_7AZ') -> p
         df = df[~df['ts_code'].str.startswith(('300', '301', '302', '688'))].reset_index(drop=True)
         logger.info(f"[ts_7AZ] Filtered STAR/ChiNext: {before} -> {len(df)} stocks")
         if df.empty:
+            _write_pick_output(df)
             return df
 
     # Filter for stocks scoring 4+ (most CANSLIM criteria met)
@@ -471,13 +474,25 @@ def pick_strong_stocks(start_date: str, end_date: str, src: str = 'ts_7AZ') -> p
     df['rank'] = df.index + 1
 
     # Save to /tmp/tmp in standard format
+    _write_pick_output(df)
+    return df
+
+
+def _write_pick_output(df: pd.DataFrame) -> None:
+    """Write picks to the engine's temp file so it can find empty (0-pick) results.
+
+    Must always be called — even for crash/empty days — or the engine fails with
+    FileNotFoundError when it tries to open the temp file. See the crash-detector
+    early returns in pick_strong_stocks().
+    """
     selected_stocks = []
-    for _, row in df.iterrows():
-        selected_stocks.append({
-            'rank': int(row['rank']),
-            'symbol': row['ts_code'],
-            'score': float(f"{row['score']:.1f}")
-        })
+    if df is not None and not df.empty:
+        for _, row in df.iterrows():
+            selected_stocks.append({
+                'rank': int(row['rank']),
+                'symbol': row['ts_code'],
+                'score': float(f"{row['score']:.1f}")
+            })
 
     output_file = '/tmp/tmp'
     # If /tmp/tmp is a directory (pip residue), use alternative
@@ -487,7 +502,6 @@ def pick_strong_stocks(start_date: str, end_date: str, src: str = 'ts_7AZ') -> p
         json.dump({'selected_stocks': selected_stocks}, f)
 
     logger.info(f"Saved {len(selected_stocks)} CANSLIM picks to {output_file}")
-    return df
 
 
 if __name__ == "__main__":

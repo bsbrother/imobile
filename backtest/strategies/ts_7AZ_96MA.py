@@ -49,20 +49,26 @@ configure_logger(log_level=LOG_LEVEL, log_path=LOG_PATH)
 # Small-cap barometer index (matches CANSLIM/MA96 small-cap bias)
 CSI1000 = '000852.SH'
 MA96 = 96
-R20_THRESHOLD = 8.0   # 20d return >= +8% => strong uptrend -> 96MA
+R20_THRESHOLD = 8.0   # 20d return >= +8% => strong recent uptrend
+R60_THRESHOLD = 8.0   # 60d return >= +8% => persistent multi-month uptrend (discriminates Jan from May)
 
 
 def _regime_96ma(end_date: str) -> bool:
     """Return True to use ts_96MA, False to use ts_7AZ (live, per trading day).
 
-    NARROW additive rule (user-specified): use ts_96MA ONLY on strong-uptrend
-    days — CSI1000 20-day return >= +8% AND price above its 96-day MA
-    (e.g. January's persistent uptrend). This NEVER fires on crash days (which
-    are below MA96 / low r20), so those always route to ts_7AZ — which carries
-    the crash detector + day-momentum gate that block July-type drawdowns.
+    REFINED additive rule (option 3): use ts_96MA ONLY on strong-uptrend days
+    that are also PERSISTENT — CSI1000 must satisfy ALL THREE:
+      1. price above its 96-day MA
+      2. 20-day return >= +8%  (recent strength)
+      3. 60-day return >= +8%  (persistent multi-month uptrend)
+    The 60-day condition is the key discriminator: it keeps January (r60 +8..+14,
+    an established uptrend where 96MA pullback-buying wins) and drops the 7AZ
+    momentum months (Feb/Apr/May r60 < 8), preventing the earlier leak where
+    96MA's slower pullback picks underperformed CANSLIM in May.
 
-    This prevents the previous failure (routing crash days to 96MA, which has
-    no crash protection, causing Jul -9.69%). Past data only, no lookahead.
+    This NEVER fires on crash days (below MA96 / low r20/r60), so those always
+    route to ts_7AZ, which carries the crash detector + day-momentum gate that
+    block July-type drawdowns. Past data only, no lookahead, no hardcoded months.
     """
     try:
         lookback = get_trading_days_before(end_date, 130)
@@ -75,12 +81,13 @@ def _regime_96ma(end_date: str) -> bool:
         ma96 = close.rolling(MA96).mean().iloc[-1]
         last = float(close.iloc[-1])
         above96 = last >= ma96
-        # 20-day return
         r20 = (last / float(close.iloc[-21]) - 1) * 100 if len(close) >= 21 else 0.0
-        use_96 = above96 and r20 >= R20_THRESHOLD
+        r60 = (last / float(close.iloc[-61]) - 1) * 100 if len(close) >= 61 else 0.0
+        use_96 = above96 and r20 >= R20_THRESHOLD and r60 >= R60_THRESHOLD
         logger.info(
             f"[ts_7AZ_96MA] regime: CSI1000 close={last:.0f} MA96={ma96:.0f} "
-            f"above96={above96} r20={r20:+.1f}% -> {'ts_96MA' if use_96 else 'ts_7AZ'}"
+            f"above96={above96} r20={r20:+.1f}% r60={r60:+.1f}% -> "
+            f"{'ts_96MA' if use_96 else 'ts_7AZ'}"
         )
         return use_96
     except Exception as e:

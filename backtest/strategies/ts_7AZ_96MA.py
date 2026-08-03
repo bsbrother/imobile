@@ -55,8 +55,14 @@ R20_THRESHOLD = 8.0   # 20d return >= +8% => strong uptrend -> 96MA
 def _regime_96ma(end_date: str) -> bool:
     """Return True to use ts_96MA, False to use ts_7AZ (live, per trading day).
 
-    Uses CSI1000 small-cap index: 96MA for trend extremes (strong up OR broke
-    below its 96MA), 7AZ for the healthy mid-range. Past data only.
+    NARROW additive rule (user-specified): use ts_96MA ONLY on strong-uptrend
+    days — CSI1000 20-day return >= +8% AND price above its 96-day MA
+    (e.g. January's persistent uptrend). This NEVER fires on crash days (which
+    are below MA96 / low r20), so those always route to ts_7AZ — which carries
+    the crash detector + day-momentum gate that block July-type drawdowns.
+
+    This prevents the previous failure (routing crash days to 96MA, which has
+    no crash protection, causing Jul -9.69%). Past data only, no lookahead.
     """
     try:
         lookback = get_trading_days_before(end_date, 130)
@@ -68,13 +74,13 @@ def _regime_96ma(end_date: str) -> bool:
         close = df['close'].astype(float)
         ma96 = close.rolling(MA96).mean().iloc[-1]
         last = float(close.iloc[-1])
-        below96 = last < ma96
+        above96 = last >= ma96
         # 20-day return
         r20 = (last / float(close.iloc[-21]) - 1) * 100 if len(close) >= 21 else 0.0
-        use_96 = below96 or r20 >= R20_THRESHOLD
+        use_96 = above96 and r20 >= R20_THRESHOLD
         logger.info(
             f"[ts_7AZ_96MA] regime: CSI1000 close={last:.0f} MA96={ma96:.0f} "
-            f"below96={below96} r20={r20:+.1f}% -> {'ts_96MA' if use_96 else 'ts_7AZ'}"
+            f"above96={above96} r20={r20:+.1f}% -> {'ts_96MA' if use_96 else 'ts_7AZ'}"
         )
         return use_96
     except Exception as e:

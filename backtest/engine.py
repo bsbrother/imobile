@@ -172,15 +172,12 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ', backtest_search: bo
 
     # Backtest AI mode: if backtest_ai=False, switch AI-dependent strategies
     # to pure-technical alternatives (no LLM/search needed).
-    _ai_strategies = {'ts_daily'}
-    _noai_map = {
-        'ts_daily':   'ts_hma',       # AI daily -> HMA+SuperTrend technical
-    }
-    if not backtest_ai and src in _noai_map:
-        new_src = _noai_map[src]
-        logger.info(f"backtest_ai=False: Switching strategy '{src}' -> '{new_src}' (no AI/search needed)")
-        src = new_src
-    elif not backtest_ai and src in _ai_strategies:
+    # NOTE: ts_daily is NOT redirected — it implements its own --no-ai technical
+    # mode (pick_stocks() technical scoring, TP 10%/SL 5%), so we pass --no-ai
+    # through to run the genuine ts_daily strategy rather than ts_hma.
+    _ai_strategies = set()
+    _noai_map = {}
+    if not backtest_ai and src in _ai_strategies:
         logger.info(f"backtest_ai=False: Strategy '{src}' requires AI, falling back to 'ts_longup'")
         src = 'ts_longup'
 

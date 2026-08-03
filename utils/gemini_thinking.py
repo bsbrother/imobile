@@ -58,7 +58,7 @@ def analyze_stock_with_gemini(
 ) -> dict:
     """
     Stock analysis using free Gemini API for backtest AI strategies.
-    Used by ts_ai_pick.py and ts_daily.py.
+    Used by ts_daily.py.
     """
     import json
     from google import genai

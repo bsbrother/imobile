@@ -6,14 +6,14 @@ Orchestrates: stock picking → smart orders → order execution → daily/perio
 Usage:
   python backtest/engine.py <start_date> <end_date> [src] [user_id] [backtest_search] [backtest_ai]
 
-  src     — Strategy: ts_7AZ (default), ts_auto, ts_6Factors, ts_daily, ts_ai_pick,
-            ts_longup, ts_hma, ts_dc, ts_go, ts_ao_er, ts_multi_factors
+  src     — Strategy: ts_7AZ (default), ts_7AZ_96MA, ts_daily,
+            ts_longup, ts_hma, ts_96MA, ts_go, ts_ao_er
   resume  — Use as last positional arg to skip already-processed dates
 
 Examples:
   python backtest/engine.py 20250101 20250331
   python backtest/engine.py 20250101 20250331 ts_7AZ
-  python backtest/engine.py 20250101 20250331 ts_auto 1 false false
+  python backtest/engine.py 20250101 20250331 ts_daily 1 false false
 """
 
 import os
@@ -172,11 +172,9 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ', backtest_search: bo
 
     # Backtest AI mode: if backtest_ai=False, switch AI-dependent strategies
     # to pure-technical alternatives (no LLM/search needed).
-    _ai_strategies = {'ts_ai_pick', 'ts_daily'}
+    _ai_strategies = {'ts_daily'}
     _noai_map = {
-        'ts_ai_pick': 'ts_longup',   # AI pick -> pure technical trend following
         'ts_daily':   'ts_hma',       # AI daily -> HMA+SuperTrend technical
-        'ts_auto': 'ts_7AZ',     # month_src delegates to ts_7AZ CANSLIM (pure technical)
     }
     if not backtest_ai and src in _noai_map:
         new_src = _noai_map[src]
@@ -197,18 +195,14 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ', backtest_search: bo
     # Strategy dispatch table — maps src to (script, extra_args).
     # All scripts receive this_date + flags; some get an extra strategy-name arg.
     _STRATEGY_SCRIPTS = {
-        'ts_auto':         ('backtest/strategies/ts_auto.py', []),
         'ts_longup':        ('backtest/strategies/ts_longup.py', []),
         'ts_hma':           ('backtest/strategies/ts_hma.py', []),
         'ts_96MA':           ('backtest/strategies/ts_96MA.py', []),
         'ts_7AZ_96MA':       ('backtest/strategies/ts_7AZ_96MA.py', []),
-        'ts_ai_pick':       ('backtest/strategies/ts_ai_pick.py', []),
         'ts_daily':         ('backtest/strategies/ts_daily.py', []),
         'ts_7AZ':           ('backtest/strategies/ts_7AZ.py', ['ts_7AZ']),
         'ts_7AZ_grok':      ('backtest/strategies/ts_7AZ_grok.py', ['ts_7AZ_grok']),
         'ts_ao_er':         ('backtest/strategies/ts_ao_er.py', []),
-        'ts_6Factors':      ('backtest/strategies/ts_6Factors.py', ['ts_6Factors']),
-        'ts_multi_factors': ('backtest/strategies/ts_multi_factors.py', ['ts_multi_factors']),
     }
 
     if src in _STRATEGY_SCRIPTS:
@@ -229,16 +223,12 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ', backtest_search: bo
     try:
         os.rename('/tmp/tmp', tmp_file)
     except OSError:
-        # ts_7AZ / ts_ao_er / ts_6Factors / ts_multi_factors fallback paths
+        # ts_7AZ / ts_ao_er fallback paths
         fallback = '/tmp/ts_7AZ_tmp.json'
         if not os.path.exists(fallback):
             fallback = '/tmp/ts_7AZ_grok_tmp.json'
         if not os.path.exists(fallback):
             fallback = '/tmp/ts_ao_er_tmp.json'
-        if not os.path.exists(fallback):
-            fallback = '/tmp/ts_6Factors_tmp.json'
-        if not os.path.exists(fallback):
-            fallback = '/tmp/ts_multi_factors_tmp.json'
         if os.path.exists(fallback):
             os.rename(fallback, tmp_file)
         else:
@@ -2581,7 +2571,7 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
     start_date -- The start date (format: YYYY-MM-DD), default is today.
     end_date -- The end date (format: YYYY-MM-DD), default is today.
     user_id -- The user ID for the trading account.
-    src -- The source of stocks, default is 'ts_7AZ', or 'ts_auto' etc.
+    src -- The source of stocks, default is 'ts_7AZ'.
     resume -- Skip dates that already have report_orders generated
     backtest_search -- Enable search providers for news/sentiment (default True).
                        If False, skip all search calls, AI gets no news context.
@@ -2775,8 +2765,8 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
 
 
 if __name__ == '__main__':
-    _valid_sources = ['ts_dc', 'ts_go', 'ts_auto', 'ts_daily',
-                      'ts_longup', 'ts_hma', 'ts_96MA', 'ts_7AZ_96MA', 'ts_ai_pick', 'ts_7AZ', 'ts_7AZ_grok', 'ts_ao_er', 'ts_6Factors', 'ts_multi_factors']
+    _valid_sources = ['ts_go', 'ts_daily',
+                      'ts_longup', 'ts_hma', 'ts_96MA', 'ts_7AZ_96MA', 'ts_7AZ', 'ts_7AZ_grok', 'ts_ao_er']
 
     parser = argparse.ArgumentParser(
         description='Backtest Trading Script — A-Shares T+1 backtesting engine.\n'
@@ -2785,11 +2775,11 @@ if __name__ == '__main__':
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python backtest/engine.py 20250101 20250331 ts_auto
-  python backtest/engine.py 20250101 20250331 ts_ai_pick --no-ai
+  python backtest/engine.py 20250101 20250331 ts_7AZ
+  python backtest/engine.py 20250101 20250331 ts_7AZ_96MA
   python backtest/engine.py 20250101 20250331 ts_daily --no-search
   python backtest/engine.py 20250101 20250331 ts_go --resume
-  python backtest/engine.py 20250101 20250331 ts_auto --user-id 2
+  python backtest/engine.py 20250101 20250331 ts_7AZ_96MA --user-id 2
         """
     )
 

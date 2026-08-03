@@ -65,14 +65,11 @@ cd web && reflex run
 | Strategy | Type | Description | Best In |
 |----------|------|-------------|---------|
 | `ts_7AZ` | ✦ Default | CANSLIM 7-factor (C-A-N-S-L-I-M) quality screener with regime-based TP/SL | Normal/Moderate |
+| `ts_7AZ_96MA` | Regime-switch | Uses 96MA trend-pullback in persistent uptrends, else ts_7AZ | Trend extremes |
 | `ts_ao_er` | Technical | AO + ER (Elliott Wave Oscillator divergence detection) | Bear/Volatile |
-| `ts_6Factors` | Fundamental | 6-factor V-G-Q-M-L-S screener (value, growth, quality, momentum, low-vol, size) | All |
-| `ts_auto` | Meta | Auto-selects best sub-strategy based on 20-day regime | All conditions |
-| `ts_dc` | Technical | Hot-sector channel breakout | Bull/Normal |
 | `ts_hma` | Technical | Hull Moving Average + SuperTrend reversal detection | Sharp Bear |
 | `ts_longup` | Technical | ADX trend-following | Strong Bull |
-| `ts_multi_factors` | Momentum | BigQuant-inspired volume-acceleration + slope-ranking strategy | Bull/Trending |
-| `ts_ai_pick`| AI | Full AI analysis with news/sentiment | Any |
+| `ts_ths_dc` | Technical | Hot-sector channel breakout | Bull/Normal |
 | `ts_daily` | AI | News-driven daily picks (LLM + web search) | Any |
 
 ---

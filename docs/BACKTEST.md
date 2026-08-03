@@ -38,7 +38,7 @@ Entry: pick_orders_trading(start_date, end_date, src='ts_7AZ', ...)
 - `is_live=True` → uses real `imobile.db`, gets cash from app homepage (today/future) or DB `summary_account` (past dates)
 - `is_live=False` → simulated cash = `INITIAL_CASH + cumulative_realized_pnl - current_holdings_cost`
 - `backtest_search=False` → all search providers disabled, no web/news context for AI
-- `backtest_ai=False` → AI-dependent strategies (ts_ai_pick, ts_daily, ts_auto) redirected to pure-technical fallbacks
+- `backtest_ai=False` → AI-dependent strategies (ts_daily) redirected to pure-technical fallbacks
 
 ---
 
@@ -78,17 +78,15 @@ pick_stocks_to_file(this_date, src='ts_7AZ', backtest_search, backtest_ai)
   │     (only applies when ts_ths_dc strategy is used)
   │
   ├── If backtest_ai=False → redirect AI strategies to technical alternatives:
-  │     ts_ai_pick → ts_longup (pure ADX trend-following)
   │     ts_daily   → ts_hma   (HMA + SuperTrend)
-  │     ts_auto    → ts_7AZ   (CANSLIM, no LLM needed)
   │
   ├── Dispatch to strategy script (subprocess via .venv/bin/python):
   │     ts_7AZ     → backtest/strategies/ts_7AZ.py → CANSLIM 7-factor screener
-  │     ts_auto    → backtest/strategies/ts_auto.py → meta-strategy delegator
+  │     ts_7AZ_96MA→ backtest/strategies/ts_7AZ_96MA.py → regime switch (96MA uptrends / 7AZ else)
   │     ts_ths_dc  → backtest/strategies/ts_ths_dc.py → hot-sector channel breakout
   │     ts_hma     → backtest/strategies/ts_hma.py → Hull MA + SuperTrend
   │     ts_longup  → backtest/strategies/ts_longup.py → ADX trend-following
-  │     ts_ai_pick → backtest/strategies/ts_ai_pick.py → LLM + web analysis
+  │     ts_96MA    → backtest/strategies/ts_96MA.py → 96-day MA trend-pullback
   │     ts_daily   → backtest/strategies/ts_daily.py → LLM news-driven
   │     ts_go      → utils/go-stock/ → Go compiled binary
   │
@@ -298,12 +296,12 @@ backtest/
 ├── __init__.py             # Package init: data provider, calendar, config singletons
 │
 ├── strategies/             # Stock-picking strategy scripts
-│   ├── ts_auto.py          # ★ Meta-strategy: regime → delegates to sub-strategy
 │   ├── ts_7AZ.py           # CANSLIM 7-factor fundamental screener
+│   ├── ts_7AZ_96MA.py      # Regime switch: 96MA in persistent uptrends, else 7AZ
+│   ├── ts_96MA.py          # 96-day MA trend-pullback (黄金生命线)
 │   ├── ts_ths_dc.py        # Hot-sector + channel breakout (ts_dc)
 │   ├── ts_hma.py           # Hull Moving Average + SuperTrend
 │   ├── ts_longup.py        # ADX trend-following
-│   ├── ts_ai_pick.py       # Full AI analysis (LLM + news/sentiment)
 │   ├── ts_daily.py         # News-driven daily picks (LLM + web search)
 │   ├── ts_gb_line.py       # Golden-cross / dead-cross line
 │   ├── ts_combine.py       # Multi-strategy combiner
@@ -359,11 +357,11 @@ backtest/
 | Strategy | Type | How It Works | Best In |
 |---|---|---|---|
 | `ts_7AZ` | ✦ Default | CANSLIM 7-factor screener: C-A-N-S-L-I-M binary scoring | Normal/moderate |
-| `ts_auto` | Meta | 20-day momentum → delegates to sub-strategy | All conditions |
+| `ts_7AZ_96MA` | Regime-switch | 96MA trend-pullback in persistent uptrends (CSI1000 MA96, r20/r60 ≥ 8%), else ts_7AZ | Trend extremes |
 | `ts_ths_dc` | Technical | Hot-sector THS data + Donchian channel breakout | Bull/normal |
 | `ts_hma` | Technical | Hull Moving Average + SuperTrend reversal | Sharp bears |
 | `ts_longup` | Technical | ADX + slope-based trend-following | Strong bulls |
-| `ts_ai_pick` | AI | LLM analysis + web search + sentiment | Any (needs API) |
+| `ts_96MA` | Technical | 96-day MA trend-pullback | Persistent uptrends |
 | `ts_daily` | AI | LLM news-driven daily picks | Any (needs API) |
 | `ts_gb_line` | Technical | Golden-cross / dead-cross signals | Trending markets |
 
@@ -465,9 +463,9 @@ Key sections:
 python backtest/engine.py 20250101 20250612
 
 # Specific strategy
-python backtest/engine.py 20250101 20250612 ts_auto
+python backtest/engine.py 20250101 20250612 ts_7AZ_96MA
 
-# Disable AI and search (pure technical, 30x faster; note: flags only affect ts_ai_pick/ts_daily/ts_auto)
+# Disable AI and search (pure technical, 30x faster; note: flags only affect ts_daily)
 python backtest/engine.py 20250101 20250612 ts_7AZ --no-search --no-ai
 
 # Resume interrupted run (--search --ai are default, no need to specify)

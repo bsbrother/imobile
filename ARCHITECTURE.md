@@ -20,7 +20,7 @@ Shared databases, caches, and utilities are located in the `shared/` and `utils/
 imobile/
 ├── backtest/                     # [1] Backtest & Order Engine
 │   ├── engine.py                 #   Main orchestrator: pick → orders → execute
-│   ├── strategies/               #   Stock selection logic (ts_auto, ts_7AZ, ts_6Factors, ts_multi_factors, ts_ao_er, ts_ths_dc, etc.)
+│   ├── strategies/               #   Stock selection logic (ts_7AZ, ts_7AZ_96MA, ts_ths_dc, ts_96MA, etc.)
 │   ├── core/                     #   A-Shares rule enforcement (T+1), order execution
 │   ├── data/                     #   Data providers (Tushare, Akshare, SQLite cache)
 │   ├── utils/                    #   Market regime detection, calendars
@@ -94,7 +94,7 @@ The backtest engine simulates A-Share market conditions perfectly (T+1, limits, 
 
 **Core Workflow:**
 1. **Regime Detection:** `detect_market_regime()` uses 120-day MA60/MA120 to classify the market as Bull, Bear, Normal, or Volatile.
-2. **Strategy:** Default `ts_7AZ` runs CANSLIM 7-factor screening. `ts_auto` is available as a meta-strategy that delegates to sub-strategies.
+2. **Strategy:** Default `ts_7AZ` runs CANSLIM 7-factor screening. `ts_7AZ_96MA` switches to 96MA trend-pullback in persistent uptrends (CSI1000 above MA96, r20/r60 ≥ 8%).
 3. **Smart Orders:** `create_smart_orders_from_picks()` generates dynamic `buy_price`, `take_profit`, and `stop_loss` levels with regime-based ratios (TP: Bull 25%, Normal 15%, Volatile 10%, Bear 8%). SL uses narrow trailing buffer (Bull 5%, Normal 4%, Volatile 3%, Bear 2%) — resets to `current_price × (1 - buffer%)` on re-pick, creating a fail-fast dynamic that cuts losers early while avoiding noise on normal volatility.
 4. **Execution / Validation:** `TradeValidator` ensures no short selling and enforces T+1 settlement holding constraints.
 

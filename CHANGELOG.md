@@ -2,6 +2,13 @@
 
 Key changes and milestones in iMobile development.
 
+## 2026-08 (strategy cleanup)
+
+### Strategy removals
+- **Removed 5 strategies** (files + engine dispatch + docs): `ts_auto` (meta auto-selector), `ts_6Factors` (V-G-Q-M-L-S), `ts_multi_factors` (BigQuant momentum), `ts_ai_pick` (full AI), and `ts_dc` (hot-sector data-source variant). These were superseded by the canonical `ts_7AZ` / `ts_7AZ_96MA` family. `ts_ths_dc.py` retained (exports `no_risky_stocks`, imported by `ts_7AZ`/`ts_96MA`).
+- **Canonical strategies remain**: `ts_7AZ` (default, CANSLIM + crash gate, 87.14%), `ts_7AZ_96MA` (regime switch, **97.54%**), `ts_96MA`, `ts_ths_dc`, `ts_hma`, `ts_longup`, `ts_ao_er`, `ts_daily`, `ts_go`.
+- **`ts_7AZ_96MA` regime switch** — new delegator: uses `ts_96MA` picks only when CSI1000 is above its 96-day MA AND 20-day return ≥ 8% AND 60-day return ≥ 8% (persistent uptrend); otherwise routes to `ts_7AZ` (which carries the crash detector + day-momentum gate). No hardcoded months, no lookahead. Result: **97.54%** (best), up from ts_7AZ alone 87.14%.
+
 ## 2026-07 (refactor/optimize-and-clean branch)
 
 ### Phase A — Test infrastructure & cleanup

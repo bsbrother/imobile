@@ -12,7 +12,7 @@ Arguments:
 
 Examples:
   python backtest/result_backtest.py
-  python backtest/result_backtest.py backtest/results/20250101_20260612_ts_auto
+  python backtest/result_backtest.py backtest/results/20250101_20260612_ts_7AZ
 """
 import os
 import sys

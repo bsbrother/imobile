@@ -57,7 +57,7 @@ Full variable reference: [docs/ENV_VARS.md](docs/ENV_VARS.md)
 # Quick backtest with default ts_7AZ strategy
 backtest-trading run python backtest/engine.py 20260101 20260619
 
-# Fast mode (no AI, no search — ~30x faster; note: flags only affect ts_ai_pick/ts_daily/ts_auto)
+# Fast mode (no AI, no search — ~30x faster; note: flags only affect ts_daily)
 backtest-trading run python backtest/engine.py 20260101 20260619 ts_7AZ --no-search --no-ai
 
 # Analyze results
@@ -121,7 +121,7 @@ source .venv/bin/activate
 set -a; source .env; set +a
 
 # Strategy backtest with specific strategy:
-backtest-trading run python backtest/engine.py 20260101 20260619 ts_6Factors --no-search --no-ai
+backtest-trading run python backtest/engine.py 20260101 20260619 ts_7AZ_96MA --no-search --no-ai
 
 # Resume interrupted backtest:
 backtest-trading run python backtest/engine.py 20260101 20260619 --resume

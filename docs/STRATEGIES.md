@@ -9,14 +9,11 @@ Complete reference for all stock-picking strategies in iMobile.
 | Strategy | Type | Default | AI Required | Best In | Speed |
 |---|---|---|---|---|---|---|
 | `ts_7AZ` | Fundamental | ✦ Yes | No | Normal/Moderate | Fast |
-| `ts_auto` | Meta | No | No (falls back) | All conditions | Fast |
+| `ts_7AZ_96MA` | Regime-switch | No | No | Trend extremes → 96MA, else 7AZ | Slow |
 | `ts_ao_er` | Technical | No | No | Bear/Volatile | Fast |
-| `ts_6Factors` | Fundamental | No | No | Value/Defensive | Fast |
-| `ts_multi_factors` | Momentum | No | No | Bull/Trending | Fast |
 | `ts_ths_dc` | Technical | No | No | Bull/Normal | Medium |
 | `ts_hma` | Technical | No | No | Sharp Bear | Fast |
 | `ts_longup` | Technical | No | No | Strong Bull | Fast |
-| `ts_ai_pick` | AI | No | Yes | Any | Slow |
 | `ts_daily` | AI | No | Yes | Any | Slow |
 
 > ⚠ `ts_gb_line` and `ts_combine` exist on disk (`backtest/strategies/`) but are **not registered** in `engine.py`'s dispatch table. They cannot be called via `python backtest/engine.py`. See [Unregistered Strategies](#unregistered-strategies) below.
@@ -55,34 +52,6 @@ Config: `HOLD_DAYS_MULT=0.5`, `SL_WITH_RE_PICK=false`, `SL_BULL=0.025`
 - Default strategy for all market regimes
 - Best in normal/moderate markets
 - Avoids over-reliance on AI/LLM (pure technical + fundamental)
-
----
-
-## `ts_auto` — Meta-Strategy Auto-Selector
-
-**Type:** Meta (regime → sub-strategy)  
-**File:** `backtest/strategies/ts_auto.py`
-
-### How It Works
-
-1. Detects 20-day market regime using MA10 crossover + momentum
-2. Delegates to the best sub-strategy for current conditions:
-
-| Regime | Sub-Strategy | Why |
-|---|---|---|
-| Strong Bull | `ts_longup` | ADX trend-following captures extended rallies |
-| Bull/Normal | `ts_ths_dc` | Hot-sector channel breakout |
-| Bear/Sharp | `ts_hma` | HMA+SuperTrend detects reversal bottoms |
-| Any (AI mode) | `ts_ai_pick` | LLM analysis for uncertain regimes |
-
-3. Falls back to `ts_7AZ` when AI is disabled (`backtest_ai=false`)
-
-### When To Use
-
-- When you want the system to adapt automatically
-- As an A/B comparison against `ts_7AZ`
-- During regime transition periods
-
 ---
 
 ## `ts_ths_dc` — Hot-Sector Channel Breakout
@@ -162,100 +131,7 @@ Config: `HOLD_DAYS_MULT=0.5`, `SL_WITH_RE_PICK=false`, `SL_BULL=0.025`
 
 - Bear/volatile markets (catches bottoms before price confirms)
 - Divergence trading strategies
-- Counter-trend plays
-
----
-
-## `ts_6Factors` — V-G-Q-M-L-S Binary Screener
-
-**Type:** Fundamental multi-factor  
-**File:** `backtest/strategies/ts_6Factors.py`
-
-### How It Works
-
-1. **Stock Pool:** All A-shares, filtered ST/delisted
-2. **6-Factor Binary Scoring:**
-
-| Factor | Criterion | Score |
-|---|---|---|
-| V (Value) | PE < 50 AND PB < 5 | 0/1 |
-| G (Growth) | Revenue YoY ≥ 15% OR Profit YoY ≥ 20% | 0/1 |
-| Q (Quality) | ROE ≥ 15% AND Gross Margin ≥ 20% | 0/1 |
-| M (Momentum) | 60d return > 0 AND Price > MA60 | 0/1 |
-| L (Low Vol) | 20d annualized volatility < 40% | 0/1 |
-| S (Size) | Market cap 20B-500B | 0/1 |
-
-3. Uses `daily_basic` for PE/PB/market-cap pre-filter + `PRO.daily` for OHLCV momentum.
-4. Final filter: score ≥ 3 (at least half of 6 factors passing).
-
-### Best Backtest Result
-
-**13.30%** (2026-01-01 to 2026-06-19, full period)
-
-### When To Use
-
-- Value/defensive rotation
-- Low-volatility market environments
-- When fundamentals matter more than price momentum
-
----
-
-## `ts_multi_factors` — BigQuant Momentum
-
-**Type:** Momentum-forward multi-factor  
-**File:** `backtest/strategies/ts_multi_factors.py`
-
-### How It Works
-
-Inspired by BigQuant's volume-acceleration + slope-ranking framework:
-
-1. **Quality Gates:** PE<100, PB<10, mcap 20-500B, price 5-200, turnover>1%
-2. **Hard Filters (BigQuant steps):**
-   - Volume acceleration: 5d avg vol / prior 5d avg vol > 1.07 (+7%)
-   - 3-day return ≥ 0 (exclude losers)
-   - 5-day slope top 20% by linear regression
-3. **Composite Scoring (rank-based):**
-   - Volume acceleration rank: 25%
-   - Return sweet-spot quality: 20%  
-   - 5-day slope rank: 25%
-   - MA60 proximity: 15%
-   - Volatility stability: 15%
-4. Batch-fetches daily data via `PRO.daily(ts_code='...,...,...')` for speed.
-
-### Best Backtest Result
-
-**0.70%** (2026-06-16 to 2026-06-19, 3-day flat market — preliminary, needs full-period test)
-
-### When To Use
-
-- Bull/trending markets (momentum strategies need trend)
-- Short-term swing trading
-- Volume-confirmed breakout plays
-
----
-
-## `ts_ai_pick` — Full AI Analysis
-
-**Type:** AI-driven  
-**File:** `backtest/strategies/ts_ai_pick.py`
-
-### How It Works
-
-1. Gets stock candidates from hot sectors
-2. For each candidate: fetches news, sentiment, financials via web search
-3. LLM analyzes and scores each stock
-4. Returns top picks with reasoning
-
-### When To Use
-
-- When you want qualitative + quantitative analysis
-- Uncertain markets where fundamentals matter more
-- Requires web search to be enabled (`backtest_search=true`)
-
-### Fallback
-
-When `backtest_ai=false`: redirects to `ts_longup` (ADX trend-following)
-
+| Counter-trend plays
 ---
 
 ## `ts_daily` — News-Driven Daily Picks
@@ -312,9 +188,7 @@ These CLI flags are passed to all strategy scripts, but **only three strategies 
 
 | Strategy | `--no-ai` | `--no-search` | Effect |
 |---|---|---|---|
-| `ts_ai_pick` | ✅ | ✅ | Skips LLM analysis; falls back to technical scoring |
 | `ts_daily` | ✅ | ✅ | Skips LLM + news API; uses technical scoring |
-| `ts_auto` | ✅ | ❌ (ignored) | Switches to ts_7AZ fallback |
 | All others | ❌ Ignored | ❌ Ignored | Already pure technical — zero search/AI calls |
 
 ---
@@ -322,12 +196,12 @@ These CLI flags are passed to all strategy scripts, but **only three strategies 
 ## Strategy Selection Guide
 
 ```
-Market is BULL + trending?     → ts_multi_factors or ts_longup
+Market is BULL + trending?     → ts_7AZ or ts_longup
 Market is NORMAL?              → ts_7AZ (default)
 Market is BEAR + sharp drop?   → ts_ao_er or ts_hma
-Market is VOLATILE?            → ts_6Factors (defensive) or ts_7AZ (conservative)
+Market is VOLATILE?            → ts_7AZ (conservative)
 Sector rotation happening?     → ts_ths_dc
 News-driven catalyst?          → ts_daily (needs AI)
-Want qualitative depth?        → ts_ai_pick (needs AI)
+Trend extreme (uptrend/crash)? → ts_7AZ_96MA
 Just want it to work?          → ts_7AZ
 ```

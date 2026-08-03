@@ -37,8 +37,8 @@ SL_ENABLED=true
 - [ ] ts_ths_dc, ts_hma, ts_longup are pure technical — explore adding sentiment layer
 
 ### Strategy Improvements
-- [x] ts_auto removed — ts_auto superior (more granular, 20d window, momentum sub-conditions)
 - [x] ts_7AZ CANSLIM optimized to 70.60% (HOLD_DAYS_MULT=0.5, SL frozen, SL_BULL=2.5%)
+- [x] ts_7AZ_96MA regime switch: 96MA in persistent uptrends (CSI1000 MA96 + r20/r60 ≥ 8%), else ts_7AZ — 97.54%
 - [x] Backtest resume support: skip already-processed dates, preserve DB state
 - [ ] Proper period report when resuming with extended end_date
 

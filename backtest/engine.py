@@ -209,8 +209,11 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ', backtest_search: bo
         script, extra_args = _STRATEGY_SCRIPTS[src]
         _run_strategy_script(script, this_date, *extra_args, *_flags)
     elif src == 'ts_go':
-        # Compile and run the Go stock picker (kept as os.system for shell chaining)
-        cmd = f'cd utils/go-stock && go build -o pick_stocks cmd/pick_stocks/main.go && ./pick_stocks -date {this_date} {_flags_str}'
+        # Compile and run the Go stock picker (kept as os.system for shell chaining).
+        # Uses the NEWEST picker variant (pick_stocks_best = enhanced multi-factor
+        # scoring) and only passes Go-native flags (-date/-lookahead), NOT the Python
+        # --no-search/--no-ai flags — passing those makes Go's flag package exit 512.
+        cmd = f'cd utils/go-stock && go build -o pick_stocks ./cmd/pick_stocks_best/main.go && ./pick_stocks -date {this_date} -output /tmp/tmp'
         logger.info(f"Running Go stock picker: {cmd}")
         result = os.system(cmd)
         if result != 0:

@@ -196,6 +196,7 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ', backtest_search: bo
         'ts_hma':           ('backtest/strategies/ts_hma.py', []),
         'ts_96MA':           ('backtest/strategies/ts_96MA.py', []),
         'ts_7AZ_96MA':       ('backtest/strategies/ts_7AZ_96MA.py', []),
+        'ts_7AZ_96MA_hma':   ('backtest/strategies/ts_7AZ_96MA_hma.py', []),
         'ts_daily':         ('backtest/strategies/ts_daily.py', []),
         'ts_7AZ':           ('backtest/strategies/ts_7AZ.py', ['ts_7AZ']),
         'ts_7AZ_grok':      ('backtest/strategies/ts_7AZ_grok.py', ['ts_7AZ_grok']),
@@ -2766,7 +2767,7 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
 
 if __name__ == '__main__':
     _valid_sources = ['ts_go', 'ts_daily',
-                      'ts_longup', 'ts_hma', 'ts_96MA', 'ts_7AZ_96MA', 'ts_7AZ', 'ts_7AZ_grok', 'ts_ao_er']
+                      'ts_longup', 'ts_hma', 'ts_96MA', 'ts_7AZ_96MA', 'ts_7AZ_96MA_hma', 'ts_7AZ', 'ts_7AZ_grok', 'ts_ao_er']
 
     parser = argparse.ArgumentParser(
         description='Backtest Trading Script — A-Shares T+1 backtesting engine.\n'

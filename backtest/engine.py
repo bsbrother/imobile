@@ -90,7 +90,7 @@ TAX = global_cm.get('portfolio_config.tax', 0.0005)  # 10W * 0.005% = 50 # Only 
 PEAK_NAV = 0.0                 # running high-water mark of portfolio NAV
 DRAWDOWN_BUDGET = {
     'force_defensive_dd': -3.5,   # % drawdown -> force defensive cap
-    'shrink30_dd': -2.0,          # % drawdown -> scale exposure by 0.7
+    'shrink30_dd': -1.5,          # % drawdown -> scale exposure by 0.7 (was -2.0; -1.5 catches Jul-1 dd -1.67%)
     'shrink_factor': 0.7,
     'defensive_max_positions': 2, # hard-min when forced defensive
 }

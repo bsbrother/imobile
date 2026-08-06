@@ -51,6 +51,45 @@ CSI1000 = '000852.SH'
 MA96 = 96
 R20_THRESHOLD = 8.0   # 20d return >= +8% => strong recent uptrend
 R60_THRESHOLD = 8.0   # 60d return >= +8% => persistent multi-month uptrend (discriminates Jan from May)
+CRASH_THRESHOLD = -8.0  # CSI1000 5d return < -8% => confirmed momentum crash/volatility spike
+
+
+def _in_crash(end_date: str) -> bool:
+    """Return True when CSI1000 is in a SUSTAINED short-term crash.
+
+    Uses the ground-truth crash signal (small-cap barometer 5-day return < -8%).
+    Requires the crash to be SUSTAINED — fired on >= 2 of the trailing 4 trading
+    days — to distinguish a real momentum crash (Jul 2026: multiple crash days
+    across 8/13/16/17/20/21/22) from a single-day spike that immediately recovers
+    (Mar 2026: only ref 23 spiked to -9.77%, then 24-27 recovered to -5..-0.5).
+    This mirrors docs/adjust_ts_7AZ_96MA.md's guidance to add a smoothing filter
+    to avoid the fake-reversal / signal-flapping trap. Past data only.
+    """
+    try:
+        lookback = get_trading_days_before(end_date, 10)
+        df = data_provider.get_index_data(CSI1000, lookback, end_date)
+        if df is None or len(df) < 6:
+            return False
+        df = df.sort_values('trade_date').reset_index(drop=True)
+        df = df[df['trade_date'] <= end_date]
+        close = df['close'].astype(float)
+        # crash flags on each of the trailing 4 trading days
+        crash_count = 0
+        for i in range(len(close) - 1, max(len(close) - 6, -1), -1):
+            if i - 5 >= 0:
+                r5 = (float(close.iloc[i]) / float(close.iloc[i - 5]) - 1) * 100
+                if r5 < CRASH_THRESHOLD:
+                    crash_count += 1
+        last_r5 = (float(close.iloc[-1]) / float(close.iloc[-6]) - 1) * 100
+        crash = crash_count >= 2
+        logger.info(
+            f"[ts_7AZ_96MA] crash-check: last5d={last_r5:+.1f}% crash_days(trail4)={crash_count}/4 "
+            f"-> {'CRASH(sustained)' if crash else 'ok'}"
+        )
+        return crash
+    except Exception as e:
+        logger.warning(f"[ts_7AZ_96MA] crash-check failed ({e}) -> not crash")
+        return False
 
 
 def _regime_96ma(end_date: str) -> bool:
@@ -141,5 +180,19 @@ if __name__ == "__main__":
     else:
         df = pick_strong_stocks(date, date, src='ts_7AZ')
         logger.info(f"[ts_7AZ_96MA] used ts_7AZ -> {len(df)} candidates")
+
+    # Crash-gated defensive fallback (per docs/adjust_ts_7AZ_96MA.md):
+    # when the momentum path produces ZERO picks AND CSI1000 is in a confirmed
+    # crash (5d < -8%), the market is in a momentum-crash regime — money leaves
+    # high-beta growth for defensive low-vol/high-dividend names. Fall back to
+    # ts_hma's defensive large-cap picks instead of sitting flat.
+    # This fires ONLY in true crashes (Jul 2026), NOT on dips that recover
+    # (Mar 2026 24-27) — so it avoids the March damage + April carryover that a
+    # plain "0-pick -> hma" fallback caused. Past data only, no lookahead.
+    if (df is None or df.empty) and _in_crash(date):
+        from backtest.strategies.ts_hma import pick_hma_stocks
+        logger.warning("[ts_7AZ_96MA] 0 picks + confirmed crash -> defensive ts_hma fallback")
+        df = pick_hma_stocks(end_date=date)
+        logger.info(f"[ts_7AZ_96MA] hma defensive fallback -> {len(df)} candidates")
 
     _write_output(df)

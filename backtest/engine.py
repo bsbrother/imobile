@@ -2835,9 +2835,9 @@ Examples:
                         help='Start date in YYYYMMDD format')
     parser.add_argument('end_date',
                         help='End date in YYYYMMDD format')
-    parser.add_argument('src', nargs='?', default='ts_7AZ',
+    parser.add_argument('src', nargs='?', default='ts_7AZ_96MA',
                         choices=_valid_sources,
-                        help='Strategy source (default: ts_7AZ)')
+                        help='Strategy source (default: ts_7AZ_96MA — production)')
     parser.add_argument('--user-id', type=int, default=1,
                         help='User ID for trading account (default: 1)')
     parser.add_argument('--search', action=argparse.BooleanOptionalAction, default=True,

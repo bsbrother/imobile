@@ -75,6 +75,47 @@ INITIAL_CASH = global_cm.get('portfolio_config.initial_cash', 600000)
 COMMISSION = global_cm.get('portfolio_config.commission', 0.0000341)  # 10W * 0.000341% = 3.41 # Max 5 yuan
 TAX = global_cm.get('portfolio_config.tax', 0.0005)  # 10W * 0.005% = 50 # Only on sell
 
+# =====================================================================
+# Dynamic risk budgeting / max-drawdown hard constraint
+# (docs/adjust_ts_7AZ_96MA.md "Continue Adjust#2": ex-ante risk management)
+# ---------------------------------------------------------------
+# Tracks the running peak portfolio NAV across the backtest and de-risks when
+# the account is in a drawdown from that peak:
+#   dd < -3.5% -> force DEFENSIVE (min positions, defensive cap)
+#   dd < -2.0% -> shrink exposure by 30% (scale MAX_POSITIONS down)
+#   else       -> no intervention (regime-based MAX_POSITIONS unchanged)
+# Uses ONLY the previous day's realized NAV (past data, no lookahead).
+# Update frequency: DAILY (per trading day).
+# =====================================================================
+PEAK_NAV = 0.0                 # running high-water mark of portfolio NAV
+DRAWDOWN_BUDGET = {
+    'force_defensive_dd': -3.5,   # % drawdown -> force defensive cap
+    'shrink30_dd': -2.0,          # % drawdown -> scale exposure by 0.7
+    'shrink_factor': 0.7,
+    'defensive_max_positions': 2, # hard-min when forced defensive
+}
+
+
+def _drawdown_cap(base_max: int, nav: float) -> int:
+    """Apply max-drawdown de-risking to a base position limit using prior NAV."""
+    global PEAK_NAV
+    if nav <= 0:
+        return base_max
+    PEAK_NAV = max(PEAK_NAV, nav)
+    dd = (nav / PEAK_NAV - 1) * 100
+    force_dd = DRAWDOWN_BUDGET['force_defensive_dd']
+    shrink_dd = DRAWDOWN_BUDGET['shrink30_dd']
+    if dd < force_dd:
+        capped = DRAWDOWN_BUDGET['defensive_max_positions']
+        logger.info(f"[dd-risk] NAV ¥{nav:,.0f} dd {dd:+.2f}% < {force_dd}% -> FORCE DEFENSIVE ({capped} pos)")
+        return capped
+    if dd < shrink_dd:
+        capped = max(int(base_max * DRAWDOWN_BUDGET['shrink_factor']), 1)
+        logger.info(f"[dd-risk] NAV ¥{nav:,.0f} dd {dd:+.2f}% < {shrink_dd}% -> shrink exposure to {capped} pos")
+        return capped
+    logger.info(f"[dd-risk] NAV ¥{nav:,.0f} dd {dd:+.2f}% peak ¥{PEAK_NAV:,.0f} -> no intervention ({base_max} pos)")
+    return base_max
+
 # Check report path exist, if not,then create it
 if not os.path.exists(REPORT_PATH):
     os.makedirs(REPORT_PATH)
@@ -2612,6 +2653,8 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
     _cache.invalidate_recent(data_type='ohlcv_data', days=3)
     
     dates = calendar.get_trading_days_between(start_date, end_date)
+    global PEAK_NAV
+    PEAK_NAV = 0.0  # reset drawdown high-water mark for this backtest run
     for this_date in dates:
         # Dynamically set MAX_POSITIONS based on market regime (memoized)
         regime_data = _detect_market_regime_cached(this_date)
@@ -2720,6 +2763,11 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
                         logger.warning(f"[{this_date}] Live mode but no cash found in summary_account. Falling back to simulated capital: ¥{current_capital:,.2f}")
         else:
             logger.info(f"[{this_date}] Cumulative Realized P&L: ¥{cumulative_realized_pnl:,.2f}, Total Equity (Cash+Holdings): ¥{current_portfolio_nav:,.2f}, Avail Cash: ¥{current_capital:,.2f}")
+
+        # Dynamic risk budgeting: max-drawdown hard constraint.
+        # NAV here uses only realized P&L from sells strictly before today (past
+        # data, no lookahead). Shrink exposure when in a drawdown from the peak.
+        MAX_POSITIONS = _drawdown_cap(MAX_POSITIONS, current_portfolio_nav)
 
         pass_app_positions = app_positions if (is_live and this_date >= today) else None
         pass_app_running_orders = app_running_orders if (is_live and this_date >= today) else None

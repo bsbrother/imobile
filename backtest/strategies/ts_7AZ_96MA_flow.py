@@ -53,6 +53,9 @@ LHB_CACHE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path
 LHB_LOOKBACK_DAYS = 10     # institutional activity in the prior N calendar days
 SCREEN_NEG_INST = -50_000_000   # screen picks with institutional net-SELL below this (¥50M out)
 BOOST_POS_INST = 8              # score boost per +¥100M institutional net-buy
+SCREEN_ONLY = True              # v2: screen heavy distribution but do NOT re-rank by flow.
+                                # Keeps no-LHB CANSLIM winners (002384/601869/300308 had 0 flow and
+                                # were wrongly pushed out of top-N by the boost in Apr/Jun).
 _lhb_inst = None                # loaded once
 
 
@@ -103,21 +106,26 @@ def _apply_flow_filter(df: pd.DataFrame, ref_date: str) -> pd.DataFrame:
         code6 = str(ts_code).split('.')[0].zfill(6)
         flow = _institutional_flow(code6, ref_date)
         score = float(row.get('score', 0) or 0)
-        # boost: +BOOST per 100M institutional net-buy
-        boosted = score + BOOST_POS_INST * (flow / 100_000_000.0)
+        # v2 SCREEN_ONLY: keep original score (no flow boost) so no-LHB winners aren't
+        # pushed out of top-N. Only apply the boost when re-ranking is enabled.
+        boosted = score
+        if not SCREEN_ONLY:
+            boosted = score + BOOST_POS_INST * (flow / 100_000_000.0)
         rows.append({'row': row, 'code6': code6, 'flow': flow, 'boosted': boosted})
     # Screen: drop candidates with heavy institutional net-SELL (distribution)
     kept = [r for r in rows if r['flow'] >= SCREEN_NEG_INST]
     screened = len(rows) - len(kept)
     if screened:
         logger.info(f"[ts_7AZ_96MA_flow] screened {screened}/{len(rows)} picks with inst net-SELL < {SCREEN_NEG_INST/1e6:.0f}M")
-    # Re-rank remaining by boosted score
-    kept.sort(key=lambda r: r['boosted'], reverse=True)
+    # Re-rank: only if NOT screen-only (screen-only preserves original CANSLIM order)
+    if not SCREEN_ONLY:
+        kept.sort(key=lambda r: r['boosted'], reverse=True)
     out_rows = []
     for i, r in enumerate(kept):
         new = r['row'].copy()
         new['rank'] = i + 1
-        new['score'] = r['boosted']
+        if not SCREEN_ONLY:
+            new['score'] = r['boosted']
         out_rows.append(new)
     out = pd.DataFrame(out_rows)
     if 'rank' not in out.columns:

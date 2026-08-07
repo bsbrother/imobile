@@ -2,6 +2,16 @@
 
 Key changes and milestones in iMobile development.
 
+## 2026-08 (data & utility unification)
+
+- **Shared tree unification** — every cache/db/data file now lives under `shared/`; removed root `db/`, `data/`, `scripts/` stragglers.
+  - `ts_daily` cache: root `db/ts_daily_cache.db` → `shared/db/ts_daily_cache.db`.
+  - Go pickers (`pick_stocks`, `pick_stocks_best`): JSON cache root `db/go_daily_cache` → `shared/db/go_daily_cache`.
+  - `daily_stock_analysis` `stock_analysis.db`: unified via `.env DATABASE_PATH=./shared/data/stock_analysis.db`.
+  - Dragon-Tiger LHB reference datasets: `backtest/data/lhb_*.csv` → `shared/data/lhb/` (now git-tracked).
+  - `scripts/` diagnostic tools → `utils/` (`_check_dates.py`, `demo_searxng_sentiment.py`, `verify_freeride_integration.py`); root `scripts/` removed.
+  - See `docs/REFACTORING.md` Phase E.
+
 ## 2026-08 (strategy cleanup)
 
 ### Strategy removals

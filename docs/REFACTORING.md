@@ -113,3 +113,28 @@ Before merging `refactor/optimize-and-clean` → `baseline_returns_ts_7AZ_70.60`
 | `docs/REFACTORING.md` | D | New: this file |
 | `docs/TODO.md` | D | Refactor items marked complete |
 | `README.md` | D | Development section added |
+
+---
+
+## Phase E — Shared Data & Utility Unification
+
+**Problem:** Cache/db/data files were fragmented across multiple locations — some
+strategies hardcoded root-level `db/` and `data/` dirs, while the canonical homes
+(`shared/db/`, `shared/data/`, `shared/data_cache/`) were already the destination
+of `.env` (`DB_CACHE_FILE`, `DB_IMOBILE_FILE`, `CACHE_PATH`). Root `scripts/` held
+3 diagnostic tools with no runtime dependency.
+
+**Goal:** Every strategy writes to the shared/ tree; no root `db/`, `data/`,
+`scripts/` stragglers.
+
+**Changes:**
+- `ts_daily.py`: `CACHE_DB_PATH` root `db/ts_daily_cache.db` → `shared/db/ts_daily_cache.db`.
+- `utils/go-stock/cmd/pick_stocks*.go`: JSON cache root `db/go_daily_cache` → `shared/db/go_daily_cache` (both pickers; verified `go build` passes; engine runs them from `utils/go-stock`, so `../../shared/db` resolves to repo-root `shared/db`).
+- `utils/daily_stock_analysis` `stock_analysis.db`: default `./data/stock_analysis.db` → unified via `.env DATABASE_PATH=./shared/data/stock_analysis.db` (dsa is a separate sub-project; config override, no source edit — least-invasive).
+- Root `data/` & `db/`: unique cache files merged into `shared/` (68 go_daily_cache files), then root dirs removed.
+- `backtest/data/lhb_*.csv` (Dragon-Tiger reference datasets for `ts_7AZ_96MA_flow`): moved → `shared/data/lhb/`; `ts_7AZ_96MA_flow.py` `LHB_CACHE` updated; `.gitignore` updated to track them (`shared/data/*` with `!shared/data/lhb/*.csv`).
+- `scripts/` (3 diagnostic files): moved → `utils/` (`_check_dates.py`, `demo_searxng_sentiment.py`, `verify_freeride_integration.py`); empty root `scripts/` removed. `workspace_root = dirname(dirname(__file__))` still resolves to repo root from `utils/`. No strategy imports them.
+- Production default strategy confirmed: `ts_7AZ_96MA_flow` (v99.17).
+
+**After:** All caches/dbs/data under `shared/`; root has no `db/`, `data/`, or `scripts/`.<br>
+**Note:** `verify_freeride_integration.py`'s `_model_name` check was already failing pre-move (diagnostic expected attribute not present in `ts_daily.py`) — unrelated to this change; left as-is.

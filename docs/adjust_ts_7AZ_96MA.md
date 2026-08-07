@@ -122,8 +122,6 @@ $$\text{Target Position} = \text{Base Position} \times (1 - \text{Crowding Facto
 
 ---
 ---
-# Continue Adjust#2
-
 # Continue Adjust#2 (已实现 — 量化执行)
 
 ## 回答问题

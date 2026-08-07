@@ -32,7 +32,9 @@ develop-eggs/
 *.db-journal
 *.db-wal
 *.db-shm
-shared/data/
+shared/data/*
+!shared/data/lhb/
+!shared/data/lhb/*.csv
 shared/db/go_daily_cache/
 shared/data_cache/
 shared/db/kaipanla.cache.db
@@ -82,4 +84,4 @@ tests/.proxy_repos/
 tests/test_free_residential_proxies.md
 tests/test_free_residential_proxies.py
 utils/wechat_article_by_title_proxy.py
-shared/db/go_daily_cache/
+

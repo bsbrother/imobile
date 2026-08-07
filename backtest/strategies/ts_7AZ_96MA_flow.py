@@ -15,7 +15,7 @@ trading days BEFORE the reference date (never on/after the ref date — no
 lookahead). Re-rank candidates: boost score for positive institutional flow,
 penalize/screen heavily-negative institutional net-SELL.
 
-Uses cached CSV at backtest/data/lhb_institutional_2026.csv (fetched via
+Uses cached CSV at shared/data/lhb/lhb_institutional_2026.csv (fetched via
 akshare stock_lhb_jgmmtj_em) so the backtest loop makes NO network calls.
 
 Usage:
@@ -49,7 +49,7 @@ CRASH_THRESHOLD = -8.0
 
 # ── LHB institutional-flow filter config ─────────────────────────
 LHB_CACHE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-                        'backtest', 'data', 'lhb_institutional_2026.csv')
+                        'shared', 'data', 'lhb', 'lhb_institutional_2026.csv')
 LHB_LOOKBACK_DAYS = 10     # institutional activity in the prior N calendar days
 SCREEN_NEG_INST = -50_000_000   # screen picks with institutional net-SELL below this (¥50M out)
 BOOST_POS_INST = 8              # score boost per +¥100M institutional net-buy

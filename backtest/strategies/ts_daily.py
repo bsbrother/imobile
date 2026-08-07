@@ -55,7 +55,8 @@ MAX_PICKS = 15
 OUTPUT_FILE = None
 
 # Cache configuration - Use a dedicated cache for ts_daily to avoid collisions with ts_ai
-CACHE_DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'db', 'ts_daily_cache.db')
+# Unified under shared/db/ (canonical cache home, see .env DB_CACHE_FILE).
+CACHE_DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'shared', 'db', 'ts_daily_cache.db')
 
 
 def get_hot_sectors(target_date: str, top_n: int = 5) -> str:

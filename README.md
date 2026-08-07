@@ -81,7 +81,7 @@ imobile/
 ├── backtest/          # Quantitative engine, strategies, order generation
 ├── trading/           # Live trading runner, ADB mobile automation agent
 ├── web/               # Reflex web dashboard (frontend + backend)
-├── shared/            # Shared SQLite databases (imobile.db, cache)
+├── shared/            # Shared data tree: db/ (SQLite caches), data/ (datasets), data_cache/ (pickles)
 ├── utils/             # Cross-module utilities (LLM analysis, search)
 ├── tests/             # Pytest test suite
 └── docs/              # Detailed subsystem documentation

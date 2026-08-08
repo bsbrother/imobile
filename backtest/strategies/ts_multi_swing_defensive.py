@@ -60,16 +60,18 @@ LOG_PATH = os.getenv("LOG_PATH", default="./logs")
 configure_logger(log_level=LOG_LEVEL, log_path=LOG_PATH)
 
 LOOKBACK_DAYS = 140          # enough for MA60 + MACD warmup + regime context
-MAX_VOLATILITY = 0.45        # annualized vol cap; loosened for aggression
+MAX_VOLATILITY = 0.40        # annualized vol cap -> defensive tilt
 
 # TREND gate
 MA_TREND = 60
 MA_FAST = 20
 MA_SLOW = 120
 
-# SWING / MACD — relaxed bounds scale with regime (bull/normal = aggressive)
+# SWING / MACD
 RSI_PERIOD = 14
-PULLBACK_BAND = 0.07         # default close within +/-7% of MA20 (loosened)
+RSI_MIN = 40.0               # pullback floor (not falling knife)
+RSI_MAX = 68.0               # not stretched after a blowoff
+PULLBACK_BAND = 0.05         # close within +/-5% of MA20 = "at support"
 # Q-score weights
 W_TREND = 2.0                # trend strength (above MA60, MA60 rising)
 W_MACD = 1.5                 # MACD above zero + DIF>DEA
@@ -106,22 +108,11 @@ def _annualized_vol(close: pd.Series, period: int = 20) -> float:
 
 # ── Single-stock scoring ────────────────────────────────────────
 
-def analyze_stock_with_data(ts_code: str, df: pd.DataFrame, regime: str = 'normal') -> dict | None:
-    """Score one stock. Returns dict (or None if it fails the hard gates).
-
-    `regime` scales the swing gates: bull/normal are aggressive (wider RSI band,
-    allow MACD momentum continuation, looser pullback tolerance); bear/volatile
-    stay defensive (narrow band, require fresh confirmation).
-    """
+def analyze_stock_with_data(ts_code: str, df: pd.DataFrame) -> dict | None:
+    """Score one stock. Returns dict (or None if it fails the hard gates)."""
     try:
         if df is None or df.empty or len(df) < MA_SLOW + 10:
             return None
-        # Regime-adaptive gate scaling (aggression on rising markets)
-        aggressive = regime in ('bull', 'normal')
-        rsi_min = 35.0 if aggressive else 42.0
-        rsi_max = 72.0 if aggressive else 65.0
-        pullback_band = 0.09 if aggressive else 0.05
-        vol_cap = 0.50 if aggressive else 0.35
         df = df.sort_values('trade_date', ascending=True).reset_index(drop=True)
         close = df['close'].astype(float)
         vol = df['vol'].astype(float) if 'vol' in df.columns else df['volume'].astype(float)
@@ -155,23 +146,19 @@ def analyze_stock_with_data(ts_code: str, df: pd.DataFrame, regime: str = 'norma
                         for i in range(len(close)-1, max(len(close)-6, 0), -1)) \
             if len(dif) >= 6 else False
         macd_ok = (macd_above_zero and macd_bullish) or gc_recent
-        # aggressive: allow MACD momentum continuation (bullish above zero even if
-        # dist has extended a touch); defensive: require a tight, confirmed setup.
-        if aggressive and (macd_above_zero and macd_bullish):
-            macd_ok = True
         if not macd_ok:
             return None
 
         # ── SWING: pullback to support (not stretched) ─────────
         rsi = float(_rsi(close).iloc[-1])
         dist_ma20 = (last / lma20 - 1)  * 100
-        pullback_ok = rsi >= rsi_min and rsi <= rsi_max and dist_ma20 <= pullback_band * 100
+        pullback_ok = rsi >= RSI_MIN and rsi <= RSI_MAX and dist_ma20 <= PULLBACK_BAND * 100
         if not pullback_ok:
             return None
 
         # ── DEFENSIVE: volatility + liquidity ──────────────────
         ann_vol = _annualized_vol(close)
-        vol_ok = ann_vol < vol_cap
+        vol_ok = ann_vol < MAX_VOLATILITY
         recent_vol = float(vol.tail(10).mean()) if len(vol) > 10 else 1.0
 
         # ── Composite Q score ───────────────────────────────────
@@ -225,12 +212,10 @@ def pick_multi_swing_defensive(end_date: str, max_picks: int = 10) -> pd.DataFra
         regime = 'normal'
     logger.info(f"[ts_multi_swing_defensive] market regime: {regime}")
 
-    # Aggressive position caps in strong regimes; defensive in weak ones.
-    regime_max = {'bull': 20, 'normal': 15, 'volatile': 5, 'bear': 2}
-    max_picks = min(max_picks, regime_max.get(regime, 15))
-    # Lower the bar in strong regimes -> more candidates participate in momentum;
-    # keep a high bar only in weak regimes.
-    min_score = {'bull': 35, 'normal': 42, 'volatile': 60, 'bear': 70}.get(regime, 42)
+    regime_max = {'bull': 12, 'normal': 10, 'volatile': 4, 'bear': 2}
+    max_picks = min(max_picks, regime_max.get(regime, 10))
+    # Defensive bar: raise min-score / tighten in weak regimes
+    min_score = {'bull': 50, 'normal': 55, 'volatile': 60, 'bear': 70}.get(regime, 55)
 
     start_date = get_trading_days_before(end_date, LOOKBACK_DAYS)
     all_data = data_provider.get_bulk_ohlcv_by_date_range(start_date, end_date)
@@ -244,7 +229,7 @@ def pick_multi_swing_defensive(end_date: str, max_picks: int = 10) -> pd.DataFra
         sdf = all_data.get(ts_code)
         if sdf is None:
             continue
-        analysis = analyze_stock_with_data(ts_code, sdf, regime=regime)
+        analysis = analyze_stock_with_data(ts_code, sdf)
         if analysis:
             # weak-regime defensiveness: bump the effective bar
             if regime in ('bear', 'volatile') and analysis['volatility'] > 0.30:

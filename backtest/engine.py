@@ -2607,7 +2607,20 @@ def discover_working_search_providers():
         )
 
 
-def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=None, user_id: int = 1, src: str = 'ts_7AZ', resume: bool = False, backtest_search: bool = True, backtest_ai: bool = True, is_live: bool = False, app_cash: float = None, app_positions: list = None, app_running_orders: list = None):
+def _after_market_close() -> bool:
+    """True once the A-share market has closed for the day (Asia/Shanghai,
+    strictly after 15:00). After close the day's OHLCV bar is available, so a
+    backtest ending today may settle/simulate today instead of skipping it as
+    'future'."""
+    try:
+        from zoneinfo import ZoneInfo
+        now = datetime.now(ZoneInfo("Asia/Shanghai"))
+    except Exception:  # noqa: BLE001
+        now = datetime.now()
+    return now.hour * 60 + now.minute > 15 * 60
+
+
+def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=None, user_id: int = 1, src: str = 'ts_7AZ_96MA_flow', resume: bool = False, backtest_search: bool = True, backtest_ai: bool = True, is_live: bool = False, app_cash: float = None, app_positions: list = None, app_running_orders: list = None):
     """
     Pick stocks, create smart orders and trading for the specified date range.
 
@@ -2787,9 +2800,10 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
 
         # Step 3: Analyze orders and generate reports
         analyzer = OrderAnalyzer(smart_orders_file=smart_output_file, user_id=user_id)
-        # Step 3.1: Generate daily execution report — only meaningful for past dates
-        # (requires actual OHLCV close prices; future dates have no data yet).
-        if this_date < today:
+        # Step 3.1: Generate daily execution report — meaningful for past dates
+        # AND for today once the market has closed (>15:00, OHLCV now available).
+        include_today = (this_date == today) and _after_market_close()
+        if (this_date < today) or include_today:
             analyzer.generate_daily_report(this_date, os.path.join(REPORT_PATH, f'report_orders_{this_date}.md'), cumulative_realized_pnl)
         else:
             logger.info(f"[{this_date}] Future/today date — skipping daily report (no OHLCV data yet).")
@@ -2805,9 +2819,10 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
     if not analyzer:
         logger.info("No orders were processed in the given date range.")
         return
-    # Step 4: Generate period report — only meaningful for historical ranges
-    # (requires OHLCV + benchmark index data; skipped for future/single-day pre-market runs).
-    if end_date < today:
+    # Step 4: Generate period report — meaningful for historical ranges, and for
+    # a range ending today once the market has closed (>15:00, OHLCV available).
+    include_end = (end_date == today) and _after_market_close()
+    if (end_date < today) or include_end:
         analyzer.generate_period_report(start_date, end_date, os.path.join(REPORT_PATH, f'report_period_{start_date}_{end_date}.md'))
     else:
         logger.info(f"Period report skipped: end_date {end_date} is today/future — no historical OHLCV or benchmark data available.")
@@ -2849,8 +2864,15 @@ Examples:
                         help='Enable AI analysis (default: True)')
     parser.add_argument('--resume', action='store_true', default=False,
                         help='Resume an interrupted backtest without wiping DB')
+    parser.add_argument('--cash', type=float, default=None,
+                        help='Initial cash for the simulated account '
+                             '(default: config portfolio_config.initial_cash, e.g. 600000)')
 
     args = parser.parse_args()
+
+    if args.cash is not None:
+        INITIAL_CASH = float(args.cash)   # module-level: rebinds the global used by pick_orders_trading
+        logger.info(f"Initial cash overridden via --cash: ¥{INITIAL_CASH:,.2f}")
 
     start_date = args.start_date
     end_date = args.end_date

@@ -526,9 +526,12 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
                 p_date = cursor.fetchone()[0]
                 purchase_date_str = p_date.replace('-', '').replace('T', ' ').split(' ')[0][:8] if p_date else this_date
 
-                # Calculate days held
+                # Calculate days held — count trading days AFTER the purchase
+                # day (buy day = day 0), so max_hold_days=N means "hold N
+                # trading days then sell". Inclusive counting made a buy on
+                # 08-11 hit a cap of 2 on 08-12 (T+1) and force-sell next day.
                 if purchase_date_str <= this_date:
-                    days_held = len(calendar.get_trading_days_between(purchase_date_str, this_date))
+                    days_held = max(0, len(calendar.get_trading_days_between(purchase_date_str, this_date)) - 1)
                 else:
                     days_held = 0
 
@@ -1530,11 +1533,16 @@ class OrderAnalyzer:
                                 }
                             }
 
-                # Strict Day-3 Close to avoid Unrealized P&L
-                # User request: "at ... 3 trading dates has unrealized P&L... avoid it happend."
-                # Force sell at Market Close on the Max Hold Day to realize P&L.
-                if holding_days_val >= self.holding_days:
-                    logger.info(f"Strict Max-Hold Close triggered for {symbol}: held {holding_days_val} days")
+                # Strict Max-Hold Close to avoid Unrealized P&L
+                # Force sell at Market Close when the position has been held for
+                # MAX_HOLD trading days AFTER entry (buy day = day 0), so a cap
+                # of N sells on the Nth trading day after buying — not on T+1,
+                # which inclusive counting used to trigger. (T+1 protection above
+                # uses inclusive holding_days_val == 2 on purpose; this uses the
+                # exclusive count.)
+                hold_days_after = max(0, holding_days_val - 1)
+                if hold_days_after >= self.holding_days:
+                    logger.info(f"Strict Max-Hold Close triggered for {symbol}: held {hold_days_after} days after entry")
                     sell_price = close_price
                     reason = 'strict_max_hold_close'
 

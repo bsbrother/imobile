@@ -618,10 +618,9 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
 
                     trigger_condition = f'股价>={lose_price:.2f}元'
                 else:
-                    # Normal TP/SL
-                    profit_price = h_cost * (1 + take_profit_pct)
-                    lose_price = h_cost * (1 - stop_loss_pct)
-
+                    # Normal TP/SL — day/profit-adaptive (see _adaptive_tp_sl):
+                    # breakeven shield + trailing stop + TP ratchet by hold days.
+                    last_sl = last_tp = None
                     # Carry forward trailing stop from yesterday's smart order
                     cursor.execute("""
                         SELECT trigger_condition FROM smart_orders
@@ -632,11 +631,10 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
                     if last_order_row and last_order_row[0]:
                         last_trigger = last_order_row[0]
                         last_sl = parse_sl_from_trigger(last_trigger)
-                        if last_sl is not None:
-                            lose_price = max(lose_price, last_sl)
                         last_tp = parse_tp_from_trigger(last_trigger)
-                        if last_tp is not None:
-                            profit_price = max(profit_price, last_tp)
+                    profit_price, lose_price = _adaptive_tp_sl(
+                        h_cost, h_current_price, days_held,
+                        take_profit_pct, stop_loss_pct, last_sl, last_tp)
 
                     trigger_condition = f'股价>={profit_price:.2f}元(触发止盈),股价<={lose_price:.2f}元(触发止损)'
 
@@ -787,8 +785,9 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
 
                     trigger_condition = f'股价>={lose_price:.2f}元'
                 else:
-                    profit_price = h_cost * (1 + take_profit_pct)
-                    lose_price = h_cost * (1 - stop_loss_pct)
+                    profit_price, lose_price = _adaptive_tp_sl(
+                        h_cost, h_current_price, days_held,
+                        take_profit_pct, stop_loss_pct)
                     trigger_condition = f'股价>={profit_price:.2f}元(触发止盈),股价<={lose_price:.2f}元(触发止损)'
 
                 order_number = f"ORD_{this_date}_{pos_code}_{user_id}_recovered"
@@ -2629,6 +2628,36 @@ def _after_market_close() -> bool:
     except Exception:  # noqa: BLE001
         now = datetime.now()
     return now.hour * 60 + now.minute > 15 * 60
+
+
+def _adaptive_tp_sl(h_cost, h_current_price, days_held, tp_pct, sl_pct,
+                    last_sl=None, last_tp=None):
+    """Day/profit-adaptive TP/SL for a held position (no lookahead:
+    h_current_price is the PREVIOUS day's close).
+    Base: SL = cost*(1-sl_pct), TP = cost*(1+tp_pct).
+    Then, carried prior trailing order is ratcheted up, and (env-gated by
+    HOLD_SL_ADAPT, default on):
+      - breakeven: after SL_BREAKEVEN_DAY held trading days, if in profit the
+        SL is raised to at least cost (protect capital);
+      - trail: SL keeps ratcheting to h_current_price*(1-SL_TRAIL_PCT);
+      - TP ratchets up with recent highs (let winners run).
+    Returns (profit_price, lose_price)."""
+    sl = h_cost * (1 - sl_pct) if h_cost > 0 else 0.0
+    tp = h_cost * (1 + tp_pct) if h_cost > 0 else 0.0
+    if last_sl is not None and last_sl > 0:
+        sl = max(sl, float(last_sl))
+    if last_tp is not None and last_tp > 0:
+        tp = max(tp, float(last_tp))
+    if os.getenv('HOLD_SL_ADAPT', 'true').lower() in ('true', '1', 'yes'):
+        in_profit = h_current_price > h_cost
+        breakeven_day = int(os.getenv('SL_BREAKEVEN_DAY', '1'))
+        trail_pct = float(os.getenv('SL_TRAIL_PCT', '0.05'))
+        if in_profit and days_held >= breakeven_day:
+            sl = max(sl, h_cost)                            # breakeven shield
+            sl = max(sl, h_current_price * (1 - trail_pct))  # trail up
+        if in_profit and h_current_price > 0:
+            tp = max(tp, h_current_price * (1 + tp_pct))     # let winners run
+    return tp, sl
 
 
 def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=None, user_id: int = 1, src: str = 'ts_7AZ_96MA_flow', resume: bool = False, backtest_search: bool = True, backtest_ai: bool = True, is_live: bool = False, app_cash: float = None, app_positions: list = None, app_running_orders: list = None):

@@ -575,7 +575,7 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
                     except Exception:
                         pass
 
-                if days_held >= holding_days:
+                if days_held > holding_days:
                     is_force_sell = True
                     reason_of_ending = 'order_expired_before_sell'
                     pos_name_suffix = '_expired'
@@ -745,7 +745,7 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
                     except Exception as e:
                         logger.error(f"Failed to check ER exit for {pos_code}: {e}")
 
-                if days_held >= holding_days:
+                if days_held > holding_days:
                     is_force_sell = True
                     reason_of_ending = 'order_expired_before_sell'
                     pos_name_suffix = '_expired'
@@ -1541,7 +1541,10 @@ class OrderAnalyzer:
                 # uses inclusive holding_days_val == 2 on purpose; this uses the
                 # exclusive count.)
                 hold_days_after = max(0, holding_days_val - 1)
-                if hold_days_after >= self.holding_days:
+                # '>' not '>=': a cap of N lets the position hold N full trading
+                # days after entry, then liquidates on the FOLLOWING session
+                # (buy 08-11, cap 2 -> hold 08-12 & 08-13, sell 08-14).
+                if hold_days_after > self.holding_days:
                     logger.info(f"Strict Max-Hold Close triggered for {symbol}: held {hold_days_after} days after entry")
                     sell_price = close_price
                     reason = 'strict_max_hold_close'

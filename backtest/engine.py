@@ -1754,8 +1754,17 @@ class OrderAnalyzer:
                 }
             }
 
-        # Calculate actual fill price based on BALANCE_PRICE_RATIO
-        balance_ratio = float(os.getenv('BALANCE_PRICE_RATIO', '0.0'))
+        # Calculate actual fill price based on per-regime BALANCE_PRICE_RATIO
+        # REGIME-ADAPTIVE: each market regime can carry its own BUY fill ratio
+        # (0 = open-fill, <1 = limit between open and target). Bull/normal -> 0
+        # (ride momentum gaps); bear -> e.g. 0.2 (avoid overpay into whipsaw).
+        # Override per-regime via BUY_RATIO_{BULL,NORMAL,VOLATILE,BEAR}; falls back
+        # to global BALANCE_PRICE_RATIO (backward compatible).
+        try:
+            _regime_now = _detect_market_regime_cached(date.replace('-', '')).get('regime', 'normal').upper()
+            balance_ratio = float(os.getenv(f'BUY_RATIO_{_regime_now}', os.getenv('BALANCE_PRICE_RATIO', '0.0')))
+        except Exception:
+            balance_ratio = float(os.getenv('BALANCE_PRICE_RATIO', '0.0'))
         target_buy_price = float(order['buy_price'])
         
         use_open_price_default = os.getenv('BUY_OPEN_PRICE', os.getenv('BACKTEST_BUY_OPEN_PRICE', 'true')).lower() == 'true'

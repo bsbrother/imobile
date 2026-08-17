@@ -132,5 +132,9 @@ limit0.2 漏掉 84 笔（498 vs 582），跳超过限价的正是 open-fill 抓�
 **⇒ 成交模型必须按行情自适应，不能全局固定 0.2**：
 - 牛/正常：open-fill（ratio 0）
 - 熊市：limit 0.2
-`.env`/`.env.example` 已还原为 open-fill 默认；自适应实现（读探测到的 regime 选定价）为待办。
+**.env**/`.env.example`：启用**按 regime 自适应**（PR #3）——`BUY_OPEN_PRICE=false` +
+`BUY_RATIO_BEAR=0.2`（牛/正常/震荡 = 0.0 → open-fill；熊 = 0.2 → 限价）。
+`BUY_RATIO_{REGIME}` 各占一个，缺失回退 `BALANCE_PRICE_RATIO`（向后兼容）。
+全历史验证回测运行中（Tushare 慢，数小时），预计 ≥ open-fill 基线 +107%（熊段换限价）。
+结果见 `bt_adaptive_*` 日志。
 

@@ -1386,7 +1386,7 @@ class OrderAnalyzer:
                         reason = 'order_expired_before_sell'
                     else:
                         # Check real-world execution logic vs original backtest
-                        use_open_price_default = os.getenv('BACKTEST_BUY_OPEN_PRICE', 'true').lower() == 'true'
+                        use_open_price_default = os.getenv('SELL_OPEN_PRICE', os.getenv('BACKTEST_BUY_OPEN_PRICE', 'true')).lower() == 'true'
                         if not use_open_price_default:
                             if open_price >= take_profit:
                                 sell_price = open_price
@@ -1758,7 +1758,7 @@ class OrderAnalyzer:
         balance_ratio = float(os.getenv('BALANCE_PRICE_RATIO', '0.0'))
         target_buy_price = float(order['buy_price'])
         
-        use_open_price_default = os.getenv('BACKTEST_BUY_OPEN_PRICE', 'true').lower() == 'true'
+        use_open_price_default = os.getenv('BUY_OPEN_PRICE', os.getenv('BACKTEST_BUY_OPEN_PRICE', 'true')).lower() == 'true'
 
         if use_open_price_default:
             # Force buy at open price unconditionally (original backtest behavior)

@@ -153,5 +153,18 @@ def get_regime_config(regime: MarketRegime, config_manager) -> dict:
     filter_config = config_manager.get(filter_path, {})
     if filter_config:
         config['late_trend_filter'] = filter_config
-    
+
+    # Max open-gap risk cap (skip BUY if the day opens too far above prev close).
+    # Mirrors SL_: per-regime default, overridable via MAX_GAP_{REGIME} in .env.
+    _gap_env = _os.getenv(f'MAX_GAP_{regime.upper()}')
+    if _gap_env is not None:
+        try:
+            _gap_val = float(_gap_env)
+            logger.info(f"MAX_GAP_{regime.upper()}={_gap_val:.1%} (from .env, overriding config)")
+            config['max_open_gap_pct'] = _gap_val
+        except ValueError:
+            logger.warning(f"Invalid MAX_GAP_{regime.upper()}={_gap_env}, using config value")
+    else:
+        config['max_open_gap_pct'] = float(config.get('max_open_gap_pct', 0.05))
+
     return config

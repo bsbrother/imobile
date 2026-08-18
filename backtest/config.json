@@ -192,28 +192,32 @@
         "stop_loss_pct": 0.03,
         "trailing_stop_enabled": true,
         "max_hold_days": 7,
-        "min_hold_days": 2
+        "min_hold_days": 2,
+        "max_open_gap_pct": 0.06
       },
       "normal_market": {
         "take_profit_pct": 2.0,
         "stop_loss_pct": 0.025,
         "trailing_stop_enabled": true,
         "max_hold_days": 5,
-        "min_hold_days": 2
+        "min_hold_days": 2,
+        "max_open_gap_pct": 0.04
       },
       "volatile_market": {
         "take_profit_pct": 2.0,
         "stop_loss_pct": 0.02,
         "trailing_stop_enabled": true,
         "max_hold_days": 4,
-        "min_hold_days": 1
+        "min_hold_days": 1,
+        "max_open_gap_pct": 0.05
       },
       "bear_market": {
         "take_profit_pct": 2.0,
         "stop_loss_pct": 0.015,
         "trailing_stop_enabled": true,
         "max_hold_days": 2,
-        "min_hold_days": 1
+        "min_hold_days": 1,
+        "max_open_gap_pct": 0.02
       }
     },
     "position_sizing": {

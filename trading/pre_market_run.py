@@ -59,6 +59,23 @@ def resolve_code(name: str, user_id: int, cursor) -> str:
     return '000000'
 
 
+def get_confirmed_open(code: str) -> float | None:
+    """Return today's confirmed opening (auction) price for a 6-digit code,
+    or None when the market hasn't opened yet (before 09:25 auction confirm)
+    or the quote backend is unavailable. Uses the same realtime-quote path
+    as engine force-sell (Tushare stk_auction/realtime_quote → Tencent).
+    """
+    from datetime import datetime
+    if datetime.now().strftime('%H%M%S') < '092500':
+        return None  # auction not confirmed yet — no open price to check
+    try:
+        from utils.tools import get_realtime_quote
+        open_price = get_realtime_quote(code)
+        return float(open_price) if open_price and open_price > 0 else None
+    except Exception:
+        return None
+
+
 async def main(submit: bool = False):
     from shared.db.db import DB
     from backtest.utils.trading_calendar import calendar
@@ -129,6 +146,10 @@ async def main(submit: bool = False):
     take_profit_pct = regime_data.get('take_profit_pct', 2.0)
     sl_pct = float(os.getenv(f'SL_{regime_name.upper()}', str(regime_data.get('stop_loss_pct', 0.025))))
     max_hold_days = regime_data.get('max_hold_days', 2)
+    # Regime open-gap risk cap: skip a BUY if the day's confirmed open gaps up
+    # beyond this fraction above prev close (avoid chasing extreme gaps).
+    max_open_gap_pct = float(os.getenv(f'MAX_GAP_{regime_name.upper()}',
+                                       str(regime_data.get('max_open_gap_pct', 0.05))))
 
     # Read HOLD_DAYS_MULT from env
     hold_mult = float(os.getenv('HOLD_DAYS_MULT', '1.0'))
@@ -209,14 +230,30 @@ async def main(submit: bool = False):
             logger.info(f"  SKIP {sym} {o['name']}: already held")
             continue
         
-        # Calculate Limit Up Price for guaranteed open fill
+        # Calculate Limit Up Price for guaranteed open fill.
+        # Use PREV CLOSE (current_price) as the band base — NOT the discounted
+        # buy_price. buy_price can already sit above close in bull gap-ups, so
+        # buy_price×(1+ratio) would EXCEED the real band and get rejected as
+        # an invalid (over-limit) order.
         if sym.startswith('3') or sym.startswith('688'):
             limit_ratio = 0.20
         elif sym.startswith('8') or sym.startswith('4'):
             limit_ratio = 0.30
         else:
             limit_ratio = 0.10
-        limit_up_price = round(o['buy_price'] * (1 + limit_ratio) + 1e-8, 2)
+        prev_close = float(o.get('current_price') or o['buy_price'])
+        limit_up_price = round(prev_close * (1 + limit_ratio) + 1e-8, 2)
+
+        # Regime open-gap risk control: if the auction has confirmed (>=09:25)
+        # and the stock opens more than MAX_GAP_<REGIME> above prev close,
+        # skip the BUY — don't chase the gap. Pre-09:25 or no quote → pass.
+        confirmed_open = get_confirmed_open(sym.split('.')[0])
+        if confirmed_open is not None and prev_close > 0:
+            open_gap = (confirmed_open - prev_close) / prev_close
+            if open_gap > max_open_gap_pct:
+                logger.info(f"  SKIP {sym} {o['name']}: open {confirmed_open:.2f} "
+                            f"gap {open_gap:.1%} > regime cap {max_open_gap_pct:.1%}")
+                continue
 
         min_qty = 200 if (sym.startswith('3') or sym.startswith('688')) else 100
         min_cost = limit_up_price * min_qty

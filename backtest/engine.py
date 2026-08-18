@@ -1754,6 +1754,39 @@ class OrderAnalyzer:
                 }
             }
 
+        # REGIME OPEN-GAP RISK CONTROL (mirrors trading/pre_market_run.py):
+        # if the day opens more than max_open_gap_pct above prev close (per
+        # regime, env-overridable via MAX_GAP_{REGIME}), the pre-market BUY is
+        # skipped — the real flow refuses to chase extreme gap-ups. This keeps
+        # the backtest fill model aligned with live pre_market_run behavior.
+        _gap_regime = 'NORMAL'
+        try:
+            _gap_regime = _detect_market_regime_cached(date.replace('-', '')).get('regime', 'normal').upper()
+            _gap_env = os.getenv(f'MAX_GAP_{_gap_regime}')
+            if _gap_env is not None:
+                _gap_cap = float(_gap_env)
+            else:
+                try:
+                    _gap_cap = float(_detect_market_regime_cached(date.replace('-', '')).get('max_open_gap_pct', 0.05))
+                except Exception:
+                    _gap_cap = 0.05
+        except Exception:
+            _gap_cap = 0.05
+        if prev_close > 0:
+            open_gap = (open_price - prev_close) / prev_close
+            if open_gap > _gap_cap:
+                return {
+                    'executed': False,
+                    'reason': f'Open gap {open_gap:.1%} exceeds regime cap {_gap_cap:.1%} ({_gap_regime})',
+                    'market_summary': {
+                        'prev_close': prev_close,
+                        'open': open_price,
+                        'high': high_price,
+                        'low': low_price,
+                        'close': close_price
+                    }
+                }
+
         # Calculate actual fill price based on per-regime BALANCE_PRICE_RATIO
         # REGIME-ADAPTIVE: each market regime can carry its own BUY fill ratio
         # (0 = open-fill, <1 = limit between open and target). Bull/normal -> 0

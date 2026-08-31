@@ -1,14 +1,14 @@
 # Walkthrough - Backtest Optimization and Real Trading Alignment
 
-Documents the evolution of ts_7AZ backtest optimization, from baseline to current best, and real trading alignment analysis.
+Documents the evolution of ts_7AZ / ts_7AZ_96MA_flow backtest optimization and real trading alignment.
 
 ---
 
 ## Current Best Configuration
 
-**Period:** 2026-01-01 to 2026-06-19  
-**Strategy:** ts_7AZ (CANSLIM)  
-**Result:** **70.60% total return** (saved at `backtest/results_backups/20260101_20260619_ts_7AZ_70.60_baseline`)
+**Period:** 2026-01-01 to 2026-08-07  
+**Strategy:** ts_7AZ_96MA_flow (CANSLIM + regime switch)  
+**Result:** **107.31% total return** (saved at `backtest/results/20260101_20260807_ts_7AZ_96MA_flow_OPENFILL`)
 
 ### Parameters
 
@@ -19,11 +19,12 @@ Documents the evolution of ts_7AZ backtest optimization, from baseline to curren
 | `SL_VOLATILE` | 0.02 | 2% in volatile |
 | `SL_BEAR` | 0.015 | 1.5% in bear |
 | `SL_WITH_RE_PICK` | false | Frozen SL (no widening on re-pick) |
-| `HOLD_DAYS_MULT` | 0.5 | 50% shorter hold: Bull 7d, Normal 5d, Vol 4d, Bear 2d |
+| `HOLD_DAYS_MULT` | 1.0 | Config values directly: Bull 7d, Normal 5d, Volatile 4d, Bear 2d |
+| `BUY_OPEN_PRICE` | true | Buy at open price (open-fill model) |
+| `SELL_OPEN_PRICE` | true | Simple TP/SL sell |
 | `ER_EXIT_ENABLED` | true | Kaufman ER trend exit |
 | `SCORE_MIN` | 0 | No score filter |
-| `BACKTEST_BUY_OPEN_PRICE` | true | Buy at open price |
-| `SL_ENABLED` | true | Stop-loss enabled |
+| `BACKTEST_BUY_OPEN_PRICE` | true | Legacy fallback (same as BUY_OPEN_PRICE) |
 | `SKIP_GAPS_DOWN_OPEN_PRICE` | false | Don't skip gap-downs |
 
 ### Monthly Performance
@@ -50,7 +51,9 @@ Documents the evolution of ts_7AZ backtest optimization, from baseline to curren
 | Tighter SL (SL_BULL=0.028) | 80.36% | Slightly tighter stop |
 | ER exit (close simulation) | 87.44% | Ideal close-exit (not real-world) |
 | ER exit (next-open exit) | 85.23% | Real-world aligned exit |
-| **Frozen SL + HOLD_DAYS_MULT=0.5** | **70.60%** | **Current best (most stable)** |
+| **Frozen SL + HOLD_DAYS_MULT=1.0** | **107.31%** | **Current best (open-fill, ts_7AZ_96MA_flow)** |
+| Baseline (ts_7AZ, 6mo) | 70.60% | Earlier shorter-period run |
+| Frozen SL + HOLD_DAYS_MULT=0.5 | 70.60% | 50% shorter holds (superseded) |
 
 > Note: The 85-87% results used cached picks and close-exit simulation that overstated real-world returns.
 > The 70.60% is the most recent full re-run with conservative, real-world-aligned parameters.

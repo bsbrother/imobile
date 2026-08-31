@@ -104,7 +104,7 @@ These override values in `backtest/config.json`. Comment out any to use config.j
 |---|---|---|
 | `SCORE_MIN` | 0 | Minimum CANSLIM score filter (0-7). 5 = only A-grade stocks |
 | `POS_SCORE_WEIGHT` | `false` | `true` = score-weighted sizing (higher-score stocks get more capital). `false` = rank-weighted |
-| `HOLD_DAYS_MULT` | 0.5 | Multiplier on max_hold_days per regime. 0.5 = 50% shorter: Bull 7d, Normal 5d, Volatile 4d, Bear 2d |
+| `HOLD_DAYS_MULT` | 1.0 | Multiplier on max_hold_days per regime. Default 1.0 = config values: Bull 7d, Normal 5d, Volatile 4d, Bear 2d |
 | `POSITION_SIZING_ALGORITHM` | `true` | `true` = max 25% per position (~10%/slot). `false` = use all available cash |
 
 ### Buy/Sell Filters

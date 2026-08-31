@@ -44,8 +44,8 @@ Complete reference for all stock-picking strategies in iMobile.
 
 ### Best Backtest Result
 
-**70.60%** (2026-01-01 to 2026-06-19)  
-Config: `HOLD_DAYS_MULT=0.5`, `SL_WITH_RE_PICK=false`, `SL_BULL=0.025`
+**107.31%** (2026-01-01 to 2026-08-07, ts_7AZ_96MA_flow, open-fill)  
+Config: `HOLD_DAYS_MULT=1.0`, `BUY_OPEN_PRICE=true`, `SL_WITH_RE_PICK=false`
 
 ### When To Use
 

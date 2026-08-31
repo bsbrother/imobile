@@ -161,7 +161,7 @@ async def run_pre_market(this_date, user_id, submit, dry_run, app_package_name):
     from backtest.engine import pick_orders_trading
     pick_orders_trading(
         start_date=this_date, end_date=this_date,
-        user_id=user_id, src='ts_7AZ_96MA_flow',
+        user_id=user_id, src='ts_7AZ_96MA_flow_v2',
         backtest_search=False, backtest_ai=False,
         resume=False, is_live=True,
         app_cash=app_cash if app_cash is not None else (600000.0 if dry_run else None),

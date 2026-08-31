@@ -75,6 +75,13 @@ INITIAL_CASH = global_cm.get('portfolio_config.initial_cash', 600000)
 COMMISSION = global_cm.get('portfolio_config.commission', 0.0000341)  # 10W * 0.000341% = 3.41 # Max 5 yuan
 TAX = global_cm.get('portfolio_config.tax', 0.0005)  # 10W * 0.005% = 50 # Only on sell
 
+# V2: Realistic sell-side slippage — simulates market impact when selling.
+# A-shares real slippage is 0.2-0.8% (see docs/TODO.md 实盘关键改进点).
+# Env-overridable: SELL_SLIPPAGE_PCT (e.g. 0.002 = 0.2%). Default 0 (no slippage)
+# for backward compatibility with existing backtest results.
+SELL_SLIPPAGE = float(os.getenv('SELL_SLIPPAGE_PCT', '0.0'))
+BUY_SLIPPAGE = float(os.getenv('BUY_SLIPPAGE_PCT', '0.0'))  # buy-side, usually 0
+
 # =====================================================================
 # Dynamic risk budgeting / max-drawdown hard constraint
 # (docs/adjust_ts_7AZ_96MA.md "Continue Adjust#2": ex-ante risk management)
@@ -238,6 +245,7 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ', backtest_search: bo
         'ts_96MA':           ('backtest/strategies/ts_96MA.py', []),
         'ts_7AZ_96MA':       ('backtest/strategies/ts_7AZ_96MA.py', []),
         'ts_7AZ_96MA_flow':  ('backtest/strategies/ts_7AZ_96MA_flow.py', []),
+        'ts_7AZ_96MA_flow_v2': ('backtest/strategies/ts_7AZ_96MA_flow_v2.py', []),
         'ts_daily':         ('backtest/strategies/ts_daily.py', []),
         'ts_7AZ':           ('backtest/strategies/ts_7AZ.py', ['ts_7AZ']),
         'ts_7AZ_grok':      ('backtest/strategies/ts_7AZ_grok.py', ['ts_7AZ_grok']),
@@ -1136,7 +1144,10 @@ def execute_sell_order(user_id: int, symbol: str, name: str,
             return False
 
         # Calculate transaction costs
-        amount = sell_price * quantity
+        # V2: Apply sell-side slippage (reduces effective sell price)
+        gross_amount = sell_price * quantity
+        slippage_deduction = gross_amount * SELL_SLIPPAGE
+        amount = gross_amount - slippage_deduction
         commission = amount * COMMISSION
         commission = max(commission, 5.0)  # Minimum 5 yuan
         tax = amount * TAX
@@ -2914,7 +2925,7 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
 
 if __name__ == '__main__':
     _valid_sources = ['ts_go', 'ts_daily',
-                      'ts_longup', 'ts_hma', 'ts_96MA', 'ts_7AZ_96MA', 'ts_7AZ_96MA_flow', 'ts_7AZ', 'ts_7AZ_grok', 'ts_ao_er', 'ts_multi_swing_defensive', 'ts_multi_skills']
+                      'ts_longup', 'ts_hma', 'ts_96MA', 'ts_7AZ_96MA', 'ts_7AZ_96MA_flow', 'ts_7AZ_96MA_flow_v2', 'ts_7AZ', 'ts_7AZ_grok', 'ts_ao_er', 'ts_multi_swing_defensive', 'ts_multi_skills']
 
     parser = argparse.ArgumentParser(
         description='Backtest Trading Script — A-Shares T+1 backtesting engine.\n'

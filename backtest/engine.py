@@ -864,7 +864,17 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
         for order in data['smart_orders']:
             # Append to smart_orders table in shared/db/imobile.db
             cleaned_sym = clean_symbol(order['symbol'])
+            order_quantity = order.get('buy_quantity', 0)
+
+            # Held stocks (buy_quantity=0) skip BUY insertion but still get
+            # TP/SL adjustment via the "adjusted" path below (lines ~895-947).
+            is_held = order_quantity <= 0
+
             if cleaned_sym not in running_orders:
+                if is_held:
+                    # Held stock not in running_orders — nothing to adjust, skip.
+                    logger.info(f"Skipping held stock {order['symbol']}: no running order to adjust.")
+                    continue
                 if added_orders < MAX_POSITIONS:
                     order_number = f"ORD_{this_date}_{order['symbol']}_{user_id}"
                     trigger_condition = f'股价<={order["buy_price"]}元(触发买入)'

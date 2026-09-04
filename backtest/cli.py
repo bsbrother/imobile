@@ -619,6 +619,10 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                     is_held = clean_sym in held_symbols or symbol in held_symbols
 
                 if is_held:
+                    # Stock already held — skip BUY (buy_quantity=0). The engine's
+                    # smart_orders "adjusted" path (lines ~888-947) will still
+                    # boost TP/SL for re-picked holdings. Cash is freed for
+                    # non-held picks below.
                     buy_quantity = 0
                     logger.info(f"Symbol {symbol} is already held, assigning 0 buy_quantity to preserve cash.")
                 else:

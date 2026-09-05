@@ -246,6 +246,7 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ', backtest_search: bo
         'ts_7AZ_96MA':       ('backtest/strategies/ts_7AZ_96MA.py', []),
         'ts_7AZ_96MA_flow':  ('backtest/strategies/ts_7AZ_96MA_flow.py', []),
         'ts_7AZ_96MA_flow_v2': ('backtest/strategies/ts_7AZ_96MA_flow_v2.py', []),
+        'ts_7AZ_96MA_flow_review': ('backtest/strategies/ts_7AZ_96MA_flow_review.py', []),
         'ts_daily':         ('backtest/strategies/ts_daily.py', []),
         'ts_7AZ':           ('backtest/strategies/ts_7AZ.py', ['ts_7AZ']),
         'ts_7AZ_grok':      ('backtest/strategies/ts_7AZ_grok.py', ['ts_7AZ_grok']),
@@ -2888,6 +2889,39 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
         # data, no lookahead). Shrink exposure when in a drawdown from the peak.
         MAX_POSITIONS = _drawdown_cap(MAX_POSITIONS, current_portfolio_nav)
 
+        # ── Review-based strategy adjustments (ts_7AZ_96MA_flow_review) ──
+        # The review strategy writes /tmp/review_adjustments.json after daily
+        # analysis. Apply sentiment-driven position/hold-day overrides here.
+        _review_path = '/tmp/review_adjustments.json'
+        if src == 'ts_7AZ_96MA_flow_review' and os.path.exists(_review_path):
+            try:
+                with open(_review_path) as _rf:
+                    _review = json.load(_rf)
+                _sentiment = _review.get('sentiment', 'fermenting')
+                _pos_override = _review.get('max_positions_override')
+                _hold_mult = _review.get('holding_days_mult', 1.0)
+                _tp_agg = _review.get('tp_aggressiveness', 1.0)
+                _sl_tight = _review.get('sl_tightness', 1.0)
+
+                if _pos_override and _pos_override > 0:
+                    logger.info(
+                        f"[{this_date}] Review sentiment={_sentiment}: "
+                        f"positions {MAX_POSITIONS}→{_pos_override}"
+                    )
+                    MAX_POSITIONS = _pos_override
+
+                # Apply holding_days_mult and TP/SL adjustments via env override
+                # for this date only. get_regime_config reads HOLD_DAYS_MULT each
+                # call, and _adaptive_tp_sl uses the regime's stop_loss_pct.
+                if _hold_mult != 1.0:
+                    os.environ['REVIEW_HOLD_MULT'] = str(_hold_mult)
+                if _tp_agg != 1.0:
+                    os.environ['REVIEW_TP_AGGRESSIVE'] = str(_tp_agg)
+                if _sl_tight != 1.0:
+                    os.environ['REVIEW_SL_TIGHT'] = str(_sl_tight)
+            except Exception as _re:
+                logger.warning(f"[{this_date}] Failed to apply review adjustments: {_re}")
+
         pass_app_positions = app_positions if (is_live and this_date >= today) else None
         pass_app_running_orders = app_running_orders if (is_live and this_date >= today) else None
 
@@ -2935,7 +2969,7 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
 
 if __name__ == '__main__':
     _valid_sources = ['ts_go', 'ts_daily',
-                      'ts_longup', 'ts_hma', 'ts_96MA', 'ts_7AZ_96MA', 'ts_7AZ_96MA_flow', 'ts_7AZ_96MA_flow_v2', 'ts_7AZ', 'ts_7AZ_grok', 'ts_ao_er', 'ts_multi_swing_defensive', 'ts_multi_skills']
+                      'ts_longup', 'ts_hma', 'ts_96MA', 'ts_7AZ_96MA', 'ts_7AZ_96MA_flow', 'ts_7AZ_96MA_flow_v2', 'ts_7AZ_96MA_flow_review', 'ts_7AZ', 'ts_7AZ_grok', 'ts_ao_er', 'ts_multi_swing_defensive', 'ts_multi_skills']
 
     parser = argparse.ArgumentParser(
         description='Backtest Trading Script — A-Shares T+1 backtesting engine.\n'

@@ -131,13 +131,28 @@ def get_regime_config(regime: MarketRegime, config_manager) -> dict:
         except ValueError:
             logger.warning(f"Invalid SL_{regime.upper()}={_sl_env}, using config value")
 
+    # Review-based SL tightness (from ts_7AZ_96MA_flow_review)
+    # REVIEW_SL_TIGHT = 0.5 -> halve SL (= tighter, exit faster in ice)
+    # REVIEW_SL_TIGHT = 1.5 -> widen SL (= looser, allow more room in frenzy)
+    _review_sl = _os.getenv('REVIEW_SL_TIGHT')
+    if _review_sl is not None:
+        try:
+            _factor = float(_review_sl)
+            config['stop_loss_pct'] = config['stop_loss_pct'] * _factor
+            config['stop_loss_pct'] = min(config['stop_loss_pct'], 0.3)
+            logger.info(f"REVIEW_SL_TIGHT={_factor:.1f}: SL -> {config['stop_loss_pct']:.1%}")
+        except ValueError:
+            pass
+
     # Disable SL entirely (only MAX_HOLD + TP exits)
     if _os.getenv('SL_ENABLED', 'true').lower() in ('false', '0', 'no'):
         config['stop_loss_pct'] = 0.99  # SL = 1% of buy price — never triggers
         logger.info(f"SL_{regime.upper()}=DISABLED (SL_ENABLED=false, MAX_HOLD only)")
 
     # Apply hold days multiplier from env
-    _hold_mult = _os.getenv('HOLD_DAYS_MULT')
+    # REVIEW_HOLD_MULT (from ts_7AZ_96MA_flow_review) takes priority
+    # over global HOLD_DAYS_MULT. Both multiply the regime's base max_hold_days.
+    _hold_mult = _os.getenv('REVIEW_HOLD_MULT') or _os.getenv('HOLD_DAYS_MULT')
     if _hold_mult is not None:
         try:
             _mult = float(_hold_mult)

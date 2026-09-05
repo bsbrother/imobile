@@ -111,68 +111,52 @@ class PostMarketReviewer:
 
     # ── Metric 2: 晋级率 (advance rate / repick rate) ─────────────────────
     def _advance_rate(self, today: str) -> Dict[str, Any]:
-        """What % of yesterday's picks got picked again today?
-        In backtest, check if pick_stocks_{today}.json contains codes
-        from pick_stocks_{yesterday}.json."""
+        """What % of yesterday's picks got picked again today?"""
         try:
             from backtest.utils.trading_calendar import get_trading_days_before
             yesterday = get_trading_days_before(today, 1)
         except Exception:
-            yesterday = today  # fallback
+            yesterday = today
 
         results_dir = os.environ.get(
             'REPORT_DIR',
             os.path.join(os.environ.get('BACKTEST_PATH', './backtest'), 'results'))
-        # Find the current run directory
         date_dir = None
-        if os.path.isdir(results_dir):
-            for d in sorted(os.listdir(results_dir), reverse=True):
-                if 'pick_stocks_' in d or any(f.startswith('pick_stocks_') for f in os.listdir(os.path.join(results_dir, d)) if os.path.isfile(os.path.join(results_dir, d, f))):
-                    pass
-                if os.path.isdir(os.path.join(results_dir, d)):
-                    yf = os.path.join(results_dir, d, f'pick_stocks_{yesterday}.json')
-                    tf = os.path.join(results_dir, d, f'pick_stocks_{today}.json')
-                    if os.path.exists(yf) and os.path.exists(tf):
-                        date_dir = os.path.join(results_dir, d)
-                        break
 
-        if not date_dir:
-            # Try the flow_v2 default dir
-            for pattern in ['ts_7AZ_96MA_flow_v2', 'ts_7AZ_96MA_flow_review']:
-                test_dir = os.path.join(results_dir, f'*{pattern}*')
-                import glob
-                matches = glob.glob(test_dir)
-                if matches:
-                    date_dir = matches[0]
+        if os.path.isdir(results_dir):
+            # Scan subdirs for any that have today's pick_stocks file
+            for d in sorted(os.listdir(results_dir), reverse=True):
+                dp = os.path.join(results_dir, d)
+                if not os.path.isdir(dp):
+                    continue
+                tf = os.path.join(dp, f'pick_stocks_{today}.json')
+                yf = os.path.join(dp, f'pick_stocks_{yesterday}.json')
+                if os.path.exists(tf) and os.path.exists(yf):
+                    date_dir = dp
                     break
 
         if not date_dir:
-            return {'advance_rate': 0.0, 'yesterday_count': 0,
-                    'repick_count': 0, 'note': 'no pick files found'}
+            return {'advance_rate': 0.5, 'yesterday_count': 0,
+                    'repick_count': 0, 'note': 'no pick files yet'}
 
         yf = os.path.join(date_dir, f'pick_stocks_{yesterday}.json')
         tf = os.path.join(date_dir, f'pick_stocks_{today}.json')
-
         try:
             with open(yf) as f:
-                ydata = json.load(f)
-            ystocks = ydata.get('selected_stocks', [])
+                ystocks = json.load(f).get('selected_stocks', [])
             ycodes = {s['symbol'] for s in ystocks}
-
             with open(tf) as f:
-                tdata = json.load(f)
-            tstocks = tdata.get('selected_stocks', [])
+                tstocks = json.load(f).get('selected_stocks', [])
             tcodes = {s['symbol'] for s in tstocks}
-
             common = ycodes & tcodes
-            ar = len(common) / len(ycodes) if ycodes else 0.0
+            ar = len(common) / len(ycodes) if ycodes else 0.5
             return {'advance_rate': round(ar, 3),
                     'yesterday_count': len(ycodes),
                     'repick_count': len(common),
                     'note': f'{len(common)}/{len(ycodes)} re-picked'}
         except (FileNotFoundError, json.JSONDecodeError, KeyError) as e:
-            return {'advance_rate': 0.0, 'yesterday_count': 0,
-                    'repick_count': 0, 'note': f'error: {e}'}
+            return {'advance_rate': 0.5, 'yesterday_count': 0,
+                    'repick_count': 0, 'note': f'read error: {e}'}
 
     # ── Metric 3: 梯队断层 (echelon gap — how many consecutive days a stock stays picked)
     def _echelon_gap(self, today: str) -> Dict[str, Any]:

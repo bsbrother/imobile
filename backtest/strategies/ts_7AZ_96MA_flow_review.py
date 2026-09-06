@@ -2,28 +2,8 @@
 ts_7AZ_96MA_flow_review: v2 stock picking + vibe-astock style post-market review.
 
 Delegates stock picking to ts_7AZ_96MA_flow_v2 (regime-adaptive LHB + volume boost).
-After picking (which uses yesterday's close data = no lookahead), runs a post-market
-review that examines the backtest DB for recent wins/losses and repick continuity.
-
-The review computes four sentiment metrics (vibe-astock style):
-1. 赚钱效应 (win_rate): % of recent sells that are profitable
-2. 晋级率 (advance_rate): % of yesterday's picks re-picked today
-3. 梯队断层 (echelon_gap): avg hold days — <2 = fragmenting
-4. 情绪周期 (sentiment): ice / recovery / fermenting / frenzy / cooling
-
-These feed into next-day strategy adjustments:
-- Position count (ice: -50%, frenzy: +30%)
-- Holding days multiplier (ice: ×0.5, frenzy: ×1.3)
-- TP aggressiveness (ice: take profits faster, frenzy: let runners run)
-- SL tightness (ice: -50%, frenzy: +50%)
-- LHB filter looseness
-- Regime bias (ice/recovery → force bear; frenzy → force bull)
-
-The adjustments are written to /tmp/review_adjustments.json, which the engine
-picks up before creating smart orders for the day (no lookahead).
-
-Usage:
-    python backtest/strategies/ts_7AZ_96MA_flow_review.py YYYYMMDD [--lookahead]
+Writes picks first, THEN runs post-market review so _advance_rate can read today's
+pick_stocks file (which needs both today's and yesterday's files to exist).
 """
 
 import os
@@ -52,37 +32,25 @@ def _run_review_and_write(target_date: str):
         from backtest.strategies.post_market_review import get_reviewer
         reviewer = get_reviewer()
         adjustments = reviewer.daily_review(today=target_date)
-
-        # Add metadata
         adjustments['review_date'] = target_date
         adjustments['strategy'] = 'ts_7AZ_96MA_flow_review'
-
         with open(REVIEW_OUTPUT, 'w') as f:
             json.dump(adjustments, f, ensure_ascii=False, indent=2)
         logger.info(f"[review] Wrote adjustments to {REVIEW_OUTPUT}")
     except Exception as e:
         logger.warning(f"[review] Review failed: {e} — writing fallback")
         fallback = {
-            'review_date': target_date,
-            'sentiment': 'fermenting',
-            'win_rate': 0.5,
-            'advance_rate': 0.0,
-            'avg_hold_days': 0,
-            'fragmenting': False,
-            'max_positions_override': None,
-            'holding_days_mult': 1.0,
-            'tp_aggressiveness': 1.0,
-            'sl_tightness': 1.0,
-            'lhb_loosen': True,
-            'regime_bias': None,
-            'note': 'review failed, using fermenting defaults'
+            'review_date': target_date, 'sentiment': 'fermenting',
+            'win_rate': 0.5, 'advance_rate': 0.0, 'avg_hold_days': 0,
+            'fragmenting': False, 'max_positions_override': None,
+            'holding_days_mult': 1.0, 'tp_aggressiveness': 1.0,
+            'sl_tightness': 1.0, 'lhb_loosen': True, 'regime_bias': None,
         }
         with open(REVIEW_OUTPUT, 'w') as f:
             json.dump(fallback, f, ensure_ascii=False, indent=2)
 
 
 def _write_output(df: pd.DataFrame) -> None:
-    """Write pick output to /tmp/tmp (standard format for engine)."""
     selected_stocks = []
     if df is not None and not df.empty:
         for _, row in df.iterrows():
@@ -101,7 +69,6 @@ def _write_output(df: pd.DataFrame) -> None:
 
 
 if __name__ == "__main__":
-    # ── 1. Parse args (same as v2) ────────────────────────────────────────
     argv = sys.argv[1:]
     lookahead = False
     if '--lookahead' in argv:
@@ -119,12 +86,7 @@ if __name__ == "__main__":
 
     logger.info(f"[ts_7AZ_96MA_flow_review] target {target_date} ref {date}")
 
-    # ── 2. Run review: analyze yesterday's results ─────────────────────────
-    _run_review_and_write(target_date)
-
-    # ── 3. Delegate stock picking to v2 ────────────────────────────────────
-    # Re-use the v2 module's functions directly (same process = same imports =
-    # faster than subprocess, and env vars from review carry through).
+    # ── Step 1: Pick stocks (identical to v2) ──────────────────────────
     from backtest.strategies.ts_7AZ_96MA_flow_v2 import (
         _regime_96ma, _in_crash, _apply_flow_filter_v2)
     from backtest.strategies.ts_7AZ import pick_strong_stocks
@@ -146,4 +108,25 @@ if __name__ == "__main__":
 
     df = _apply_flow_filter_v2(df, date)
 
+    # ── Step 2: Write picks to /tmp/tmp (engine copies to results/) ──
     _write_output(df)
+
+    # Also write directly to REVIEW_RESULTS_DIR so _advance_rate can read
+    # today's pick_stocks file during the review step below. The engine's
+    # pick_stocks_to_file() copies /tmp/tmp → REPORT_PATH after we exit,
+    # but the review runs IN-PROCESS before that copy happens.
+    _review_dir = os.environ.get('REVIEW_RESULTS_DIR')
+    if _review_dir:
+        try:
+            os.makedirs(_review_dir, exist_ok=True)
+            import shutil
+            src = '/tmp/tmp' if os.path.isfile('/tmp/tmp') else '/tmp/ts_7AZ_tmp.json'
+            dst = os.path.join(_review_dir, f'pick_stocks_{target_date}.json')
+            if os.path.exists(src):
+                shutil.copy2(src, dst)
+                logger.info(f"[ts_7AZ_96MA_flow_review] Copied picks to {dst}")
+        except Exception as e:
+            logger.warning(f"[ts_7AZ_96MA_flow_review] Failed to copy picks to results dir: {e}")
+
+    # ── Step 3: Run review (pick_stocks files now exist in REVIEW_RESULTS_DIR) ──
+    _run_review_and_write(target_date)

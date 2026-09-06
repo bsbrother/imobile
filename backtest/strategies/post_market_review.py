@@ -35,16 +35,14 @@ class PostMarketReviewer:
     """Post-market review engine: read yesterday's results, adjust today's strategy."""
 
     # ── Sentiment-cycle thresholds (vibe-astock calibrated) ──────────────
-    ICE_WIN_RATE       = float(os.getenv('REVIEW_ICE_WIN_RATE',      '0.25'))  # ≤25% win = ice
-    RECOVERY_WIN_RATE  = float(os.getenv('REVIEW_RECOVERY_WIN_RATE', '0.45'))  # ≤45% = recovery
-    FERMENT_WIN_RATE   = float(os.getenv('REVIEW_FERMENT_WIN_RATE',  '0.60'))  # ≤60% = fermenting
-    # >60% = frenzy
+    ICE_WIN_RATE       = float(os.getenv('REVIEW_ICE_WIN_RATE',      '0.25'))
+    RECOVERY_WIN_RATE  = float(os.getenv('REVIEW_RECOVERY_WIN_RATE', '0.45'))
+    FERMENT_WIN_RATE   = float(os.getenv('REVIEW_FERMENT_WIN_RATE',  '0.60'))
 
-    ADVANCE_LOW        = float(os.getenv('REVIEW_ADVANCE_LOW',       '0.20'))  # <20% repick = fragmenting
-    ADVANCE_HIGH       = float(os.getenv('REVIEW_ADVANCE_HIGH',      '0.50'))  # >50% repick = strong
+    ADVANCE_LOW        = float(os.getenv('REVIEW_ADVANCE_LOW',       '0.20'))
+    ADVANCE_HIGH       = float(os.getenv('REVIEW_ADVANCE_HIGH',      '0.50'))
   
     # ── Adjustment multipliers ──────────────────────────────────────────
-    # How much to deviate from baseline config per sentiment state
     ADJUST = {
         'ice':       {'pos_scale': 0.5,  'hold_mult': 0.5,  'tp_mult': 0.7,  'sl_mult': 0.5,  'lhb_loosen': False},
         'recovery':  {'pos_scale': 0.7,  'hold_mult': 0.7,  'tp_mult': 0.85, 'sl_mult': 0.6,  'lhb_loosen': False},
@@ -52,6 +50,27 @@ class PostMarketReviewer:
         'frenzy':    {'pos_scale': 1.3,  'hold_mult': 1.3,  'tp_mult': 1.2,  'sl_mult': 1.5,  'lhb_loosen': True},
         'cooling':   {'pos_scale': 0.85, 'hold_mult': 0.8,  'tp_mult': 0.9,  'sl_mult': 0.7,  'lhb_loosen': False},
     }
+
+    # ── Vibe-astock: sentiment persistence → escalation ──────────────────
+    # Day 1-2 of ice: pos×0.5 as usual. Day 3-4: pos×0.3. Day 5+: STOP.
+    ICE_ESCALATION = {1: 0.5, 2: 0.5, 3: 0.3, 4: 0.3}
+    ICE_STOP_DAY = 5  # day 5+ of continuous ice → 0 positions
+
+    # ── Vibe-astock: drawdown velocity emergency stop ────────────────────
+    # If single-day realized-loss exceeds this % of current NAV, force 0
+    # positions the NEXT trading day regardless of sentiment state.
+    DD_VELOCITY_THRESHOLD = float(os.getenv('REVIEW_DD_VELOCITY', '-0.02'))  # -2%
+
+    # ── Vibe-astock: recovery confirmation gating ────────────────────────
+    # After an ice event, require N consecutive recovery-sentiment days
+    # before restoring positions above 50%.
+    RECOVERY_CONFIRM_DAYS = int(os.getenv('REVIEW_RECOVERY_CONFIRM', '2'))
+
+    # ── State (persists across daily_review calls within a backtest) ─────
+    _sentiment_history = []          # [(date, sentiment, win_rate, daily_pnl)]
+    _ice_day_counter = 0             # consecutive ice days (reset on non-ice)
+    _recovery_day_counter = 0        # consecutive recovery days after ice
+    _last_nav = 0.0                  # previous day's portfolio NAV
 
     def __init__(self, db_path: str = None):
         if db_path is None:
@@ -230,31 +249,88 @@ class PostMarketReviewer:
     def daily_review(self, today: str) -> Dict[str, Any]:
         """Run post-market review for `today` and return strategy adjustments.
 
-        Returns dict with keys:
-            sentiment: str          — the sentiment-cycle state
-            win_rate: float         — текущая赚钱效应
-            advance_rate: float     — текущая晋级率
-            avg_hold_days: float    — average holding days
-            fragmenting: bool       — echelon gap flag
-
-            max_positions_override: int | None    — override MAX_POSITIONS
-            holding_days_mult: float              — multiplier for holding days
-            tp_aggressiveness: float              — 0.7=faster TP, 1.2=let run
-            sl_tightness: float                   — 0.5=tighter SL, 1.5=wider
-            lhb_loosen: bool                      — loosen LHB filter thresholds?
-
-            regime_bias: str | None               — force regime override
+        Vibe-astock enhancements over V1:
+        1. Sentiment persistence tracking (情绪周期第几天)
+        2. Drawdown velocity emergency stop (单日回撤速度)
+        3. Recovery confirmation gating (修复确认门禁)
         """
         sentiment = self._sentiment_cycle(today)
         mme = self._money_making_effect(today)
         ar = self._advance_rate(today)
         eg = self._echelon_gap(today)
+        daily_pnl = self._daily_realized_pnl(today)
 
-        adj = self.ADJUST.get(sentiment, self.ADJUST['fermenting'])
+        # ── 1. Sentiment persistence tracking ──────────────────────────
+        was_ice = self._ice_day_counter
+        if sentiment == 'ice':
+            self._ice_day_counter += 1
+            self._recovery_day_counter = 0
+        elif sentiment == 'recovery':
+            self._ice_day_counter = 0
+            self._recovery_day_counter += 1
+        else:
+            self._ice_day_counter = 0
+            self._recovery_day_counter = 0
+        
+        self._sentiment_history.append((today, sentiment, mme['win_rate'], daily_pnl))
+        if len(self._sentiment_history) > 20:
+            self._sentiment_history = self._sentiment_history[-20:]
 
-        # Determine regime bias
+        # ── 2. Drawdown velocity emergency stop ──────────────────────────
+        # vibe-astock: 判断 vs 执行归因 — separate what was analysis from
+        # what was execution. Here: if today's P&L was a sharp loss, the
+        # market is moving against us faster than sentiment can adjust.
+        dd_emergency = False
+        current_nav = self._compute_nav()
+        if self._last_nav > 0 and daily_pnl < 0:
+            dd_pct = daily_pnl / self._last_nav
+            if dd_pct < self.DD_VELOCITY_THRESHOLD:
+                dd_emergency = True
+        self._last_nav = current_nav
+
+        # ── 3. ICE escalation ────────────────────────────────────────────
+        ice_day = self._ice_day_counter
+        adj = self.ADJUST['fermenting'].copy()  # default, all paths overwrite
+        sentiment_effective = sentiment  # default, overwritten below
+        if ice_day >= self.ICE_STOP_DAY:
+            # vibe-astock: sustained ice day 5+ → full STOP
+            pos_scale = 0.0
+            adj = self.ADJUST['ice'].copy()
+            sentiment_effective = f'ice_d{ice_day}_STOP'
+        elif ice_day >= 3:
+            pos_scale = 0.3
+            adj = self.ADJUST['ice'].copy()
+            sentiment_effective = f'ice_d{ice_day}'
+        elif ice_day >= 1:
+            pos_scale = 0.5
+            adj = self.ADJUST['ice'].copy()
+        else:
+            # Non-ice: check recovery gating
+            need_recovery_confirm = (was_ice >= 2 and self._recovery_day_counter < self.RECOVERY_CONFIRM_DAYS)
+            if need_recovery_confirm:
+                # vibe-astock: after ice, require N recovery days before full resume
+                pos_cap = 0.5 if self._recovery_day_counter == 1 else 0.7
+                adj = self.ADJUST.get(sentiment, self.ADJUST['fermenting']).copy()
+                if adj['pos_scale'] > pos_cap:
+                    adj['pos_scale'] = pos_cap
+                sentiment_effective = f'{sentiment}_rc{self._recovery_day_counter}'
+            else:
+                adj = self.ADJUST.get(sentiment, self.ADJUST['fermenting']).copy()
+                sentiment_effective = sentiment
+            pos_scale = adj['pos_scale']
+
+        # ── 4. Drawdown velocity override ─────────────────────────────────
+        if dd_emergency:
+            # vibe-astock: 亏钱效应急速恶化 → 强制空仓
+            pos_scale = 0.0
+            if sentiment_effective != 'ice_d5_STOP':
+                sentiment_effective = f'{sentiment_effective}_DDVEL'
+            adj = self.ADJUST.get('ice', self.ADJUST['ice']).copy()
+            adj['pos_scale'] = 0.0
+
+        # ── 5. Build adjustments ─────────────────────────────────────────
         regime_bias = None
-        if sentiment in ('ice', 'recovery'):
+        if sentiment in ('ice', 'recovery') or ice_day >= 2:
             regime_bias = 'bear'
         elif sentiment == 'frenzy':
             regime_bias = 'bull'
@@ -262,19 +338,26 @@ class PostMarketReviewer:
         max_pos_override = None
         try:
             base_max = int(os.environ.get('BACKTEST_MAX_POSITIONS', '10'))
-            max_pos_override = max(1, int(base_max * adj['pos_scale']))
+            max_pos_override = max(0, int(base_max * pos_scale))  # 0 = STOP
         except Exception:
             pass
 
+        # Rolling 5-day P&L for trend context
+        recent_5 = [p for _, _, _, p in self._sentiment_history[-5:]]
+        rolling_5d_pnl = sum(recent_5) if recent_5 else 0
+
         result = {
-            'sentiment': sentiment,
+            'sentiment': sentiment_effective,
+            'sentiment_raw': sentiment,
             'win_rate': mme['win_rate'],
             'advance_rate': ar['advance_rate'],
             'avg_hold_days': eg['avg_hold_days'],
             'fragmenting': eg['fragmenting'],
-            'mme_sample': mme.get('total', 0),
-            'ar_sample': ar.get('yesterday_count', 0),
-            'eg_sample': eg.get('sample', 0),
+            'ice_day': ice_day,
+            'recovery_day': self._recovery_day_counter,
+            'dd_emergency': dd_emergency,
+            'daily_pnl': daily_pnl,
+            'rolling_5d_pnl': rolling_5d_pnl,
 
             'max_positions_override': max_pos_override,
             'holding_days_mult': adj['hold_mult'],
@@ -284,14 +367,57 @@ class PostMarketReviewer:
             'regime_bias': regime_bias,
         }
         logger.info(
-            f"[Review] {today} sentiment={sentiment} "
-            f"win={mme['win_rate']:.0%} advance={ar['advance_rate']:.0%} "
-            f"hold={eg['avg_hold_days']}d frag={eg['fragmenting']} → "
-            f"pos={max_pos_override} hold_mult={adj['hold_mult']:.1f} "
-            f"tp×{adj['tp_mult']:.1f} sl×{adj['sl_mult']:.1f} "
-            f"regime_bias={regime_bias}"
+            f"[Review] {today} raw={sentiment} eff={sentiment_effective} "
+            f"win={mme['win_rate']:.0%} adv={ar['advance_rate']:.0%} "
+            f"ice_d{ice_day} rec_d{self._recovery_day_counter} "
+            f"dd_emerg={dd_emergency} pnl={daily_pnl:+,.0f} "
+            f"5d={rolling_5d_pnl:+,.0f} → pos={max_pos_override} "
+            f"hold×{adj['hold_mult']:.1f} sl×{adj['sl_mult']:.1f}"
         )
         return result
+
+    # ── Helper: daily realized P&L from DB ─────────────────────────────
+    def _daily_realized_pnl(self, today: str) -> float:
+        conn = self._connect()
+        try:
+            cur = conn.execute("""
+                SELECT notes FROM transactions
+                WHERE user_id = 1 AND transaction_type = 'sell'
+                  AND transaction_date = ?
+            """, (today,))
+            total = 0.0
+            for row in cur.fetchall():
+                notes = row[0] or ''
+                if 'P&L: ¥' in notes:
+                    try:
+                        pnl = float(notes.split('P&L: ¥')[1].split(' ')[0])
+                        total += pnl
+                    except (ValueError, IndexError):
+                        pass
+            return total
+        finally:
+            conn.close()
+
+    # ── Helper: compute current NAV ────────────────────────────────────
+    def _compute_nav(self) -> float:
+        initial = float(os.environ.get('INITIAL_CASH', '600000'))
+        conn = self._connect()
+        try:
+            cur = conn.execute("""
+                SELECT notes FROM transactions
+                WHERE user_id = 1 AND transaction_type = 'sell'
+            """)
+            total_pnl = 0.0
+            for row in cur.fetchall():
+                notes = row[0] or ''
+                if 'P&L: ¥' in notes:
+                    try:
+                        total_pnl += float(notes.split('P&L: ¥')[1].split(' ')[0])
+                    except (ValueError, IndexError):
+                        pass
+            return initial + total_pnl
+        finally:
+            conn.close()
 
 
 # ── Singleton for backtest reuse ─────────────────────────────────────

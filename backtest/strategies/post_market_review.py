@@ -137,29 +137,25 @@ class PostMarketReviewer:
         except Exception:
             yesterday = today
 
-        results_dir = os.environ.get(
-            'REPORT_DIR',
-            os.path.join(os.environ.get('BACKTEST_PATH', './backtest'), 'results'))
-        date_dir = None
+        # Use the exact run directory set by engine.py (REVIEW_RESULTS_DIR).
+        # Fall back to scanning only the most-recently-modified subdir (not
+        # every subdir — that can silently pick up a different run's files
+        # and cause non-reproducible sentiment drift).
+        results_dir = os.environ.get('REVIEW_RESULTS_DIR')
+        if not results_dir or not os.path.isdir(results_dir):
+            base = os.path.join(os.environ.get('BACKTEST_PATH', './backtest'), 'results')
+            if os.path.isdir(base):
+                subdirs = sorted(
+                    [os.path.join(base, d) for d in os.listdir(base)],
+                    key=lambda p: os.path.getmtime(p) if os.path.isdir(p) else 0,
+                    reverse=True)
+                results_dir = subdirs[0] if subdirs else None
+            if not results_dir:
+                return {'advance_rate': 0.5, 'yesterday_count': 0,
+                        'repick_count': 0, 'note': 'no results dir'}
 
-        if os.path.isdir(results_dir):
-            # Scan subdirs for any that have today's pick_stocks file
-            for d in sorted(os.listdir(results_dir), reverse=True):
-                dp = os.path.join(results_dir, d)
-                if not os.path.isdir(dp):
-                    continue
-                tf = os.path.join(dp, f'pick_stocks_{today}.json')
-                yf = os.path.join(dp, f'pick_stocks_{yesterday}.json')
-                if os.path.exists(tf) and os.path.exists(yf):
-                    date_dir = dp
-                    break
-
-        if not date_dir:
-            return {'advance_rate': 0.5, 'yesterday_count': 0,
-                    'repick_count': 0, 'note': 'no pick files yet'}
-
-        yf = os.path.join(date_dir, f'pick_stocks_{yesterday}.json')
-        tf = os.path.join(date_dir, f'pick_stocks_{today}.json')
+        yf = os.path.join(results_dir, f'pick_stocks_{yesterday}.json')
+        tf = os.path.join(results_dir, f'pick_stocks_{today}.json')
         try:
             with open(yf) as f:
                 ystocks = json.load(f).get('selected_stocks', [])

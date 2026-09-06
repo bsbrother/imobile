@@ -3023,6 +3023,10 @@ Examples:
           f"resume={resume}, backtest_search={backtest_search}, backtest_ai={backtest_ai}")
     REPORT_PATH = os.path.join(REPORT_PATH, f'{start_date}_{end_date}_{src}')
     os.makedirs(REPORT_PATH, exist_ok=True)
+    # Set env for post_market_review._advance_rate() — prevents picking up
+    # stale pick_stocks files from other backtest runs (causes non-reproducible
+    # sentiment drift across runs with different end dates).
+    os.environ['REVIEW_RESULTS_DIR'] = REPORT_PATH
 
     # We must wipe the actual DB file being used by DBTEST (usually db/test_imobile.db)
     # since it's already instantiated at import time.

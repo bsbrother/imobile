@@ -84,6 +84,11 @@ class PostMarketReviewer:
         conn.row_factory = sqlite3.Row
         return conn
 
+    @staticmethod
+    def _db_date(yyyymmdd: str) -> str:
+        """Convert YYYYMMDD to DB date format YYYY-MM-DDT00:00:00."""
+        return f"{yyyymmdd[:4]}-{yyyymmdd[4:6]}-{yyyymmdd[6:8]}T00:00:00"
+
     # ── Metric 1: 赚钱效应 (money-making effect) ─────────────────────────
     def _money_making_effect(self, today: str) -> Dict[str, Any]:
         """% of recent SELL transactions that were profitable.
@@ -98,7 +103,7 @@ class PostMarketReviewer:
                   AND transaction_date < ?
                 ORDER BY transaction_date DESC
                 LIMIT 30
-            """, (today,))
+            """, (self._db_date(today),))
             sells = cur.fetchall()
             if not sells:
                 return {'win_rate': 0.5, 'profitable': 0, 'total': 0,
@@ -186,7 +191,7 @@ class PostMarketReviewer:
                   AND transaction_date < ?
                 ORDER BY transaction_date DESC
                 LIMIT 20
-            """, (today,))
+            """, (self._db_date(today),))
             sells = cur.fetchall()
             if not sells:
                 return {'avg_hold_days': 0, 'sample': 0,
@@ -462,6 +467,7 @@ class PostMarketReviewer:
         transaction_date=today always returns 0. The fix: read the
         most recent prior trading day's sells to detect drawdown velocity.
         """
+        # Convert YYYYMMDD to DB format YYYY-MM-DDT00:00:00 for comparison
         conn = self._connect()
         try:
             cur = conn.execute("""
@@ -470,7 +476,7 @@ class PostMarketReviewer:
                   AND transaction_date < ?
                 ORDER BY transaction_date DESC
                 LIMIT 50
-            """, (today,))
+            """, (self._db_date(today),))
             sells = cur.fetchall()
             if not sells:
                 return 0.0

@@ -379,7 +379,31 @@ class PostMarketReviewer:
         max_pos_override = None
         try:
             base_max = int(os.environ.get('BACKTEST_MAX_POSITIONS', '10'))
-            max_pos_override = max(0, int(base_max * pos_scale))  # 0 = STOP
+            
+            # ── Regime-aware cap (vibe-astock: 短线情绪不能凌驾于大盘) ──
+            # The engine's detect_market_regime already says 'bear' when the
+            # index is below MA60/MA120. Sentiment can be 'fermenting' while
+            # regime is bear (backward-looking 30-sell win_rate lags 3-5 days).
+            # When regime != sentiment, trust regime first.
+            try:
+                from backtest.engine import _detect_market_regime_cached
+                reg = _detect_market_regime_cached(today).get('regime', 'normal')
+            except Exception:
+                reg = 'normal'
+            
+            if reg == 'bear' and sentiment not in ('ice',):
+                # Regime says bear but sentiment hasn't caught up → cap to 3
+                regime_cap = 3
+                pos_from_scale = int(base_max * pos_scale)
+                capped_pos = min(pos_from_scale, regime_cap)
+                if capped_pos < pos_from_scale:
+                    logger.info(f"[Review] regime_bear cap: {pos_from_scale}→{capped_pos} pos (sentiment={sentiment})")
+                    max_pos_override = max(0, capped_pos)
+                    sentiment_effective = f'{sentiment_effective}_BEAR_CAP'
+                else:
+                    max_pos_override = max(0, int(base_max * pos_scale))
+            else:
+                max_pos_override = max(0, int(base_max * pos_scale))
         except Exception:
             pass
 

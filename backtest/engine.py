@@ -2903,7 +2903,7 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
                 _tp_agg = _review.get('tp_aggressiveness', 1.0)
                 _sl_tight = _review.get('sl_tightness', 1.0)
 
-                if _pos_override and _pos_override > 0:
+                if _pos_override is not None:
                     logger.info(
                         f"[{this_date}] Review sentiment={_sentiment}: "
                         f"positions {MAX_POSITIONS}→{_pos_override}"

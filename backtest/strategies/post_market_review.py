@@ -59,7 +59,7 @@ class PostMarketReviewer:
     # ── Vibe-astock: drawdown velocity emergency stop ────────────────────
     # If single-day realized-loss exceeds this % of current NAV, force 0
     # positions the NEXT trading day regardless of sentiment state.
-    DD_VELOCITY_THRESHOLD = float(os.getenv('REVIEW_DD_VELOCITY', '-0.02'))  # -2%
+    DD_VELOCITY_THRESHOLD = float(os.getenv('REVIEW_DD_VELOCITY', '-0.008'))  # -0.8%
 
     # ── Vibe-astock: recovery confirmation gating ────────────────────────
     # After an ice event, require N consecutive recovery-sentiment days
@@ -67,10 +67,10 @@ class PostMarketReviewer:
     RECOVERY_CONFIRM_DAYS = int(os.getenv('REVIEW_RECOVERY_CONFIRM', '2'))
 
     # ── State (persists across daily_review calls within a backtest) ─────
-    _sentiment_history = []          # [(date, sentiment, win_rate, daily_pnl)]
-    _ice_day_counter = 0             # consecutive ice days (reset on non-ice)
-    _recovery_day_counter = 0        # consecutive recovery days after ice
-    _last_nav = 0.0                  # previous day's portfolio NAV
+    _sentiment_history = []          # [(date, sentiment, win_rate, advance, daily_pnl)]
+    _ice_day_counter = 0
+    _recovery_day_counter = 0
+    _last_nav = 0.0
 
     def __init__(self, db_path: str = None):
         if db_path is None:
@@ -216,7 +216,10 @@ class PostMarketReviewer:
 
     # ── Metric 4: 情绪周期 (sentiment cycle classifier) ──────────────────
     def _sentiment_cycle(self, today: str) -> str:
-        """Classify into ice/recovery/fermenting/frenzy/cooling."""
+        """Classify into ice/recovery/fermenting/frenzy/cooling.
+
+        Vibe-astock 情绪周期 — 5 states with verification-condition gates.
+        """
         mme = self._money_making_effect(today)
         ar = self._advance_rate(today)
         eg = self._echelon_gap(today)
@@ -226,20 +229,62 @@ class PostMarketReviewer:
         fragmenting = eg['fragmenting']
         avg_hold = eg['avg_hold_days']
 
+        # ── 0. Sentiment velocity (win_rate rate-of-change) ────────────────
+        # vibe-astock: 情绪曲线 — not just current state, but direction.
+        # If win_rate is dropping fast, downgrade BEFORE rolling window catches up.
+        prev_wins = [w for _, _, w, _, _ in self._sentiment_history[-3:] if w > 0]
+        win_rate_dropping = False
+        if len(prev_wins) >= 2 and prev_wins[-1] < 0.6:
+            # Check if win_rate is falling >40% from peak in last 3 readings
+            peak = max(prev_wins)
+            if peak > 0 and (peak - win_rate) / peak > 0.40:
+                win_rate_dropping = True
+
+        # ── 1. Advance-rate crash detector ─────────────────────────────────
+        # vibe-astock: 晋级率断崖 — when repick rate suddenly collapses
+        prev_ar_vals = [a for _, _, _, a, _ in self._sentiment_history[-3:] if a > 0]
+        ar_crash = False
+        if len(prev_ar_vals) >= 2 and prev_ar_vals[-2] > 0:
+            ar_drop = (prev_ar_vals[-2] - advance) / prev_ar_vals[-2]
+            # Crash: >50% relative drop, OR absolute below 0.20
+            if ar_drop > 0.5 or (advance < self.ADVANCE_LOW and ar_drop > 0.3):
+                ar_crash = True
+
+        # ── 2. Base classification ────────────────────────────────────────
         if win_rate <= self.ICE_WIN_RATE or fragmenting:
-            return 'ice'
+            base = 'ice'
         elif win_rate <= self.RECOVERY_WIN_RATE:
             if advance > self.ADVANCE_HIGH:
-                return 'recovery'  # signs of life
-            return 'ice'  # still cold
+                base = 'recovery'
+            else:
+                base = 'ice'
         elif win_rate <= self.FERMENT_WIN_RATE:
             if advance > self.ADVANCE_LOW:
-                return 'fermenting'
-            return 'recovery'
+                base = 'fermenting'
+            else:
+                base = 'recovery'
         else:  # win_rate > 0.60
             if advance <= self.ADVANCE_LOW:
-                return 'cooling'  # high win but fading repick = top
-            return 'frenzy'
+                base = 'cooling'
+            else:
+                base = 'frenzy'
+
+        # ── 3. Verification-condition downgrade ────────────────────────────
+        # vibe-astock: 明日验证条件 — "I predicted frenzy/recovery, market
+        # failed to confirm → downgrade now, don't wait for rolling window."
+        if base in ('frenzy', 'fermenting') and self._sentiment_history:
+            prev_sentiment = self._sentiment_history[-1][1]
+            # Was in a strong state but indicators collapsed?
+            if prev_sentiment in ('frenzy', 'fermenting', 'cooling'):
+                if ar_crash:
+                    # 晋级率断崖 = 连板梯队断层 — immediate downgrade
+                    logger.info(f"[Sentiment] advance crash {prev_ar_vals[-2]:.0%}->{advance:.0%}: {base}->cooling")
+                    return 'cooling'
+                if win_rate_dropping and advance <= self.ADVANCE_LOW:
+                    logger.info(f"[Sentiment] win_rate velocity drop + low advance: {base}->recovery")
+                    return 'recovery'
+
+        return base
 
     # ── Core: daily review → strategy adjustments ────────────────────────
     def daily_review(self, today: str) -> Dict[str, Any]:
@@ -268,7 +313,7 @@ class PostMarketReviewer:
             self._ice_day_counter = 0
             self._recovery_day_counter = 0
         
-        self._sentiment_history.append((today, sentiment, mme['win_rate'], daily_pnl))
+        self._sentiment_history.append((today, sentiment, mme['win_rate'], ar['advance_rate'], daily_pnl))
         if len(self._sentiment_history) > 20:
             self._sentiment_history = self._sentiment_history[-20:]
 
@@ -343,7 +388,7 @@ class PostMarketReviewer:
         # positions regardless of sentiment. This catches the July pattern:
         # Jul 1 +13K, Jul 2 -10K, Jul 3 -7.6K. After Jul 2's loss, Jul 3
         # would have been at 50% positions, halving the -7.6K loss.
-        recent_2_sells = [p for _, _, _, p in self._sentiment_history[-2:] if p < 0]
+        recent_2_sells = [p for _, _, _, _, p in self._sentiment_history[-2:] if p < 0]
         if len(recent_2_sells) >= 2 and max_pos_override and max_pos_override > 0:
             capped = max(0, int(max_pos_override * 0.5))
             if capped < max_pos_override:
@@ -352,7 +397,7 @@ class PostMarketReviewer:
                 sentiment_effective = f'{sentiment_effective}_CONSEC2'
 
         # Rolling 5-day P&L for trend context
-        recent_5 = [p for _, _, _, p in self._sentiment_history[-5:]]
+        recent_5 = [p for _, _, _, _, p in self._sentiment_history[-5:]]
         rolling_5d_pnl = sum(recent_5) if recent_5 else 0
 
         result = {

@@ -2724,7 +2724,7 @@ def _adaptive_tp_sl(h_cost, h_current_price, days_held, tp_pct, sl_pct,
     return tp, sl
 
 
-def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=None, user_id: int = 1, src: str = 'ts_7AZ_96MA_flow_v2', resume: bool = False, backtest_search: bool = True, backtest_ai: bool = True, is_live: bool = False, app_cash: float = None, app_positions: list = None, app_running_orders: list = None):
+def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=None, user_id: int = 1, src: str = 'ts_7AZ_96MA_flow_review', resume: bool = False, backtest_search: bool = True, backtest_ai: bool = True, is_live: bool = False, app_cash: float = None, app_positions: list = None, app_running_orders: list = None):
     """
     Pick stocks, create smart orders and trading for the specified date range.
 
@@ -2990,9 +2990,9 @@ Examples:
                         help='Start date in YYYYMMDD format')
     parser.add_argument('end_date',
                         help='End date in YYYYMMDD format')
-    parser.add_argument('src', nargs='?', default='ts_7AZ_96MA_flow_v2',
+    parser.add_argument('src', nargs='?', default='ts_7AZ_96MA_flow_review',
                         choices=_valid_sources,
-                        help='Strategy source (default: ts_7AZ_96MA_flow_v2 — production)')
+                        help='Strategy source (default: ts_7AZ_96MA_flow_review — production)')
     parser.add_argument('--user-id', type=int, default=1,
                         help='User ID for trading account (default: 1)')
     parser.add_argument('--search', action=argparse.BooleanOptionalAction, default=True,

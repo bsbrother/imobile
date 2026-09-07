@@ -162,7 +162,7 @@ async def main(submit: bool = False):
     pick_file = os.path.join(_daily_dir, f'pick_stocks_{THIS_DATE}.json')
 
     result = subprocess.run(
-        [VENV_PYTHON, 'backtest/strategies/ts_7AZ_96MA_flow_v2.py', THIS_DATE],
+        [VENV_PYTHON, 'backtest/strategies/ts_7AZ_96MA_flow_review.py', THIS_DATE],
         capture_output=True, text=True, timeout=120
     )
     if result.returncode != 0:

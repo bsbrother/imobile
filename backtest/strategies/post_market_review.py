@@ -274,7 +274,7 @@ class PostMarketReviewer:
 
         # ── 2. Drawdown velocity emergency stop ──────────────────────────
         # vibe-astock: 判断 vs 执行归因 — separate what was analysis from
-        # what was execution. Here: if today's P&L was a sharp loss, the
+        # what was execution. Here: if yesterday's P&L was a sharp loss, the
         # market is moving against us faster than sentiment can adjust.
         dd_emergency = False
         current_nav = self._compute_nav()
@@ -338,6 +338,19 @@ class PostMarketReviewer:
         except Exception:
             pass
 
+        # ── 2b. Consecutive loss detection (vibe-astock: 连亏降档) ──
+        # If the last 2 trading days both had realized losses, cut to 50%
+        # positions regardless of sentiment. This catches the July pattern:
+        # Jul 1 +13K, Jul 2 -10K, Jul 3 -7.6K. After Jul 2's loss, Jul 3
+        # would have been at 50% positions, halving the -7.6K loss.
+        recent_2_sells = [p for _, _, _, p in self._sentiment_history[-2:] if p < 0]
+        if len(recent_2_sells) >= 2 and max_pos_override and max_pos_override > 0:
+            capped = max(0, int(max_pos_override * 0.5))
+            if capped < max_pos_override:
+                logger.info(f"[Review] CONSEC2: 2 consecutive losses, cutting pos {max_pos_override} -> {capped}")
+                max_pos_override = capped
+                sentiment_effective = f'{sentiment_effective}_CONSEC2'
+
         # Rolling 5-day P&L for trend context
         recent_5 = [p for _, _, _, p in self._sentiment_history[-5:]]
         rolling_5d_pnl = sum(recent_5) if recent_5 else 0
@@ -374,15 +387,31 @@ class PostMarketReviewer:
 
     # ── Helper: daily realized P&L from DB ─────────────────────────────
     def _daily_realized_pnl(self, today: str) -> float:
+        """Read realized P&L from the MOST RECENT trading day with sells.
+        
+        In backtest, the review runs BEFORE today's trading, so
+        transaction_date=today always returns 0. The fix: read the
+        most recent prior trading day's sells to detect drawdown velocity.
+        """
         conn = self._connect()
         try:
             cur = conn.execute("""
-                SELECT notes FROM transactions
+                SELECT notes, transaction_date FROM transactions
                 WHERE user_id = 1 AND transaction_type = 'sell'
-                  AND transaction_date = ?
+                  AND transaction_date < ?
+                ORDER BY transaction_date DESC
+                LIMIT 50
             """, (today,))
+            sells = cur.fetchall()
+            if not sells:
+                return 0.0
+            
+            # Group by the most recent date that has sells
+            latest_date = sells[0][1]
             total = 0.0
-            for row in cur.fetchall():
+            for row in sells:
+                if row[1] != latest_date:
+                    break  # only the most recent trading day
                 notes = row[0] or ''
                 if 'P&L: ¥' in notes:
                     try:

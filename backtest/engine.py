@@ -3023,6 +3023,23 @@ Examples:
           f"resume={resume}, backtest_search={backtest_search}, backtest_ai={backtest_ai}")
     REPORT_PATH = os.path.join(REPORT_PATH, f'{start_date}_{end_date}_{src}')
     os.makedirs(REPORT_PATH, exist_ok=True)
+    # Cross-run review state must not leak into a fresh run.
+    # /tmp/review_adjustments.json persists between runs, and the day-1 engine
+    # loop reads it BEFORE the strategy writes a fresh one — so a new backtest
+    # inherited the PREVIOUS run's ending sentiment (e.g. max_positions_override
+    # =7, sl_tightness 0.6) for its first day, silently changing day-1 sizing and
+    # compounding into a different total. Two identically-configured runs
+    # therefore diverged depending on whatever ran before them. Deleting it here
+    # makes day 1 start from the strategy's own fresh (no-history) assessment.
+    # Not deleted on --resume: a resumed run should keep its own last state.
+    if not resume:
+        _stale_review = '/tmp/review_adjustments.json'
+        if os.path.exists(_stale_review):
+            try:
+                os.unlink(_stale_review)
+                logger.info(f"Removed stale {_stale_review} (cross-run review-state cleanup).")
+            except OSError as _e_stale:
+                logger.warning(f"Could not remove {_stale_review}: {_e_stale}")
     # Set env for post_market_review._advance_rate() — prevents picking up
     # stale pick_stocks files from other backtest runs (causes non-reproducible
     # sentiment drift across runs with different end dates).

@@ -2,6 +2,20 @@
 
 Key changes and milestones in iMobile development.
 
+## 2026-09 (V2 entry levers → 134.98%)
+
+- **ts_7AZ_96MA_flow_review: 132.15% → 134.98%** (20260101–20260831, max drawdown −2.44% → −1.63%). Tag `v134.98`.
+  - **LEVER 3 — entry RPS gate 80/70 → 60.** The `RPS ≥ 80` gate was a primary cause of late-trend entries: a stock in the first weeks of a move has a negative 250-day return and cannot pass. Applied via `os.environ.setdefault` in `ts_7AZ_96MA_flow_review.py` only, so other strategies importing `ts_7AZ`/`ts_96MA` keep 80/70. Explicit `env TS7AZ_RPS_MIN=…` still wins.
+  - **LEVER 4 — `LHB_EXHAUST_RUN5=30`.** Ignore 龙虎榜 institutional records whose 上榜日 was itself preceded by a ≥30% 5-day run: 龙虎榜 is a disclosure triggered *by* a move, so an institution appearing right after a blow-off spike is often distributing.
+  - **LEVER 1 — extension cap (`V2_EXT_CAP`), default off.** As gated (regime volatile/bear) it fired **0 times** in the full run — the period contains only BULL/NORMAL/BEAR and BEAR days yield 0 candidates. Offline: `r60>150` removes 114 picks with mean f10 **−0.23%** (negative expectancy) — the next iteration's candidate.
+  - **LEVER 2 — 80–99 range band (`V2_RANGE_BAND`), default off.** Excluded on evidence: on 20260415 it cut 29→18 and dropped 300308 中际旭创, April's biggest winner (+24.7%).
+- **Review layer had been inert — two bugs found and fixed behind `REVIEW_DB_FIX` (default false).**
+  - `transaction_date` is stored ISO (`2026-08-05T00:00:00`) but queried as `'20260805'` → 0 rows (verified: old 0, ISO 8).
+  - Day D's review runs *before* the engine books day D's sells, so `transaction_date = D` can never match; it must read the previous trading day.
+  - `dd_emerg=True` had **never** fired in 2006 review invocations. Enabling the fix activates the ICE escalation and measures **−5.51pp** (134.98% → 129.47%); default false until ICE is recalibrated for a momentum book.
+- **Open item:** July flips to −0.29% (baseline +0.9%). July's pick churn is only 2 days; the loss came from swapping in 001309.SZ on 20260702 (worst pick in the sample, −58% in 5 days). Recovering the "no negative months" objective is the next task.
+- **Operational:** always `pgrep -af "engine\.py"` before launching a backtest — a hidden in-flight run shares `/tmp/tmp` *and* `shared/db/test_imobile.db`, and a new run's startup wipe destroys its booked trades.
+
 ## 2026-08 (data & utility unification)
 
 - **Shared tree unification** — every cache/db/data file now lives under `shared/`; removed root `db/`, `data/`, `scripts/` stragglers.

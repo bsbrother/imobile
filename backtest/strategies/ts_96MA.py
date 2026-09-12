@@ -82,7 +82,8 @@ PULLBACK_ZONE_PCT = 5.0     # Sweet spot: within 5% above MA96
 VOLUME_CONTRACTION_RATIO = 0.9  # 5d vol / 20d vol < this = contraction
 ADX_MIN = 20              # Minimum ADX for trend confirmation
 MIN_SCORE_THRESHOLD = 40  # Aligned with regime min_score (was 50 — too strict)
-RPS_MIN = 70              # 250-day return percentile ≥ 70 (ts_7AZ uses 80)
+# LEVER 3 (env TS96MA_RPS_MIN): entry RPS gate for the 96MA path (default 70).
+RPS_MIN = float(os.getenv('TS96MA_RPS_MIN', '70'))   # 250-day return percentile gate
 RPS_LOOKBACK = 250        # Days for RPS calculation
 HIGH_52W_RATIO = 0.85     # Price ≥ 85% of 52-week high (ts_7AZ uses same)
 

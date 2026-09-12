@@ -84,6 +84,31 @@ class PostMarketReviewer:
         conn.row_factory = sqlite3.Row
         return conn
 
+    @staticmethod
+    def _db_date(yyyymmdd: str) -> str:
+        """Convert YYYYMMDD to the DB's stored date format YYYY-MM-DDT00:00:00.
+
+        The engine writes transactions with ISO timestamps. Querying with a bare
+        '20260702' matched 0 rows (string compare: 'T' > '0' makes every stored
+        date look LATER than the target), so every metric silently fell back to
+        its neutral default: daily_pnl always 0 (dd-velocity stop never fired),
+        win_rate always 0.5 (sentiment pinned to fermenting), hold-days 0.
+
+        `REVIEW_DB_FIX` (default **false**) gates this fix. It is CORRECT, but
+        enabling it switches the review layer from effectively-inert to fully
+        live, which activates the ICE escalation / position cuts. Measured on
+        20260101-20260831 (same entry-side config): 134.98% disabled vs 129.47%
+        enabled -> the fix costs -5.51pp on this momentum strategy because the
+        ICE thresholds (win_rate <= 0.25/0.45/0.60) fire often in strong months.
+        Enable it only after recalibrating ICE for a momentum book.
+        """
+        if os.getenv('REVIEW_DB_FIX', 'false').lower() in ('false', '0', 'no'):
+            return str(yyyymmdd)
+        s = str(yyyymmdd)
+        if '-' in s:
+            return s
+        return f"{s[:4]}-{s[4:6]}-{s[6:8]}T00:00:00"
+
     # ── Metric 1: 赚钱效应 (money-making effect) ─────────────────────────
     def _money_making_effect(self, today: str) -> Dict[str, Any]:
         """% of recent SELL transactions that were profitable.
@@ -98,7 +123,7 @@ class PostMarketReviewer:
                   AND transaction_date < ?
                 ORDER BY transaction_date DESC
                 LIMIT 30
-            """, (today,))
+            """, (self._db_date(today),))
             sells = cur.fetchall()
             if not sells:
                 return {'win_rate': 0.5, 'profitable': 0, 'total': 0,
@@ -186,7 +211,7 @@ class PostMarketReviewer:
                   AND transaction_date < ?
                 ORDER BY transaction_date DESC
                 LIMIT 20
-            """, (today,))
+            """, (self._db_date(today),))
             sells = cur.fetchall()
             if not sells:
                 return {'avg_hold_days': 0, 'sample': 0,
@@ -324,6 +349,30 @@ class PostMarketReviewer:
             adj = self.ADJUST.get('ice', self.ADJUST['ice']).copy()
             adj['pos_scale'] = 0.0
 
+        # ── 4b. LEVER 5: first-losing-day de-risk (env REVIEW_FIRST_DOWN_POS) ──
+        # React on DAY 1 of a losing streak instead of waiting for ice-day >= 3.
+        # The -2% NAV velocity stop above already fires on day 1 of a BIG loss;
+        # this adds a *smaller* first-day throttle (e.g. 0.5 = half size) for the
+        # ordinary first red day. Unset/'' keeps baseline behaviour.
+        # NOTE: prior attempts in this family that cut size on losing days cost
+        # ~10pp of total return (see over-optimization-one-bad-month) — this is
+        # deliberately opt-in and must be A/B measured before being made default.
+        _fdp_raw = os.getenv('REVIEW_FIRST_DOWN_POS', '').strip()
+        if _fdp_raw and daily_pnl < 0 and not dd_emergency:
+            try:
+                _fdp = float(_fdp_raw)
+                if pos_scale > _fdp:
+                    pos_scale = _fdp
+                    sentiment_effective = f'{sentiment_effective}_D1CAP'
+                    adj = dict(adj)
+                    adj['pos_scale'] = _fdp
+                    logger.info(
+                        f"[Review] {today} LEVER5 first-down-day cap -> pos_scale={_fdp:.2f} "
+                        f"(pnl={daily_pnl:+,.0f})"
+                    )
+            except (TypeError, ValueError):
+                pass
+
         # ── 5. Build adjustments ─────────────────────────────────────────
         regime_bias = None
         if sentiment in ('ice', 'recovery') or ice_day >= 2:
@@ -374,20 +423,54 @@ class PostMarketReviewer:
 
     # ── Helper: daily realized P&L from DB ─────────────────────────────
     def _daily_realized_pnl(self, today: str) -> float:
+        """Realized P&L of the most recent trading day STRICTLY BEFORE `today`.
+
+        Timing note: the review for day D runs inside the strategy subprocess,
+        i.e. BEFORE the engine books day D's own sells later in its day-D loop.
+        So `transaction_date = D` can never match here — not just because of the
+        date format (also fixed via _db_date), but by construction. Reading the
+        previous trading day's booked sells gives the dd-velocity signal its
+        intended input while staying lookahead-free (the engine applies the
+        resulting position override on day D).
+        """
         conn = self._connect()
         try:
+            if os.getenv('REVIEW_DB_FIX', 'false').lower() in ('false', '0', 'no'):
+                # Legacy behaviour: query the SAME day, which (because the review
+                # runs before the engine books day D's trades) always yields 0.
+                cur = conn.execute("""
+                    SELECT notes FROM transactions
+                    WHERE user_id = 1 AND transaction_type = 'sell'
+                      AND transaction_date = ?
+                """, (today,))
+                total = 0.0
+                for r in cur.fetchall():
+                    notes = r[0] or ''
+                    if 'P&L: ¥' in notes:
+                        try:
+                            total += float(notes.split('P&L: ¥')[1].split(' ')[0])
+                        except (ValueError, IndexError):
+                            pass
+                return total
+            cutoff = self._db_date(today)
+            row = conn.execute("""
+                SELECT MAX(transaction_date) FROM transactions
+                WHERE user_id = 1 AND transaction_type = 'sell'
+                  AND transaction_date < ?
+            """, (cutoff,)).fetchone()
+            if not row or not row[0]:
+                return 0.0
             cur = conn.execute("""
                 SELECT notes FROM transactions
                 WHERE user_id = 1 AND transaction_type = 'sell'
                   AND transaction_date = ?
-            """, (today,))
+            """, (row[0],))
             total = 0.0
-            for row in cur.fetchall():
-                notes = row[0] or ''
+            for r in cur.fetchall():
+                notes = r[0] or ''
                 if 'P&L: ¥' in notes:
                     try:
-                        pnl = float(notes.split('P&L: ¥')[1].split(' ')[0])
-                        total += pnl
+                        total += float(notes.split('P&L: ¥')[1].split(' ')[0])
                     except (ValueError, IndexError):
                         pass
             return total

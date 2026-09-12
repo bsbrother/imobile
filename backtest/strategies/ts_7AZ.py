@@ -92,7 +92,12 @@ C_EPS_GROWTH_THRESHOLD = 0.25    # C: 当季扣非净利润同比增长 ≥ 25%
 A_ROE_THRESHOLD = 0.17           # A: ROE ≥ 17%
 N_52W_HIGH_RATIO = 0.85          # N: 股价距离52周高点 ≥ 85% (15%以内)
 S_MARKET_CAP_MAX = 500e8         # S: 流通市值 ≤ 500亿
-L_RPS_THRESHOLD = 80             # L: RPS(250日) ≥ 80
+# LEVER 3 (env TS7AZ_RPS_MIN): entry RPS gate. Lowering 80 -> 60 admits
+# earlier-stage trends (the RPS≥80 gate is one of the main reasons picks land
+# late in a trend: a stock in the first weeks of a move has a negative 250-day
+# return). Intended to be paired with the V2.1 extension cap, which removes the
+# top-of-range names the looser gate would otherwise let through.
+L_RPS_THRESHOLD = float(os.getenv('TS7AZ_RPS_MIN', '80'))   # L: RPS(250日) ≥ this
 I_TURNOVER_MIN = 0.02            # I: 换手率 2%-15% (proxy for institutional interest)
 I_TURNOVER_MAX = 0.15
 M_MA200_ABOVE = True            # M: 价格 > 200日均线

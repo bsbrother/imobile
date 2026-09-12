@@ -44,7 +44,15 @@ CRASH_THRESHOLD = -8.0
 # ── LHB institutional-flow filter config ─────────────────────────
 LHB_CACHE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
                         'shared', 'data', 'lhb', 'lhb_institutional_2026.csv')
-LHB_LOOKBACK_DAYS = 10     # institutional activity in the prior N calendar days
+LHB_LOOKBACK_DAYS = int(os.getenv('LHB_LOOKBACK', '10'))  # institutional activity in the prior N calendar days
+
+# ── V2.1 LEVER 4: event-anchored LHB (exhaustion-spike rejection) ──────
+# 龙虎榜 is a *disclosure* triggered BY a big move, so an institution can
+# appear on the list precisely at a blow-off top. Require that the stock had
+# NOT already run >= LHB_EXHAUST_RUN5% in the 5 days ending on the 上榜日;
+# such records are exhaustion spikes, not accumulation, and are ignored.
+# 0 = disabled (baseline behaviour).
+LHB_EXHAUST_RUN5 = float(os.getenv('LHB_EXHAUST_RUN5', '0'))
 
 # V2: Regime-adaptive LHB filter thresholds (env-overridable)
 # Rationale: a-stock-data shows northbound/margin flow is DAILY available,
@@ -70,8 +78,84 @@ VOL_BOOST_SCORE       = float(os.getenv('VOL_BOOST_SCORE', '3.0'))     # score i
 # V2: Bear-market position cap (env-overridable)
 BEAR_MAX_POS = int(os.getenv('BEAR_MAX_POS', '8'))  # default 8 (v1 had no cap beyond config)
 
+# ── V2.1 LEVER 1: extension cap (env-gated, default OFF = baseline) ────
+# Evidence (2026-09 backtest analysis, 1351 picks): picks that had ALREADY run
+# >100% in the prior 60 trading days carry a 19.3% chance of -15% within 10
+# days, vs 1.2% for picks that ran <=25% - a 16x tail-risk difference. The
+# median pick is already at the 92nd percentile of its own 52-week range.
+# NOTE: over-extension is MORE common in the winning months (Apr/Jun), so the
+# cap is applied ONLY in the regimes where the tail risk is unaffordable.
+V2_EXT_CAP = os.getenv('V2_EXT_CAP', 'false').lower() in ('true', '1', 'yes')
+V2_EXT_CAP_R60 = float(os.getenv('V2_EXT_CAP_R60', '100.0'))    # trailing 60d %run ceiling
+V2_EXT_CAP_RANGE = float(os.getenv('V2_EXT_CAP_RANGE', '99.5'))  # 52w-range position ceiling
+V2_EXT_CAP_REGIMES = [s.strip().lower() for s in
+                      os.getenv('V2_EXT_CAP_REGIME', 'volatile,bear').split(',') if s.strip()]
+V2_EXT_LOOKBACK = int(os.getenv('V2_EXT_LOOKBACK', '250'))       # 52w window (trading days)
+
+# ── V2.1 LEVER 2: target the 80-99 52w-range band (env-gated, default OFF) ──
+# Forward-return by range position, n=1351: <60 -> +1.6% (50% win),
+# 80-90 -> +5.0%, 90-95 -> +4.6%, 95-99 -> +4.7%, ==100 -> +4.0% (11.6% tail).
+# The mid-high band beats BOTH the low end and the exact-high end.
+V2_RANGE_BAND = os.getenv('V2_RANGE_BAND', 'false').lower() in ('true', '1', 'yes')
+V2_RANGE_BAND_LO = float(os.getenv('V2_RANGE_BAND_LO', '80'))
+V2_RANGE_BAND_HI = float(os.getenv('V2_RANGE_BAND_HI', '99.5'))
+V2_RANGE_BAND_REGIMES = [s.strip().lower() for s in
+                         os.getenv('V2_RANGE_BAND_REGIME', '').split(',') if s.strip()]
+
 _lhb_inst = None                # loaded once
 _volume_cache = {}               # per-date volume data cache
+_metrics_cache = {}              # per-(symbol,date) trend metrics cache
+_run5_cache = {}                 # per-(symbol,date) 5-day run cache
+
+
+def _run5_ending(ts_code: str, yyyymmdd: str):
+    """5-trading-day %return ending ON `yyyymmdd` (inclusive), past data only."""
+    key = (ts_code, yyyymmdd)
+    if key in _run5_cache:
+        return _run5_cache[key]
+    val = None
+    try:
+        start = get_trading_days_before(yyyymmdd, 20)
+        df = data_provider.get_ohlcv_data(ts_code, start, yyyymmdd)
+        if df is not None and len(df) >= 6:
+            df = df.sort_values('trade_date').reset_index(drop=True)
+            df = df[df['trade_date'] <= yyyymmdd]
+            c = [float(x) for x in df['close'].astype(float)]
+            if len(c) >= 6:
+                val = (c[-1] / c[-6] - 1) * 100
+    except Exception:
+        val = None
+    _run5_cache[key] = val
+    return val
+
+
+def _trend_metrics(ts_code: str, ref_date: str):
+    """(trailing_60d_%return, 52w_range_position 0-100) using only data <= ref_date.
+
+    Lookahead-safe: the OHLCV frame is truncated at ref_date before any metric is
+    computed. Returns (None, None) when there is not enough history.
+    """
+    key = (ts_code, ref_date)
+    if key in _metrics_cache:
+        return _metrics_cache[key]
+    out = (None, None)
+    try:
+        start = get_trading_days_before(ref_date, V2_EXT_LOOKBACK + 10)
+        df = data_provider.get_ohlcv_data(ts_code, start, ref_date)
+        if df is not None and len(df) >= 65:
+            df = df.sort_values('trade_date').reset_index(drop=True)
+            df = df[df['trade_date'] <= ref_date]
+            c = [float(x) for x in df['close'].astype(float)]
+            if len(c) >= 65:
+                r60 = (c[-1] / c[-61] - 1) * 100
+                w = c[-V2_EXT_LOOKBACK:] if len(c) >= V2_EXT_LOOKBACK else c
+                hi, lo = max(w), min(w)
+                rng = (c[-1] - lo) / (hi - lo) * 100 if hi > lo else None
+                out = (r60, rng)
+    except Exception:
+        out = (None, None)
+    _metrics_cache[key] = out
+    return out
 
 
 def _load_lhb_inst():
@@ -92,9 +176,15 @@ def _load_lhb_inst():
     return _lhb_inst
 
 
-def _institutional_flow(code6: str, ref_date: str) -> float:
+def _institutional_flow(code6: str, ref_date: str, ts_code: str | None = None) -> float:
     """Sum institutional net-buy (¥) for `code6` with 上榜日 in the prior
-    LHB_LOOKBACK_DAYS before `ref_date`. Past records only -> no lookahead."""
+    LHB_LOOKBACK_DAYS before `ref_date`. Past records only -> no lookahead.
+
+    LEVER 4 (env `LHB_EXHAUST_RUN5`): when set > 0, records whose 上榜日 was
+    itself preceded by a >= that % 5-day run are treated as exhaustion spikes
+    (the institution is on the list *because* the stock already spiked, often
+    distributing) and excluded from the accumulation total.
+    """
     inst = _load_lhb_inst()
     if inst.empty:
         return 0.0
@@ -104,6 +194,17 @@ def _institutional_flow(code6: str, ref_date: str) -> float:
     sub = inst[(inst['代码'] == code6) & (inst['_d'] >= lo) & (inst['_d'] < ref_int)]
     if len(sub) == 0:
         return 0.0
+    if LHB_EXHAUST_RUN5 > 0 and ts_code:
+        keep = []
+        for _, rec in sub.iterrows():
+            rec_date = str(rec['上榜日期']).replace('-', '')
+            r5 = _run5_ending(ts_code, rec_date)
+            if r5 is not None and r5 >= LHB_EXHAUST_RUN5:
+                continue  # exhaustion spike -> ignore this institutional record
+            keep.append(rec['inst_net'])
+        if not keep:
+            return 0.0
+        return float(sum(keep))
     return float(sub['inst_net'].sum())
 
 
@@ -206,9 +307,9 @@ def _apply_flow_filter_v2(df: pd.DataFrame, ref_date: str) -> pd.DataFrame:
     
     rows = []
     for _, row in df.iterrows():
-        ts_code = row['ts_code']
+        ts_code = str(row['ts_code'])
         code6 = str(ts_code).split('.')[0].zfill(6)
-        flow = _institutional_flow(code6, ref_date)
+        flow = _institutional_flow(code6, ref_date, ts_code)
         score = float(row.get('score', 0) or 0)
         
         # LHB institutional flow boost
@@ -216,11 +317,17 @@ def _apply_flow_filter_v2(df: pd.DataFrame, ref_date: str) -> pd.DataFrame:
         
         # V2: Volume-confirmation boost
         vol_boost = _volume_boost(code6, ref_date, ts_code)
+
+        # V2.1: trend-extension metrics (only fetched when a lever needs them)
+        r60, rng_pos = (None, None)
+        if V2_EXT_CAP or V2_RANGE_BAND:
+            r60, rng_pos = _trend_metrics(ts_code, ref_date)
         
         boosted = score + lhb_boost + vol_boost
         rows.append({
             'row': row, 'code6': code6, 'flow': flow,
-            'boosted': boosted, 'lhb_boost': lhb_boost, 'vol_boost': vol_boost
+            'boosted': boosted, 'lhb_boost': lhb_boost, 'vol_boost': vol_boost,
+            'r60': r60, 'rng_pos': rng_pos,
         })
     
     # Screen: regime-adaptive threshold
@@ -231,6 +338,34 @@ def _apply_flow_filter_v2(df: pd.DataFrame, ref_date: str) -> pd.DataFrame:
             f"[ts_7AZ_96MA_flow_v2] regime={regime} screened {screened}/{len(rows)} "
             f"with inst net-SELL < {screen_neg/1e6:.0f}M"
         )
+
+    # ── V2.1 LEVER 1: extension cap (regime-gated) ────────────────────
+    if V2_EXT_CAP and (not V2_EXT_CAP_REGIMES or regime in V2_EXT_CAP_REGIMES):
+        before = len(kept)
+        capped = []
+        for r in kept:
+            if r['r60'] is not None and r['r60'] > V2_EXT_CAP_R60:
+                continue
+            if r['rng_pos'] is not None and r['rng_pos'] >= V2_EXT_CAP_RANGE:
+                continue
+            capped.append(r)
+        kept = capped
+        if before != len(kept):
+            logger.info(
+                f"[ts_7AZ_96MA_flow_v2] LEVER1 extension cap (r60>{V2_EXT_CAP_R60:.0f}% or "
+                f"range>={V2_EXT_CAP_RANGE:.0f}) regime={regime}: {before} -> {len(kept)}"
+            )
+
+    # ── V2.1 LEVER 2: target the 80-99 52w-range band ─────────────────
+    if V2_RANGE_BAND and (not V2_RANGE_BAND_REGIMES or regime in V2_RANGE_BAND_REGIMES):
+        before = len(kept)
+        kept = [r for r in kept if r['rng_pos'] is None
+                or (V2_RANGE_BAND_LO <= r['rng_pos'] < V2_RANGE_BAND_HI)]
+        if before != len(kept):
+            logger.info(
+                f"[ts_7AZ_96MA_flow_v2] LEVER2 range band [{V2_RANGE_BAND_LO:.0f},{V2_RANGE_BAND_HI:.0f}) "
+                f"regime={regime}: {before} -> {len(kept)}"
+            )
     
     # Log volume boosts applied
     vol_boosted = [r for r in kept if r['vol_boost'] > 0]

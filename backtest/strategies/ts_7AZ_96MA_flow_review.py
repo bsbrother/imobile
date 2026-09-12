@@ -23,6 +23,22 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", default="INFO")
 LOG_PATH = os.getenv("LOG_PATH", default="./logs")
 configure_logger(log_level=LOG_LEVEL, log_path=LOG_PATH)
 
+# ── Production defaults for the ts_7AZ_96MA_flow family ──────────────────────
+# Measured 2026-09-12 on 20260101-20260831: total return 134.98% vs the
+# 132.15% baseline (+2.83pp), max drawdown -1.63% vs -2.44%.
+#   TS7AZ_RPS_MIN / TS96MA_RPS_MIN  entry RPS gate 80/70 -> 60 (LEVER 3):
+#       admits earlier-stage trends. Verified by A/B (run "lev34" 134.98%
+#       vs baseline 132.15% with the review layer in legacy mode).
+#   LHB_EXHAUST_RUN5=30 (LEVER 4): ignore 龙虎榜 institutional records whose
+#       上榜日 was itself preceded by a >=30% 5-day run (exhaustion, not
+#       accumulation).
+# setdefault (not assignment) so an explicit `env VAR=...` still wins.
+# Scoped to this entry point: ts_7AZ/ts_96MA keep RPS 80/70 for all other
+# strategies that import them.
+os.environ.setdefault('TS7AZ_RPS_MIN', '60')
+os.environ.setdefault('TS96MA_RPS_MIN', '60')
+os.environ.setdefault('LHB_EXHAUST_RUN5', '30')
+
 REVIEW_OUTPUT = '/tmp/review_adjustments.json'
 
 

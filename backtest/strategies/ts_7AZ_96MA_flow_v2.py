@@ -83,13 +83,19 @@ BEAR_MAX_POS = int(os.getenv('BEAR_MAX_POS', '8'))  # default 8 (v1 had no cap b
 # >100% in the prior 60 trading days carry a 19.3% chance of -15% within 10
 # days, vs 1.2% for picks that ran <=25% - a 16x tail-risk difference. The
 # median pick is already at the 92nd percentile of its own 52-week range.
-# NOTE: over-extension is MORE common in the winning months (Apr/Jun), so the
-# cap is applied ONLY in the regimes where the tail risk is unaffordable.
+# NOTE: over-extension is MORE common in the winning months (Apr/Jun), so a
+# tight cap trades winners for safety. r60>150 is the validated setting: the
+# 114 picks it removes have NEGATIVE mean 10-day forward return (-0.23%), so
+# trimming them deletes losing trades rather than swapping good names for slow
+# ones. Default gate is now ALL regimes (see the firing note at the call site).
 V2_EXT_CAP = os.getenv('V2_EXT_CAP', 'false').lower() in ('true', '1', 'yes')
-V2_EXT_CAP_R60 = float(os.getenv('V2_EXT_CAP_R60', '100.0'))    # trailing 60d %run ceiling
-V2_EXT_CAP_RANGE = float(os.getenv('V2_EXT_CAP_RANGE', '99.5'))  # 52w-range position ceiling
+V2_EXT_CAP_R60 = float(os.getenv('V2_EXT_CAP_R60', '150.0'))   # trailing 60d %run ceiling
+# <=0 disables the 52w-range condition entirely (the validated trim is r60 alone).
+V2_EXT_CAP_RANGE = float(os.getenv('V2_EXT_CAP_RANGE', '0'))   # 52w-range position ceiling
+# Default = ALL regimes. The original 'volatile,bear' gate made the cap a no-op
+# for Jan-Aug 2026 (no VOLATILE days; BEAR days have 0 candidates).
 V2_EXT_CAP_REGIMES = [s.strip().lower() for s in
-                      os.getenv('V2_EXT_CAP_REGIME', 'volatile,bear').split(',') if s.strip()]
+                      os.getenv('V2_EXT_CAP_REGIME', '').split(',') if s.strip()]
 V2_EXT_LOOKBACK = int(os.getenv('V2_EXT_LOOKBACK', '250'))       # 52w window (trading days)
 
 # ── V2.1 LEVER 2: target the 80-99 52w-range band (env-gated, default OFF) ──
@@ -339,21 +345,31 @@ def _apply_flow_filter_v2(df: pd.DataFrame, ref_date: str) -> pd.DataFrame:
             f"with inst net-SELL < {screen_neg/1e6:.0f}M"
         )
 
-    # ── V2.1 LEVER 1: extension cap (regime-gated) ────────────────────
+    # ── V2.1 LEVER 1: extension cap ────────────────────────────────────
+    # NOTE (2026-09-12): the original regime gate (default 'volatile,bear')
+    # made this a NO-OP in the Jan-Aug 2026 backtest - that window contains
+    # only BULL/NORMAL/BEAR, and BEAR days yield 0 candidates, so the cap had
+    # nothing to filter (0 firings across 160 days). Default gate is now ALL
+    # regimes; use V2_EXT_CAP_REGIME to restrict it if ever needed.
+    # `V2_EXT_CAP_RANGE<=0` disables the 52w-range condition; the validated
+    # trim is the trailing-run condition alone (r60>150: removed picks have
+    # mean 10d forward return -0.23%, i.e. negative expectancy).
     if V2_EXT_CAP and (not V2_EXT_CAP_REGIMES or regime in V2_EXT_CAP_REGIMES):
         before = len(kept)
         capped = []
         for r in kept:
             if r['r60'] is not None and r['r60'] > V2_EXT_CAP_R60:
                 continue
-            if r['rng_pos'] is not None and r['rng_pos'] >= V2_EXT_CAP_RANGE:
+            if (V2_EXT_CAP_RANGE > 0 and r['rng_pos'] is not None
+                    and r['rng_pos'] >= V2_EXT_CAP_RANGE):
                 continue
             capped.append(r)
         kept = capped
         if before != len(kept):
+            _rng_note = f" or range>={V2_EXT_CAP_RANGE:.0f}" if V2_EXT_CAP_RANGE > 0 else ""
             logger.info(
-                f"[ts_7AZ_96MA_flow_v2] LEVER1 extension cap (r60>{V2_EXT_CAP_R60:.0f}% or "
-                f"range>={V2_EXT_CAP_RANGE:.0f}) regime={regime}: {before} -> {len(kept)}"
+                f"[ts_7AZ_96MA_flow_v2] LEVER1 extension cap (r60>{V2_EXT_CAP_R60:.0f}%"
+                f"{_rng_note}) regime={regime}: {before} -> {len(kept)}"
             )
 
     # ── V2.1 LEVER 2: target the 80-99 52w-range band ─────────────────

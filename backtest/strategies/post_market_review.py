@@ -251,7 +251,19 @@ class PostMarketReviewer:
         fragmenting = eg['fragmenting']
         avg_hold = eg['avg_hold_days']
 
-        if win_rate <= self.ICE_WIN_RATE or fragmenting:
+        # ── ice trigger ──────────────────────────────────────────────────
+        # `fragmenting` (avg hold < 2 trading days) is the NORMAL state of this
+        # high-turnover momentum book, so on its own it is NOT a bearish signal.
+        # Measured 2026-09-12: as a hard trigger it forced sentiment='ice' on
+        # 90/160 days (56%) and cut 665 position-slots, costing -5.51pp
+        # (134.98% -> 129.47%) — the review was reading its own turnover as
+        # a crash. REVIEW_FRAGMENTING_GATE=true demotes it: turnover only
+        # contributes to `ice` when the realised win rate is ALSO weak.
+        _frag_is_ice = fragmenting
+        if os.getenv('REVIEW_FRAGMENTING_GATE', 'false').lower() in ('true', '1', 'yes'):
+            _frag_is_ice = fragmenting and win_rate <= self.RECOVERY_WIN_RATE
+
+        if win_rate <= self.ICE_WIN_RATE or _frag_is_ice:
             return 'ice'
         elif win_rate <= self.RECOVERY_WIN_RATE:
             if advance > self.ADVANCE_HIGH:

@@ -13,7 +13,20 @@ Key changes and milestones in iMobile development.
 - **Review layer had been inert — two bugs found and fixed behind `REVIEW_DB_FIX` (default false).**
   - `transaction_date` is stored ISO (`2026-08-05T00:00:00`) but queried as `'20260805'` → 0 rows (verified: old 0, ISO 8).
   - Day D's review runs *before* the engine books day D's sells, so `transaction_date = D` can never match; it must read the previous trading day.
-  - `dd_emerg=True` had **never** fired in 2006 review invocations. Enabling the fix activates the ICE escalation and measures **−5.51pp** (134.98% → 129.47%); default false until ICE is recalibrated for a momentum book.
+  - `dd_emerg=True` had **never** fired in 2006 review invocations.
+- **The review overlay is net-negative once functional — STOP TUNING IT.** Three measurements on the same 2026-01→08 window:
+
+  | review config | total | maxDD | July |
+  |---|---|---|---|
+  | inert (shipped, `REVIEW_DB_FIX=false`) | **134.98%** | −1.63% | −0.29% |
+  | fix on, original thresholds | 129.47% | −1.62% | −0.18% |
+  | fix on + `REVIEW_FRAGMENTING_GATE` | 129.47% | −1.62% | — |
+  | fix on + recalibrated thresholds | 107.92% | −3.36% | −1.49% |
+
+  - **Why the original thresholds misfire:** the book's realised win rate on closed sells is min 10% / **median 27%** / max 53% — it *never exceeds 53%*, because TP is 5-10% against SL 1.5-2.5% (low-win-rate/high-payoff). Thresholds of 0.25/0.45/0.60 are written for a *high*-win-rate book, so they fired `ice` on 45% of days and cut positions on 91%.
+  - **`REVIEW_FRAGMENTING_GATE` is inert here.** `fragmenting` (avg hold < 2d) was a hard `ice` trigger, which is wrong for a high-turnover book, but the gated run was byte-identical (129.47%, beta 0.1280, alpha 0.0053, ice 90/160) because no day has fragmenting=True *and* win_rate > 0.45. Kept in code, default false, as documentation.
+  - **The recalibration feedback loop:** shifting thresholds changes sizing → changes the trades taken → changes the realised win rate, so the win-rate distribution is not a fixed calibration target (predicted 8% ice days, observed ~40%). It also lets the review reach `frenzy` and size **up** (`pos=13, hold×1.3, sl×1.5`), which is destructive.
+  - **Conclusion:** the shipped 134.98% depends on the review being effectively dead. Further gains need a **different alpha source**, not another overlay or entry filter.
 - **Open item:** July flips to −0.29% (baseline +0.9%). July's pick churn is only 2 days; the loss came from swapping in 001309.SZ on 20260702 (worst pick in the sample, −58% in 5 days). Recovering the "no negative months" objective is the next task.
 - **Operational:** always `pgrep -af "engine\.py"` before launching a backtest — a hidden in-flight run shares `/tmp/tmp` *and* `shared/db/test_imobile.db`, and a new run's startup wipe destroys its booked trades.
 

@@ -54,6 +54,23 @@ LHB_LOOKBACK_DAYS = int(os.getenv('LHB_LOOKBACK', '10'))  # institutional activi
 # 0 = disabled (baseline behaviour).
 LHB_EXHAUST_RUN5 = float(os.getenv('LHB_EXHAUST_RUN5', '0'))
 
+# ── LEVER C: dragon-list (龙虎榜 detail, ALL seats) net-buy screen ─────
+# The strategy only used the INSTITUTIONAL ledger (机构买入净额, ¥). The detail
+# list adds the all-seats net-buy as a % of market turnover (净买额占总成交比) —
+# conviction intensity rather than absolute size. Measured on the verified run's
+# 1440 picks: the mild-distribution bucket (ratio sum in [-3,0)) is the worst
+# cohort by far (10d fwd -7.03%, 16% win), while accumulation buckets are fine
+# (+4.3% / +7.4%). Screening ratio-sum < LHB_DRAGON_NEG removes ~40 picks whose
+# mean 10d fwd is -2.69%.
+# Screen-ONLY (never re-rank) and no-record = NEUTRAL, per
+# references/lhb-institutional-flow-filter.md: a negative screen is additive,
+# a positive boost re-rank trades winners for slower confirmed names.
+# Unset/'' disables (baseline behaviour).
+LHB_DRAGON_SCREEN = os.getenv('LHB_DRAGON_SCREEN', '').lower() in ('true', '1', 'yes')
+LHB_DRAGON_NEG = float(os.getenv('LHB_DRAGON_NEG', '0'))
+LHB_DRAGON_CACHE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                                'shared', 'data', 'lhb', 'lhb_dragon_2026.csv')
+
 # V2: Regime-adaptive LHB filter thresholds (env-overridable)
 # Rationale: a-stock-data shows northbound/margin flow is DAILY available,
 # so we can be more selective in bear markets where smart-money signals are
@@ -109,9 +126,45 @@ V2_RANGE_BAND_REGIMES = [s.strip().lower() for s in
                          os.getenv('V2_RANGE_BAND_REGIME', '').split(',') if s.strip()]
 
 _lhb_inst = None                # loaded once
+_dragon = None                   # loaded once
 _volume_cache = {}               # per-date volume data cache
 _metrics_cache = {}              # per-(symbol,date) trend metrics cache
 _run5_cache = {}                 # per-(symbol,date) 5-day run cache
+
+
+def _load_dragon():
+    """Load the 龙虎榜 detail list (all seats) — cached, deterministic, offline."""
+    global _dragon
+    if _dragon is not None:
+        return _dragon
+    if not os.path.exists(LHB_DRAGON_CACHE):
+        logger.warning(f"[ts_7AZ_96MA_flow_v2] dragon cache missing at {LHB_DRAGON_CACHE} -> screen disabled")
+        _dragon = pd.DataFrame()
+        return _dragon
+    df = pd.read_csv(LHB_DRAGON_CACHE)
+    df['c6'] = df['代码'].astype(str).str.replace(r'\.0$', '', regex=True).str.zfill(6)
+    df['_d'] = df['上榜日'].astype(str).str.replace('-', '').astype(int)
+    df['nbr'] = pd.to_numeric(df['净买额占总成交比'], errors='coerce').fillna(0.0)
+    _dragon = df
+    logger.info(f"[ts_7AZ_96MA_flow_v2] loaded dragon list: {len(df)} records")
+    return _dragon
+
+
+def _dragon_net_buy_ratio(code6: str, ref_date: str):
+    """Sum 净买额占总成交比 over dragon records in the prior LHB_LOOKBACK_DAYS.
+
+    Returns None when the stock has NO dragon record — neutral, NOT negative
+    (LHB only lists stocks that hit move/turnover thresholds).
+    """
+    d = _load_dragon()
+    if d.empty:
+        return None
+    ref_int = int(convert_trade_date(ref_date))
+    lo = ref_int - LHB_LOOKBACK_DAYS
+    sub = d[(d['c6'] == code6) & (d['_d'] >= lo) & (d['_d'] < ref_int)]
+    if len(sub) == 0:
+        return None
+    return float(sub['nbr'].sum())
 
 
 def _run5_ending(ts_code: str, yyyymmdd: str):
@@ -384,6 +437,22 @@ def _apply_flow_filter_v2(df: pd.DataFrame, ref_date: str) -> pd.DataFrame:
             )
     
     # Log volume boosts applied
+    # ── LEVER C: dragon-list (all-seats) net-buy screen — screen-only ─────
+    if LHB_DRAGON_SCREEN:
+        before = len(kept)
+        _kept_c = []
+        for r in kept:
+            nbr = _dragon_net_buy_ratio(r['code6'], ref_date)
+            if nbr is not None and nbr < LHB_DRAGON_NEG:
+                continue
+            _kept_c.append(r)
+        kept = _kept_c
+        if before != len(kept):
+            logger.info(
+                f"[ts_7AZ_96MA_flow_v2] LEVERC dragon screen (净买占比 sum < {LHB_DRAGON_NEG}): "
+                f"{before} -> {len(kept)}"
+            )
+
     vol_boosted = [r for r in kept if r['vol_boost'] > 0]
     if vol_boosted:
         logger.info(

@@ -2779,11 +2779,20 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
         # Dynamically set MAX_POSITIONS based on market regime (memoized)
         regime_data = _detect_market_regime_cached(this_date)
         regime = regime_data.get('regime', 'normal')
+        # Regime breadth (env-overridable). IMPORTANT: these values are
+        # effectively SUPERSEDED — post_market_review.py computes
+        #     max_positions_override = int(BACKTEST_MAX_POSITIONS * pos_scale)
+        # and engine.py applies it whenever the review file exists (i.e. every
+        # day). So the real breadth knob is BACKTEST_MAX_POSITIONS (default 10),
+        # and every pre-2026-09-13 run ran at 10 * pos_scale regardless of these
+        # regime values. Measured 2026-09-13: raising these to 16/14/10/6 changed
+        # nothing (log showed "positions 14→10"); setting BACKTEST_MAX_POSITIONS=16
+        # produced "positions 12→16" and 135.04% vs 134.98%.
         regime_max_positions = {
-            'bull': 12,
-            'normal': 10,
-            'volatile': 8,
-            'bear': 5
+            'bull': int(os.getenv('MAX_POS_BULL', '12')),
+            'normal': int(os.getenv('MAX_POS_NORMAL', '10')),
+            'volatile': int(os.getenv('MAX_POS_VOLATILE', '8')),
+            'bear': int(os.getenv('MAX_POS_BEAR', '5')),
         }
         global MAX_POSITIONS
         MAX_POSITIONS = regime_max_positions.get(regime, 10)

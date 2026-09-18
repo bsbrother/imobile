@@ -134,11 +134,28 @@ V2_RANGE_BAND_REGIMES = [s.strip().lower() for s in
 # Unlike the four *extension* filters that failed (RPS, 52w-high, trailing run),
 # this measures trend DURATION — the Apr/May/Jun winners were extended but YOUNG
 # (<=40d above MA60), so a duration cap discriminates where extension did not.
+#
+# Per-regime thresholds (2026-09-18): Jan cost (-1.5pp) showed full-reject across
+# bull regimes damages bull-month returns. Now bull uses a generous 200d cap
+# (effectively off), normal keeps 120d, and volatile/bear tighten to 80d — the
+# 41-80d band has the worst SL severity and the highest stop-out rate, and those
+# are exactly the buckets available with fewer candidates in weak regimes.
 # Env-gated, default OFF (baseline unchanged).
 V2_TREND_AGE_CAP = os.getenv('V2_TREND_AGE_CAP', 'false').lower() in ('true', '1', 'yes')
-V2_TREND_AGE_MAX = int(os.getenv('V2_TREND_AGE_MAX', '120'))  # reject picks > N days above MA60
+V2_TREND_AGE_MAX_BULL      = int(os.getenv('V2_TREND_AGE_MAX_BULL', '200'))
+V2_TREND_AGE_MAX_NORMAL    = int(os.getenv('V2_TREND_AGE_MAX_NORMAL', '120'))
+V2_TREND_AGE_MAX_VOLATILE  = int(os.getenv('V2_TREND_AGE_MAX_VOLATILE', '80'))
+V2_TREND_AGE_MAX_BEAR      = int(os.getenv('V2_TREND_AGE_MAX_BEAR', '80'))
 V2_TREND_AGE_REGIMES = [s.strip().lower() for s in
-                        os.getenv('V2_TREND_AGE_REGIME', '').split(',') if s.strip()]
+                        os.getenv('V2_TREND_AGE_REGIME', 'normal,volatile,bear').split(',')
+                        if s.strip()]
+
+_AGE_MAX_FOR_REGIME = {
+    'bull': V2_TREND_AGE_MAX_BULL,
+    'normal': V2_TREND_AGE_MAX_NORMAL,
+    'volatile': V2_TREND_AGE_MAX_VOLATILE,
+    'bear': V2_TREND_AGE_MAX_BEAR,
+}
 
 # ── LEVER: 业绩预告 (forecast) structural gate ──────────────────────────────
 # The article's three-anchor method for reading 业绩预告: (1) range width
@@ -243,19 +260,28 @@ def _load_forecast():
     return _forecast
 
 
-def _forecast_is_bad(code6: str, ref_date: str):
+def _forecast_is_bad(code6: str, ref_date: str, non_recurring_gap: float = 0):
     """Latest 业绩预告 flags for `code6` with ann_date in [ref_date - LOOKBACK, ref_date).
 
     Returns None when no forecast exists (neutral). Returns a dict with range_width
     and forecast type when one exists — the caller gates on fields that are too wide
     or bearish. ann_date-aligned per the article's data-time discipline.
+
+    non_recurring_gap (anchor #3): netprofit_yoy - dt_netprofit_yoy > 30pp means
+    growth is propped up by non-operating income (subsidies, asset sales). Passed
+    from the CANSLIM screener via the df['non_recurring_gap'] column. Zero when
+    unavailable (neutral — fina_indicator might not have returned both values).
     """
     fc = _load_forecast()
     if fc.empty:
         return None
-    ref_int = int(convert_trade_date(ref_date))
-    lo = ref_int - V2_FORECAST_LOOKBACK
-    sub = fc[(fc['code6'] == code6) & (fc['_d'] >= str(lo)) & (fc['_d'] < str(ref_date))]
+    # Proper date arithmetic: ref_date is YYYYMMDD string, LOOKBACK is calendar
+    # days. Convert to datetime to compute the window correctly.
+    from datetime import datetime, timedelta
+    ref_dt = datetime.strptime(str(ref_date), '%Y%m%d')
+    lo_dt = ref_dt - timedelta(days=V2_FORECAST_LOOKBACK)
+    lo_s = lo_dt.strftime('%Y%m%d')
+    sub = fc[(fc['code6'] == code6) & (fc['_d'] >= lo_s) & (fc['_d'] < str(ref_date))]
     if len(sub) == 0:
         return None
     latest = sub.sort_values('_d', ascending=False).iloc[0]
@@ -263,6 +289,7 @@ def _forecast_is_bad(code6: str, ref_date: str):
         range_width=float(latest['range_width']),
         ftype=str(latest.get('type', '')),
         ann_date=str(latest['_d']),
+        non_recurring_gap=non_recurring_gap,
     )
     """Sum 净买额占总成交比 over dragon records in the prior LHB_LOOKBACK_DAYS.
 
@@ -553,18 +580,19 @@ def _apply_flow_filter_v2(df: pd.DataFrame, ref_date: str) -> pd.DataFrame:
     if V2_TREND_AGE_CAP and (not V2_TREND_AGE_REGIMES
                              or regime in V2_TREND_AGE_REGIMES):
         before = len(kept)
+        age_threshold = _AGE_MAX_FOR_REGIME.get(regime, 120)
         _aged = []
         for r in kept:
             ts_code = str(r['row']['ts_code'])
             days, _ = _trend_age(ts_code, ref_date)
-            if days > V2_TREND_AGE_MAX:
+            if days > age_threshold:
                 continue
             _aged.append(r)
         kept = _aged
         if before != len(kept):
             logger.info(
-                f"[ts_7AZ_96MA_flow_v2] TREND-AGE cap (> {V2_TREND_AGE_MAX}d above MA60) "
-                f"regime={regime}: {before} -> {len(kept)}"
+                f"[ts_7AZ_96MA_flow_v2] TREND-AGE cap (> {age_threshold}d above MA60 "
+                f"regime={regime}): {before} -> {len(kept)}"
             )
 
     # ── LEVER: 业绩预告 (forecast) structural gate — screen-only ──────────────
@@ -572,7 +600,8 @@ def _apply_flow_filter_v2(df: pd.DataFrame, ref_date: str) -> pd.DataFrame:
         before = len(kept)
         _fc_kept = []
         for r in kept:
-            fc = _forecast_is_bad(r['code6'], ref_date)
+            ngap = float(r['row'].get('non_recurring_gap', 0) or 0)
+            fc = _forecast_is_bad(r['code6'], ref_date, non_recurring_gap=ngap)
             if fc is None:   # no forecast = neutral
                 _fc_kept.append(r)
                 continue
@@ -580,12 +609,14 @@ def _apply_flow_filter_v2(df: pd.DataFrame, ref_date: str) -> pd.DataFrame:
                 continue
             if fc['range_width'] > V2_FORECAST_RANGE:     # absurdly wide range
                 continue
+            if fc['non_recurring_gap'] > 30:              # anchor #3: non-operating income
+                continue
             _fc_kept.append(r)
         kept = _fc_kept
         if before != len(kept):
             logger.info(
                 f"[ts_7AZ_96MA_flow_v2] FORECAST gate (types={V2_FORECAST_REJECT_TYPES} "
-                f"range>{V2_FORECAST_RANGE:.0f}pp): {before} -> {len(kept)}"
+                f"range>{V2_FORECAST_RANGE:.0f}pp gap>30): {before} -> {len(kept)}"
             )
     
     # Log volume boosts applied

@@ -116,19 +116,24 @@ def compute_rps(stock_data: pd.DataFrame, lookback: int = 250) -> float:
 def fetch_financial_data(ts_code: str) -> dict:
     """
     Fetch financial indicators from Tushare.
-    Returns dict with eps_growth, roe, or None values on failure.
+    Returns dict with eps_growth, roe, netprofit_yoy, dt_netprofit_yoy,
+    or None values on failure.
     """
     try:
         fina = PRO.fina_indicator(ts_code=ts_code, period_type=0)
         if fina.empty:
-            return {'eps_growth': None, 'roe': None}
+            return {'eps_growth': None, 'roe': None,
+                    'netprofit_yoy': None, 'dt_netprofit_yoy': None}
         latest = fina.sort_values('end_date', ascending=False).iloc[0]
         return {
             'eps_growth': latest.get('q_dtprofit_yoy', None),
             'roe': latest.get('roe', None),
+            'netprofit_yoy': latest.get('netprofit_yoy', None),
+            'dt_netprofit_yoy': latest.get('dt_netprofit_yoy', None),
         }
     except Exception:
-        return {'eps_growth': None, 'roe': None}
+        return {'eps_growth': None, 'roe': None,
+                'netprofit_yoy': None, 'dt_netprofit_yoy': None}
 
 
 def get_stock_pool() -> pd.DataFrame:
@@ -298,6 +303,11 @@ def canslim_screener(end_date: str, top_n: int = 50) -> pd.DataFrame:
         fin = fetch_financial_data(ts_code)
         c = fin.get('eps_growth') is not None and fin['eps_growth'] >= C_EPS_GROWTH_THRESHOLD
         a = fin.get('roe') is not None and fin['roe'] >= A_ROE_THRESHOLD
+        # non-recurring items gap (Article anchor #3):
+        #   netprofit_yoy - dt_netprofit_yoy > 30pp = growth propped up
+        #   by subsidies, asset sales, or other non-operating income.
+        npy = fin.get('netprofit_yoy'); dpy = fin.get('dt_netprofit_yoy')
+        non_recurring_gap = (npy - dpy) if (npy is not None and dpy is not None) else 0
         
         results.append({
             'ts_code': ts_code, 'name': row.get('name', ts_code),
@@ -309,6 +319,7 @@ def canslim_screener(end_date: str, top_n: int = 50) -> pd.DataFrame:
             'tech_score': tech_score,
             'c_eps': c, 'a_roe': a,
             'eps_growth': fin.get('eps_growth'), 'roe': fin.get('roe'),
+            'non_recurring_gap': non_recurring_gap,
         })
         
         if (i+1) % 20 == 0:

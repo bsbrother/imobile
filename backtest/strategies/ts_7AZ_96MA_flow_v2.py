@@ -172,6 +172,8 @@ V2_FORECAST_CACHE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname
                                  'shared', 'data', 'forecast_2026.csv')
 V2_FORECAST_REJECT_TYPES = [s.strip() for s in
                             os.getenv('V2_FORECAST_REJECT_TYPES', '首亏,续亏').split(',') if s.strip()]
+V2_FORECAST_NONRECURRING_GAP = int(os.getenv('V2_FORECAST_NONRECURRING_GAP', '30'))
+                                    # non_recurring_gap > N pp → reject (anchor #3)
 
 _lhb_inst = None                # loaded once
 _dragon = None                   # loaded once
@@ -609,7 +611,7 @@ def _apply_flow_filter_v2(df: pd.DataFrame, ref_date: str) -> pd.DataFrame:
                 continue
             if fc['range_width'] > V2_FORECAST_RANGE:     # absurdly wide range
                 continue
-            if fc['non_recurring_gap'] > 30:              # anchor #3: non-operating income
+            if fc['non_recurring_gap'] > V2_FORECAST_NONRECURRING_GAP:  # anchor #3
                 continue
             _fc_kept.append(r)
         kept = _fc_kept

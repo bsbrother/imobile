@@ -618,7 +618,8 @@ def _apply_flow_filter_v2(df: pd.DataFrame, ref_date: str) -> pd.DataFrame:
         if before != len(kept):
             logger.info(
                 f"[ts_7AZ_96MA_flow_v2] FORECAST gate (types={V2_FORECAST_REJECT_TYPES} "
-                f"range>{V2_FORECAST_RANGE:.0f}pp gap>30): {before} -> {len(kept)}"
+                f"range>{V2_FORECAST_RANGE:.0f}pp ngap>{V2_FORECAST_NONRECURRING_GAP}): "
+                f"{before} -> {len(kept)}"
             )
     
     # Log volume boosts applied

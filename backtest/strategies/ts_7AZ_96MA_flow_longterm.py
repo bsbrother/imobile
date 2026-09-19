@@ -18,9 +18,12 @@ Architecture (the article's "third-generation" pattern):
   3. XGBoost/classifier selects — weights perspectives into a final
      signal that is near-uncorrelated with price-volume factors
 
-STATUS: SKELETON — all NLP hooks are placeholders. The strategy imports
-        and runs the base flow filter unchanged (gate OFF by default).
-        Fill in the placeholder functions as the NLP pipeline matures.
+STATUS: Keyword-based NLP hook v1 (2026-09-18) — _forecast_text_analysis is
+        implemented using negative/hazard/hedging keyword detection on the
+        forecast CSV's summary and change_reason fields. No LLM required;
+        follows the article's finding that wording precision (precision →
+        vague = alarming) and explicit red flags (商誉减值 etc.) carry
+        independent predictive signal.
 
 Data sources (per article, in implementation order):
   - 业绩预告 (Tushare forecast endpoint) — structural gate already built
@@ -60,16 +63,56 @@ import pandas as pd
 from backtest.strategies.ts_7AZ_96MA_flow_v2 import (
     _apply_flow_filter_v2,  # base flow filter
     _load_forecast, _forecast_is_bad,
-    V2_FORECAST_GATE,
+    V2_FORECAST_GATE, V2_FORECAST_LOOKBACK,
 )
 
 logger = logging.getLogger(__name__)
 
-# ── NLP Gates (env, all OFF — zero change from base) ───────────────────────
+# ── NLP Gates (env, default ON for text analysis) ──────────────────────────
 NLP_SENTIMENT_GATE = os.getenv('NLP_SENTIMENT_GATE', 'false').lower() in ('true', '1', 'yes')
 NLP_IRM_EVASION_GATE = os.getenv('NLP_IRM_EVASION_GATE', 'false').lower() in ('true', '1', 'yes')
-NLP_FORECAST_TEXT_GATE = os.getenv('NLP_FORECAST_TEXT_GATE', 'false').lower() in ('true', '1', 'yes')
+NLP_FORECAST_TEXT_GATE = os.getenv('NLP_FORECAST_TEXT_GATE', 'true').lower() in ('true', '1', 'yes')
+NLP_FORECAST_TEXT_THRESHOLD = int(os.getenv('NLP_FORECAST_TEXT_THRESHOLD', '2'))
+                                          # reject if yellow+hedge flags >= N
 NLP_MODEL_CACHE_DIR = os.getenv('NLP_MODEL_CACHE_DIR', '')
+
+# ── Keyword sets for forecast text analysis ───────────────────────────────
+# Red flags: any single match → reject (explicit danger signals).
+# Yellow flags: accumulate — operational deterioration indicators.
+# Hedge flags: vague/precision-shift language per the article's finding that
+#   "较大幅度增长" (+70.67%) ≠ "大幅度增长" (+849%) — vaguer = worse.
+TEXT_RED_FLAGS = [
+    '商誉减值',         # goodwill impairment — classic red flag
+    '大幅下降',         # sharp decline
+    '严重亏损',         # severe loss
+    '持续亏损',         # continued losses
+    '退市风险',         # delisting risk
+    '立案调查',         # regulatory investigation
+    '无法表示意见',     # disclaimer of opinion (audit)
+]
+
+TEXT_YELLOW_FLAGS = [
+    '下降',             # decline
+    '减少',             # reduction
+    '下滑',             # slide
+    '压力',             # pressure
+    '亏损',             # loss
+    '不确定性',         # uncertainty
+    '风险',             # risk
+    '减值',             # impairment
+    '非经常性损益',     # non-recurring gains/losses
+    '政府补助',         # government subsidy
+]
+
+TEXT_HEDGE_FLAGS = [
+    '一定幅度',         # vague magnitude
+    '预计将',           # hedging future prediction
+    '尚需',             # still requires
+    '取决于',           # depends on
+    '可能存在',         # may exist
+    '不排除',           # does not rule out
+    '请关注',           # "please pay attention to" — deflection
+]
 
 # TODO: add 互动易 access when credential is obtained (needs Tushare pro
 # permission or direct CNINFO scraping). Placeholder:
@@ -129,35 +172,61 @@ def _irm_evasion(code6: str, ref_date: str) -> Optional[str]:
 
 
 def _forecast_text_analysis(code6: str, ref_date: str) -> Optional[dict]:
-    """Placeholder: 业绩预告 full-text NLP analysis (the article's core pipeline).
-    
-    Uses the forecast endpoint's `summary` and `change_reason` text fields
-    (available in the existing forecast_2026.csv). Follows the article's
-    "third-generation" architecture:
-      1. LLM reads and expands (5 perspectives: title, catalyst, subtext,
-         risks, guidance)
-      2. Fine-tuned small model judges each perspective
-      3. Combines into a signal
-    
-    When implemented, returns:
-      - negative_signal: bool  (True = refuse this pick)
-      - perspectives: list of (label, text) pairs
-      - confidence: 0-1
-    
-    Text fields available:
-      - summary: "业绩预告摘要" (forecast summary — e.g., "预计2026年1-6月
-        归属于上市公司股东的净利润盈利:3,000万元至5,000万元,同比上年增长:50%
-        至80%")
-      - change_reason: "业绩变动原因" (reason for change — qualitative text like
-        "主要系本报告期公司主营业务收入增加,产品结构调整,毛利率提升所致")
+    """Keyword-based 业绩预告 text analysis (v1, 2026-09-18).
+
+    Uses the forecast CSV's `summary` and `change_reason` fields — no LLM,
+    no API calls beyond the already-cached CSV. Follows the article's
+    empirical finding that wording precision carries signal:
+      - "较大幅度增长" (+70.67%) is weaker than "大幅度增长" (+849%)
+      - "商誉减值" in the change_reason is a red flag regardless of type
+      - hedging language ("预计将", "取决于") signals hidden uncertainty
+
+    Returns a dict with flagged keywords, or None if no forecast / no text.
+    The caller rejects when red flags are present or yellow+hedge >= threshold.
     """
     if not NLP_FORECAST_TEXT_GATE:
         return None
-    # TODO: load forecast cache, find matching record for code6+date
-    # TODO: extract summary and change_reason
-    # TODO: LLM expand (5 perspectives) via API call
-    # TODO: small model judge → negative_signal flag
-    return None
+
+    fc = _load_forecast()
+    if fc.empty:
+        return None
+
+    from datetime import datetime, timedelta
+    ref_dt = datetime.strptime(str(ref_date), '%Y%m%d')
+    lo_dt = ref_dt - timedelta(days=V2_FORECAST_LOOKBACK)
+    lo_s = lo_dt.strftime('%Y%m%d')
+
+    sub = fc[(fc['code6'] == code6) & (fc['_d'] >= lo_s) & (fc['_d'] < str(ref_date))]
+    if len(sub) == 0:
+        return None
+
+    latest = sub.sort_values('_d', ascending=False).iloc[0]
+    summary = str(latest.get('summary', '') or '')
+    change_reason = str(latest.get('change_reason', '') or '')
+    text = (summary + ' ' + change_reason).strip()
+
+    if not text:
+        return None
+
+    red_matches = [kw for kw in TEXT_RED_FLAGS if kw in text]
+    yellow_matches = [kw for kw in TEXT_YELLOW_FLAGS if kw in text]
+    hedge_matches = [kw for kw in TEXT_HEDGE_FLAGS if kw in text]
+
+    has_red = len(red_matches) > 0
+    total_flags = len(yellow_matches) + len(hedge_matches)
+    should_reject = has_red or total_flags >= NLP_FORECAST_TEXT_THRESHOLD
+
+    return dict(
+        has_red=has_red,
+        red_matches=red_matches,
+        yellow_matches=yellow_matches,
+        hedge_matches=hedge_matches,
+        total_flags=total_flags,
+        should_reject=should_reject,
+        summary=summary[:200],
+        change_reason=change_reason[:200],
+        ann_date=str(latest['_d']),
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -167,22 +236,49 @@ def _forecast_text_analysis(code6: str, ref_date: str) -> Optional[dict]:
 def apply_longterm_flow_filter(df: pd.DataFrame, date: str) -> pd.DataFrame:
     """NLP-augmented flow filter — wraps base filter + adds NLP hooks.
     
-    Currently behaves IDENTICALLY to _apply_flow_filter_v2 (all NLP gates OFF).
-    When NLP hooks are filled in and env gates enabled, this will:
+    Pipeline:
       1. Run base flow filter (trend-age cap, forecast gate, LHB screens)
-      2. Then apply NLP sentiment checks on surviving picks
+      2. Apply forecast text analysis on surviving picks (keyword-based)
       3. Return the further-filtered DataFrame
+    
+    NLP_FORECAST_TEXT_GATE defaults ON (keyword v1), so this strategy is
+    genuinely different from the base for the same .env config.
     """
     # Step 1: apply base flow filter unchanged
     df = _apply_flow_filter_v2(df, date)
 
-    # Step 2: NLP hooks (all skip when gates are OFF)
-    if not any([NLP_SENTIMENT_GATE, NLP_IRM_EVASION_GATE, NLP_FORECAST_TEXT_GATE]):
-        return df  # fast path — zero overhead
+    # Step 2: forecast text analysis (keyword-based, no LLM)
+    if not NLP_FORECAST_TEXT_GATE or df is None or df.empty:
+        return df
 
-    # TODO: for each surviving pick, run NLP checks and filter
-    # For now, return unchanged
-    return df
+    before = len(df)
+    _kept = []
+    removed = 0
+    for _, row in df.iterrows():
+        code6 = str(row['ts_code']).split('.')[0].zfill(6)
+        result = _forecast_text_analysis(code6, date)
+        if result is None:  # no forecast text → neutral, keep
+            _kept.append(row)
+            continue
+        if result['should_reject']:
+            removed += 1
+            logger.debug(
+                f"[NLP-text] rejected {row['ts_code']} "
+                f"red={result['red_matches']} yellow={result['yellow_matches']} "
+                f"hedge={result['hedge_matches']}"
+            )
+            continue
+        _kept.append(row)
+
+    if removed:
+        logger.info(
+            f"[NLP-text] keyword gate (threshold={NLP_FORECAST_TEXT_THRESHOLD}): "
+            f"{before} -> {len(_kept)} ({removed} removed)"
+        )
+
+    if not _kept:
+        return pd.DataFrame()
+    return pd.DataFrame(_kept).reset_index(drop=True)
 
 
 # ── Direct invocation (for testing / standalone use) ──────────────────────

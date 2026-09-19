@@ -247,6 +247,7 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ', backtest_search: bo
         'ts_7AZ_96MA_flow':  ('backtest/strategies/ts_7AZ_96MA_flow.py', []),
         'ts_7AZ_96MA_flow_v2': ('backtest/strategies/ts_7AZ_96MA_flow_v2.py', []),
         'ts_7AZ_96MA_flow_review': ('backtest/strategies/ts_7AZ_96MA_flow_review.py', []),
+        'ts_7AZ_96MA_flow_review_longterm': ('backtest/strategies/ts_7AZ_96MA_flow_review_longterm.py', []),
         'ts_daily':         ('backtest/strategies/ts_daily.py', []),
         'ts_7AZ':           ('backtest/strategies/ts_7AZ.py', ['ts_7AZ']),
         'ts_7AZ_grok':      ('backtest/strategies/ts_7AZ_grok.py', ['ts_7AZ_grok']),
@@ -2902,7 +2903,7 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
         # The review strategy writes /tmp/review_adjustments.json after daily
         # analysis. Apply sentiment-driven position/hold-day overrides here.
         _review_path = '/tmp/review_adjustments.json'
-        if src == 'ts_7AZ_96MA_flow_review' and os.path.exists(_review_path):
+        if src in ('ts_7AZ_96MA_flow_review', 'ts_7AZ_96MA_flow_review_longterm') and os.path.exists(_review_path):
             try:
                 with open(_review_path) as _rf:
                     _review = json.load(_rf)
@@ -2978,7 +2979,7 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
 
 if __name__ == '__main__':
     _valid_sources = ['ts_go', 'ts_daily',
-                      'ts_longup', 'ts_hma', 'ts_96MA', 'ts_7AZ_96MA', 'ts_7AZ_96MA_flow', 'ts_7AZ_96MA_flow_v2', 'ts_7AZ_96MA_flow_review', 'ts_7AZ', 'ts_7AZ_grok', 'ts_ao_er', 'ts_multi_swing_defensive', 'ts_multi_skills']
+                      'ts_longup', 'ts_hma', 'ts_96MA', 'ts_7AZ_96MA', 'ts_7AZ_96MA_flow', 'ts_7AZ_96MA_flow_v2', 'ts_7AZ_96MA_flow_review', 'ts_7AZ_96MA_flow_review_longterm', 'ts_7AZ', 'ts_7AZ_grok', 'ts_ao_er', 'ts_multi_swing_defensive', 'ts_multi_skills']
 
     parser = argparse.ArgumentParser(
         description='Backtest Trading Script — A-Shares T+1 backtesting engine.\n'

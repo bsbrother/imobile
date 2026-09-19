@@ -71,10 +71,23 @@ from backtest.strategies.ts_7AZ_96MA_flow_v2 import (
 # logs/app.log. The engine runs each strategy as a subprocess with captured
 # stdout/stderr, discarding it on success — stdlib logging would be invisible.
 
-# ── NLP Gates (env, default ON for text analysis) ──────────────────────────
+# ── NLP Gates (env) ────────────────────────────────────────────────────────
+# All OFF by default. NLP_FORECAST_TEXT_GATE failed discrimination — see below.
 NLP_SENTIMENT_GATE = os.getenv('NLP_SENTIMENT_GATE', 'false').lower() in ('true', '1', 'yes')
 NLP_IRM_EVASION_GATE = os.getenv('NLP_IRM_EVASION_GATE', 'false').lower() in ('true', '1', 'yes')
-NLP_FORECAST_TEXT_GATE = os.getenv('NLP_FORECAST_TEXT_GATE', 'true').lower() in ('true', '1', 'yes')
+NLP_FORECAST_TEXT_GATE = os.getenv('NLP_FORECAST_TEXT_GATE', 'false').lower() in ('true', '1', 'yes')
+# ^ DEFAULT OFF (2026-09-19). The v1 keyword gate FAILED its discrimination test:
+#   flagged (would-reject) n=216 mean fwd10 -0.91% (win 40.7%)
+#   unflagged (would-keep) n=166 mean fwd10 -3.35% (win 38.6%)
+#   kept minus rejected = -2.43pp -> anti-predictive, destroys value.
+# Root cause: keyword presence != sentiment polarity. It rejects 扭亏 (mean
+# -0.65%, better than average) at 43% while keeping 略增 (mean -4.27%, worst
+# bucket) at 92%. "商誉减值" in a 扭亏 explanation refers to LAST year's
+# impairment (a positive setup); positive sentences contain "减少" ("成本减少").
+# This reproduces the failure the article warns about (KDD 2025: LLM F1 <0.523
+# vs FinBERT2 0.925) — financial text is context-dependent and keywords cannot
+# resolve it. The informative signal is the forecast TYPE, already used by the
+# base structural gate. Do NOT enable without a real model.
 NLP_FORECAST_TEXT_THRESHOLD = int(os.getenv('NLP_FORECAST_TEXT_THRESHOLD', '2'))
                                           # reject if yellow+hedge flags >= N
 NLP_MODEL_CACHE_DIR = os.getenv('NLP_MODEL_CACHE_DIR', '')

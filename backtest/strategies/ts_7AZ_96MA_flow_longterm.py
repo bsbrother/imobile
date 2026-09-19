@@ -340,7 +340,13 @@ def apply_longterm_flow_filter(df: pd.DataFrame, date: str) -> pd.DataFrame:
     df = _apply_flow_filter_v2(df, date)
 
     # Step 2: forecast text analysis (keyword-based, no LLM)
-    if not NLP_FORECAST_TEXT_GATE or df is None or df.empty:
+    # Early exit only if BOTH text gates are off. (Bug fixed 2026-09-19: this
+    # previously returned early on `not NLP_FORECAST_TEXT_GATE` alone, so the
+    # keyword gate being disabled silently short-circuited the LLM gate below —
+    # the run produced 0 firings and reproduced the baseline exactly.)
+    if df is None or df.empty:
+        return df
+    if not NLP_FORECAST_TEXT_GATE and not NLP_LLM_SCORE_GATE:
         return df
 
     before = len(df)

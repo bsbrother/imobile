@@ -246,6 +246,82 @@ def _forecast_text_analysis(code6: str, ref_date: str) -> Optional[dict]:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# LLM-scored forecast text (the real text model — replaces the keyword gate)
+# ═══════════════════════════════════════════════════════════════════════════
+# Scores are produced offline by utils/score_forecast_text.py and cached to CSV,
+# so the backtest stays deterministic and makes zero API calls.
+#
+# Gate design follows the article's ASYMMETRY finding: negative text predicts
+# future declines, positive text is already priced in. So we reject on negative
+# polarity (never on positive), and optionally on unsustainable one-off drivers.
+# Default OFF — enable only after the discrimination test passes.
+NLP_LLM_SCORE_GATE = os.getenv('NLP_LLM_SCORE_GATE', 'false').lower() in ('true', '1', 'yes')
+NLP_LLM_MIN_CONFIDENCE = float(os.getenv('NLP_LLM_MIN_CONFIDENCE', '0.5'))
+NLP_LLM_REJECT_ONEOFF = os.getenv('NLP_LLM_REJECT_ONEOFF', 'false').lower() in ('true', '1', 'yes')
+NLP_LLM_SUST_MIN = float(os.getenv('NLP_LLM_SUST_MIN', '0.4'))
+NLP_LLM_SCORES_CSV = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    'shared', 'data', 'forecast_scores_llm.csv')
+
+_llm_scores = None
+
+
+def _load_llm_scores():
+    """Load the offline LLM score cache (one-time)."""
+    global _llm_scores
+    if _llm_scores is not None:
+        return _llm_scores
+    if not os.path.exists(NLP_LLM_SCORES_CSV):
+        logger.warning(f"[NLP-llm] score cache missing at {NLP_LLM_SCORES_CSV} -> gate disabled")
+        _llm_scores = pd.DataFrame()
+        return _llm_scores
+    df = pd.read_csv(NLP_LLM_SCORES_CSV)
+    df['code6'] = df['ts_code'].astype(str).str.split('.').str[0].str.zfill(6)
+    df['_d'] = df['ann_date'].astype(str).str.replace('-', '').str.slice(0, 8)
+    _llm_scores = df
+    logger.info(f"[NLP-llm] loaded {len(df)} scored forecast records")
+    return _llm_scores
+
+
+def _llm_score(code6: str, ref_date: str):
+    """Latest LLM judgment for `code6` within the lookback window, or None."""
+    sc = _load_llm_scores()
+    if sc.empty:
+        return None
+    from datetime import datetime, timedelta
+    ref_dt = datetime.strptime(str(ref_date), '%Y%m%d')
+    lo_s = (ref_dt - timedelta(days=V2_FORECAST_LOOKBACK)).strftime('%Y%m%d')
+    sub = sc[(sc['code6'] == code6) & (sc['_d'] >= lo_s) & (sc['_d'] < str(ref_date))]
+    if len(sub) == 0:
+        return None
+    return sub.sort_values('_d', ascending=False).iloc[0].to_dict()
+
+
+def _llm_gate_verdict(score: Optional[dict]) -> tuple:
+    """(should_reject, reason). Asymmetry-aware: only negative polarity rejects."""
+    if score is None:
+        return False, 'no_score'
+    try:
+        conf = float(score.get('confidence', 0) or 0)
+    except (TypeError, ValueError):
+        conf = 0.0
+    if conf < NLP_LLM_MIN_CONFIDENCE:
+        return False, 'low_confidence'
+    pol = str(score.get('polarity', '')).lower()
+    if pol == 'negative':
+        return True, 'negative_polarity'
+    if NLP_LLM_REJECT_ONEOFF:
+        try:
+            sust = float(score.get('sustainability', 1) or 1)
+        except (TypeError, ValueError):
+            sust = 1.0
+        oneoff = str(score.get('oneoff_driver', '')).lower() in ('true', '1')
+        if oneoff and sust < NLP_LLM_SUST_MIN:
+            return True, 'unsustainable_oneoff'
+    return False, 'ok'
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # Main entry point — extends the base flow filter with NLP hooks
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -294,7 +370,30 @@ def apply_longterm_flow_filter(df: pd.DataFrame, date: str) -> pd.DataFrame:
 
     if not _kept:
         return pd.DataFrame()
-    return pd.DataFrame(_kept).reset_index(drop=True)
+    df = pd.DataFrame(_kept).reset_index(drop=True)
+
+    # Step 3: LLM-scored text gate (the real text model, cached offline)
+    # Asymmetry-aware: rejects only NEGATIVE polarity (article's finding that
+    # negative text predicts declines while positive is already priced in).
+    if NLP_LLM_SCORE_GATE and df is not None and not df.empty:
+        before = len(df)
+        _kept2, removed2, reasons = [], 0, {}
+        for _, row in df.iterrows():
+            code6 = str(row['ts_code']).split('.')[0].zfill(6)
+            verdict, reason = _llm_gate_verdict(_llm_score(code6, date))
+            if verdict:
+                removed2 += 1
+                reasons[reason] = reasons.get(reason, 0) + 1
+                continue
+            _kept2.append(row)
+        if removed2:
+            logger.info(
+                f"[NLP-llm] score gate (conf>={NLP_LLM_MIN_CONFIDENCE}): "
+                f"{before} -> {len(_kept2)} ({removed2} removed, {reasons})"
+            )
+        df = pd.DataFrame(_kept2).reset_index(drop=True) if _kept2 else pd.DataFrame()
+
+    return df
 
 
 # ── Direct invocation (for testing / standalone use) ──────────────────────

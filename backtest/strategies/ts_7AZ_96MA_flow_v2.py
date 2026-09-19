@@ -140,8 +140,9 @@ V2_RANGE_BAND_REGIMES = [s.strip().lower() for s in
 # (effectively off), normal keeps 120d, and volatile/bear tighten to 80d — the
 # 41-80d band has the worst SL severity and the highest stop-out rate, and those
 # are exactly the buckets available with fewer candidates in weak regimes.
-# Env-gated, default OFF (baseline unchanged).
-V2_TREND_AGE_CAP = os.getenv('V2_TREND_AGE_CAP', 'false').lower() in ('true', '1', 'yes')
+# DEFAULT ON as of 2026-09-19 — part of the shipped 139.04% config, aligned with
+# .env so a run without .env still reproduces the shipped result.
+V2_TREND_AGE_CAP = os.getenv('V2_TREND_AGE_CAP', 'true').lower() in ('true', '1', 'yes')
 V2_TREND_AGE_MAX_BULL      = int(os.getenv('V2_TREND_AGE_MAX_BULL', '200'))
 V2_TREND_AGE_MAX_NORMAL    = int(os.getenv('V2_TREND_AGE_MAX_NORMAL', '120'))
 V2_TREND_AGE_MAX_VOLATILE  = int(os.getenv('V2_TREND_AGE_MAX_VOLATILE', '80'))
@@ -164,16 +165,20 @@ _AGE_MAX_FOR_REGIME = {
 # fina_indicator, not implemented here). Gate uses the Tushare forecast endpoint
 # (ann_date-aligned per the article's data-time discipline). Pre-fetched once
 # into shared/data/forecast_2026.csv. No-record = neutral (not all stocks issue
-# forecasts). Env-gated, default OFF.
-V2_FORECAST_GATE = os.getenv('V2_FORECAST_GATE', 'false').lower() in ('true', '1', 'yes')
+# forecasts).
+# DEFAULT ON as of 2026-09-19 — part of the shipped 139.04% config.
+V2_FORECAST_GATE = os.getenv('V2_FORECAST_GATE', 'true').lower() in ('true', '1', 'yes')
 V2_FORECAST_RANGE = float(os.getenv('V2_FORECAST_RANGE', '100'))  # pct-pt range width ceiling
 V2_FORECAST_LOOKBACK = int(os.getenv('V2_FORECAST_LOOKBACK', '90'))  # calendar days before ref_date
 V2_FORECAST_CACHE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
                                  'shared', 'data', 'forecast_2026.csv')
 V2_FORECAST_REJECT_TYPES = [s.strip() for s in
                             os.getenv('V2_FORECAST_REJECT_TYPES', '首亏,续亏').split(',') if s.strip()]
-V2_FORECAST_NONRECURRING_GAP = int(os.getenv('V2_FORECAST_NONRECURRING_GAP', '30'))
-                                    # non_recurring_gap > N pp → reject (anchor #3)
+V2_FORECAST_NONRECURRING_GAP = int(os.getenv('V2_FORECAST_NONRECURRING_GAP', '999'))
+# ^ DEFAULT 999 = DISABLED (part of the shipped 139.04% config). Tested 30pp and
+# 60pp: both REGRESSED (136.20% vs 139.04%) — the check removed good picks.
+# A-share companies routinely carry 20-40pp of non-recurring income, so any
+# threshold in that range is too strict. Only re-enable with fresh evidence.
 
 _lhb_inst = None                # loaded once
 _dragon = None                   # loaded once

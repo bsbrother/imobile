@@ -59,6 +59,7 @@ import os
 import logging
 from typing import Optional
 import pandas as pd
+from loguru import logger
 
 from backtest.strategies.ts_7AZ_96MA_flow_v2 import (
     _apply_flow_filter_v2,  # base flow filter
@@ -66,7 +67,9 @@ from backtest.strategies.ts_7AZ_96MA_flow_v2 import (
     V2_FORECAST_GATE, V2_FORECAST_LOOKBACK,
 )
 
-logger = logging.getLogger(__name__)
+# NOTE: logger comes from loguru (imported above) so gate firings land in
+# logs/app.log. The engine runs each strategy as a subprocess with captured
+# stdout/stderr, discarding it on success — stdlib logging would be invisible.
 
 # ── NLP Gates (env, default ON for text analysis) ──────────────────────────
 NLP_SENTIMENT_GATE = os.getenv('NLP_SENTIMENT_GATE', 'false').lower() in ('true', '1', 'yes')

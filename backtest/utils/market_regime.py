@@ -152,7 +152,10 @@ def get_regime_config(regime: MarketRegime, config_manager) -> dict:
     # Apply hold days multiplier from env
     # REVIEW_HOLD_MULT (from ts_7AZ_96MA_flow_review) takes priority
     # over global HOLD_DAYS_MULT. Both multiply the regime's base max_hold_days.
-    _hold_mult = _os.getenv('REVIEW_HOLD_MULT') or _os.getenv('HOLD_DAYS_MULT')
+    # Default 0.5 (aligned to .env): max_hold 7/5/4/2 -> 3/2/2/1. Part of the
+    # shipped 139.04%/137.55% config — without this default a run lacking .env
+    # would silently use the full config.json holds.
+    _hold_mult = _os.getenv('REVIEW_HOLD_MULT') or _os.getenv('HOLD_DAYS_MULT', '0.5')
     if _hold_mult is not None:
         try:
             _mult = float(_hold_mult)

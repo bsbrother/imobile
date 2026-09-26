@@ -944,7 +944,9 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
                     # Increase TP by 10% (let winners run more)
                     profit_price = round(float(profit_price) * 1.10, 2)
                     # Re-pick SL widening (gated by SL_WITH_RE_PICK env var)
-                    _sl_with_repick = os.getenv('SL_WITH_RE_PICK', 'true').lower() in ('true', '1', 'yes')
+                    # Default false = SL frozen (aligned to .env; part of the shipped
+                    # 139.04%/137.55% config). true widens SL 0.5%/re-pick, capped 6%.
+                    _sl_with_repick = os.getenv('SL_WITH_RE_PICK', 'false').lower() in ('true', '1', 'yes')
                     if _sl_with_repick:
                         # Each re-pick drops SL by SL_WIDEN_STEP of entry price (capped at 6%).
                         # Re-picked = CANSLIM confirms quality → give more room.
@@ -959,7 +961,7 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
                             _entry_price = float(_row[0])
                         if _entry_price:
                             _widen_step = float(os.getenv('SL_WIDEN_STEP', '0.005'))
-                            _widen_after = int(os.getenv('SL_WIDEN_AFTER', '0'))
+                            _widen_after = int(os.getenv('SL_WIDEN_AFTER', '2'))
                             _max_sl_pct = 0.06   # cap at 6% below entry
                             _init_sl_pct = regime_data.get('stop_loss_pct', 0.025)
                             # Compute re-picks so far from SL drift

@@ -256,8 +256,8 @@ def _forecast_text_analysis(code6: str, ref_date: str) -> Optional[dict]:
 # polarity (never on positive), and optionally on unsustainable one-off drivers.
 # Default OFF — enable only after the discrimination test passes.
 NLP_LLM_SCORE_GATE = os.getenv('NLP_LLM_SCORE_GATE', 'false').lower() in ('true', '1', 'yes')
-NLP_LLM_MIN_CONFIDENCE = float(os.getenv('NLP_LLM_MIN_CONFIDENCE', '0.5'))
-NLP_LLM_REJECT_ONEOFF = os.getenv('NLP_LLM_REJECT_ONEOFF', 'false').lower() in ('true', '1', 'yes')
+NLP_LLM_MIN_CONFIDENCE = float(os.getenv('NLP_LLM_MIN_CONFIDENCE', '0.7'))
+NLP_LLM_REJECT_ONEOFF = os.getenv('NLP_LLM_REJECT_ONEOFF', 'true').lower() in ('true', '1', 'yes')
 NLP_LLM_SUST_MIN = float(os.getenv('NLP_LLM_SUST_MIN', '0.4'))
 NLP_LLM_SCORES_CSV = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),

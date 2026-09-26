@@ -106,9 +106,11 @@ BEAR_MAX_POS = int(os.getenv('BEAR_MAX_POS', '8'))  # default 8 (v1 had no cap b
 # trimming them deletes losing trades rather than swapping good names for slow
 # ones. Default gate is now ALL regimes (see the firing note at the call site).
 V2_EXT_CAP = os.getenv('V2_EXT_CAP', 'false').lower() in ('true', '1', 'yes')
-V2_EXT_CAP_R60 = float(os.getenv('V2_EXT_CAP_R60', '150.0'))   # trailing 60d %run ceiling
+V2_EXT_CAP_R60 = float(os.getenv('V2_EXT_CAP_R60', '100'))   # trailing 60d %run ceiling
+# ^ Aligned to .env. NOTE: the trim experiment above validated r60>150 (114 picks,
+#   mean fwd -0.23%); .env ships 100. Both are inert while V2_EXT_CAP is false.
 # <=0 disables the 52w-range condition entirely (the validated trim is r60 alone).
-V2_EXT_CAP_RANGE = float(os.getenv('V2_EXT_CAP_RANGE', '0'))   # 52w-range position ceiling
+V2_EXT_CAP_RANGE = float(os.getenv('V2_EXT_CAP_RANGE', '0.95'))   # 52w-range position ceiling
 # Default = ALL regimes. The original 'volatile,bear' gate made the cap a no-op
 # for Jan-Aug 2026 (no VOLATILE days; BEAR days have 0 candidates).
 V2_EXT_CAP_REGIMES = [s.strip().lower() for s in
@@ -121,7 +123,7 @@ V2_EXT_LOOKBACK = int(os.getenv('V2_EXT_LOOKBACK', '250'))       # 52w window (t
 # The mid-high band beats BOTH the low end and the exact-high end.
 V2_RANGE_BAND = os.getenv('V2_RANGE_BAND', 'false').lower() in ('true', '1', 'yes')
 V2_RANGE_BAND_LO = float(os.getenv('V2_RANGE_BAND_LO', '80'))
-V2_RANGE_BAND_HI = float(os.getenv('V2_RANGE_BAND_HI', '99.5'))
+V2_RANGE_BAND_HI = float(os.getenv('V2_RANGE_BAND_HI', '99'))  # aligned to .env (was 99.5)
 V2_RANGE_BAND_REGIMES = [s.strip().lower() for s in
                          os.getenv('V2_RANGE_BAND_REGIME', '').split(',') if s.strip()]
 

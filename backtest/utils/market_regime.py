@@ -120,6 +120,15 @@ def get_regime_config(regime: MarketRegime, config_manager) -> dict:
             'max_hold_days': 7,
             'min_hold_days': 2
         }
+    else:
+        # Copy before mutating. ConfigManager.get() returns the live nested dict
+        # by reference (config.py:58-63), so the in-place writes below would
+        # persist into the manager's cache and make this function
+        # non-idempotent. The multiplicative overrides — HOLD_DAYS_MULT /
+        # REVIEW_HOLD_MULT on max_hold_days, and REVIEW_SL_TIGHT on
+        # stop_loss_pct — would then compound on every call for the same regime.
+        # Observed in a real run: normal max_hold 5 -> 3 -> 2, bull 7 -> 3 -> 1.
+        config = dict(config)
 
     # Override stop_loss_pct from env var if set (for easy SL testing)
     _sl_env = _os.getenv(f'SL_{regime.upper()}')
@@ -170,7 +179,9 @@ def get_regime_config(regime: MarketRegime, config_manager) -> dict:
     filter_path = f'trading_rules.late_trend_filter.{regime}_market'
     filter_config = config_manager.get(filter_path, {})
     if filter_config:
-        config['late_trend_filter'] = filter_config
+        # Copy for the same reason as the regime config above — never hand the
+        # cached dict out (callers may mutate what they receive).
+        config['late_trend_filter'] = dict(filter_config)
 
     # Max open-gap risk cap (skip BUY if the day opens too far above prev close).
     # Mirrors SL_: per-regime default, overridable via MAX_GAP_{REGIME} in .env.

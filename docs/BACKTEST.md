@@ -27,7 +27,7 @@ The entire backtest is orchestrated by `pick_orders_trading()` in `backtest/engi
 ### Phase 0: Initialization
 
 ```
-Entry: pick_orders_trading(start_date, end_date, src='ts_7AZ', ...)
+Entry: pick_orders_trading(start_date, end_date, src='ts_7AZ_96MA_flow_review', ...)
   ├── If is_live=True → switch to production DB (imobile.db) instead of test DB
   ├── If backtest_search=True → discover_working_search_providers()
   ├── Parse and validate date range
@@ -71,7 +71,7 @@ For each trading day in date range:
 ### Phase 2: Stock Picking
 
 ```
-pick_stocks_to_file(this_date, src='ts_7AZ', backtest_search, backtest_ai)
+pick_stocks_to_file(this_date, src='ts_7AZ_96MA_flow_review', backtest_search, backtest_ai)
   │
   ├── [BIAS Filter] Fetch 3 months of SH index data via AKShare
   │     If close is 5%+ above MA60 → filter stocks above MA60 only

@@ -21,11 +21,11 @@ pip install -r requirements.txt
 # 2. Configure environment variables (Tushare token, LLM keys)
 cp .env.example .env
 
-# 3. Run a backtest (Default: ts_7AZ CANSLIM strategy)
+# 3. Run a backtest (Default: ts_7AZ_96MA_flow_review — production)
 python backtest/engine.py 20250101 20250612
 
 # 4. Analyze backtest results
-python backtest/result_backtest.py backtest/results/20250101_20250612_ts_7AZ
+python backtest/result_backtest.py backtest/results/20250101_20250612_ts_7AZ_96MA_flow_review
 
 # 5. Live trading (pre-market phase)
 python trading/runner.py --phase pre-market
@@ -39,7 +39,7 @@ cd web && reflex run
 ## 🌟 Subsystem Features
 
 ### 1. Backtest Engine (`backtest/`)
-- **Regime-Aware CANSLIM Strategy:** `ts_7AZ` screens stocks across 7 dimensions (C-A-N-S-L-I-M) with regime-based risk management.
+- **Regime-Aware CANSLIM Strategy:** `ts_7AZ` screens stocks across 7 dimensions (C-A-N-S-L-I-M) with regime-based risk management. The **production default is `ts_7AZ_96MA_flow_review`** — regime-switch CANSLIM + LHB institutional-flow filter + post-market review overlay (best measured: 139.04% on 20260101-20260831).
 - **Dynamic Risk Management:** Take-profit and stop-loss adjust per regime (Bull 25%/5%, Normal 15%/4%, Volatile 10%/3%, Bear 8%/2%) with trailing SL. ChiNext/STAR (3/688) stocks get boosted TP/SL (35%/15% Bull, 25%/14% Normal) for their 20% daily limit.
 - **Smart Order Generation:** Computes position size, buy price, take-profit, and stop-loss using technical indicators (ATR, Bollinger Bands). Bull regime uses ATR-based gap pricing (`close × (1 + 0.5×ATR/close)`, capped at 7%/13%) to ensure the `股价 ≤ buy_price` trigger fires on gap-up opens.
 - **A-Shares Compliance:** Strictly enforces T+1 settlement, limit-up/limit-down blocking, and realistic fees (Commission + Stamp Duty). *Note: The minimum buy lot size of 200 shares for STAR/ChiNext stocks is currently not enforced in the simulation engine (it uses a 100-shares limit for all A-shares).*
@@ -64,13 +64,20 @@ cd web && reflex run
 
 | Strategy | Type | Description | Best In |
 |----------|------|-------------|---------|
-| `ts_7AZ` | ✦ Default | CANSLIM 7-factor (C-A-N-S-L-I-M) quality screener with regime-based TP/SL | Normal/Moderate |
+| `ts_7AZ_96MA_flow_review` | ✦ Default | Regime-switch CANSLIM + LHB institutional-flow filter + post-market review overlay | Production |
+| `ts_7AZ_96MA_flow_v2` | Technical | Regime-adaptive LHB + volume boost (holds the shipped 139.04% knobs) | Normal/Moderate |
+| `ts_7AZ_96MA_flow` | Technical | v1 of the flow family (base picking) | Normal/Moderate |
+| `ts_7AZ_96MA_flow_review_longterm` | Technical | Review overlay + long-term variant | Extended hold |
+| `ts_7AZ` | Fundamental | CANSLIM 7-factor (C-A-N-S-L-I-M) quality screener with regime-based TP/SL | Normal/Moderate |
 | `ts_7AZ_96MA` | Regime-switch | Uses 96MA trend-pullback in persistent uptrends, else ts_7AZ | Trend extremes |
-| `ts_ao_er` | Technical | AO + ER (Elliott Wave Oscillator divergence detection) | Bear/Volatile |
+| `ts_ao_er` | Technical | AO + ER (Awesome Oscillator divergence detection) | Bear/Volatile |
 | `ts_hma` | Technical | Hull Moving Average + SuperTrend reversal detection | Sharp Bear |
 | `ts_longup` | Technical | ADX trend-following | Strong Bull |
 | `ts_ths_dc` | Technical | Hot-sector channel breakout | Bull/Normal |
 | `ts_daily` | AI | News-driven daily picks (LLM + web search) | Any |
+
+The CLI accepts the 15 sources listed in `engine.py`'s `_valid_sources`; run
+`python backtest/engine.py --help` or see [docs/STRATEGIES.md](docs/STRATEGIES.md) for the full reference.
 
 ---
 

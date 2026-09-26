@@ -54,14 +54,14 @@ Full variable reference: [docs/ENV_VARS.md](docs/ENV_VARS.md)
 ## 3. Run a Backtest
 
 ```bash
-# Quick backtest with default ts_7AZ strategy
+# Quick backtest with the default strategy (ts_7AZ_96MA_flow_review — production)
 backtest-trading run python backtest/engine.py 20260101 20260619
 
 # Fast mode (no AI, no search — ~30x faster; note: flags only affect ts_daily)
 backtest-trading run python backtest/engine.py 20260101 20260619 ts_7AZ --no-search --no-ai
 
 # Analyze results
-backtest-trading run python backtest/result_backtest.py backtest/results/20260101_20260619_ts_7AZ
+backtest-trading run python backtest/result_backtest.py backtest/results/20260101_20260619_ts_7AZ_96MA_flow_review
 ```
 
 ---

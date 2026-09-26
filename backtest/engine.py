@@ -182,7 +182,7 @@ def _run_cli_command(*args: str) -> None:
         )
 
 
-def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ', backtest_search: bool = True, backtest_ai: bool = True) -> str:
+def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ_96MA_flow_review', backtest_search: bool = True, backtest_ai: bool = True) -> str:
     """
     Pick stocks and save to a file for a specific date.
 

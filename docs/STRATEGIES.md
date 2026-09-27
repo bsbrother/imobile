@@ -49,6 +49,24 @@ the same regime — bull `max_hold` went 7 → 3 → 1 across a run. That run wa
 about 1 day while the config claimed 7/5/4/2. Fixed on `fix/regime-config-copy`; the effective
 1-day hold it had been applying accidentally is now explicit and beats it by 18.82pp.
 
+### Strategies measured under this config
+
+| strategy | range | return |
+|---|---|---|
+| `ts_7AZ_96MA_flow_review` (default) | 20260101-20260831 | **157.86%** |
+| `ts_7AZ_96MA_flow_v2` (picking *without* the review overlay) | 20260101-20260831 | 126.02% |
+| `ts_7AZ` (CANSLIM, 6 months) | 20260101-20260619 | 94.84% |
+
+Only the default clears 139%. Two things fall out of this:
+
+- The review overlay is worth **~31.8pp** over the bare v2 picking under this config, which is
+  a reversal of its earlier reputation as net-negative — it had been measured under holds it
+  did not suit.
+- The 1-day cap helped every strategy measured so far (default +19.67pp, `ts_7AZ` +24.25pp), so
+  it reads as a **general lever in this codebase** rather than something specific to the overlay.
+
+All three are fresh full runs with no skips and no `--resume`.
+
 ---
 
 ## Results / Backup Directory Naming

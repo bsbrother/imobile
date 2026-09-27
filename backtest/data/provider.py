@@ -56,8 +56,16 @@ class TushareDataProvider(DataProvider):
         retry=retry_if_exception_type(Exception),
         before_sleep=before_sleep_log(tenacity_logger, logging.INFO)
     )
-    def _ts_call(self, func, **kwargs) -> pd.DataFrame:
-        """Make Tushare API call with automatic retry using tenacity decorator."""
+    def _ts_call(self, func, required_columns: list[str] | None = None, **kwargs) -> pd.DataFrame:
+        """Make Tushare API call with automatic retry using tenacity decorator.
+
+        required_columns -- columns the caller cannot work without. Checking them
+        here, inside the retried call, means a truncated or column-less response
+        gets retried instead of being returned and failing later as a KeyError in
+        an unrelated module. That is exactly how a bad stock_basic response
+        surfaced: `KeyError: 'name'` in ts_ths_dc.no_risky_stocks, by which point
+        _ts_call had already returned a frame and tenacity could no longer help.
+        """
         # Convert date formats from 'yyyy-mm-dd' to 'yyyymmdd' for Tushare API compatibility
         for date_param in ['start_date', 'end_date', 'trade_date']:
             if date_param in kwargs and kwargs[date_param]:
@@ -70,6 +78,14 @@ class TushareDataProvider(DataProvider):
         if df.empty:
             time.sleep(self.rate_limit_delay)
             df = func(**kwargs)
+
+        if required_columns:
+            missing = [c for c in required_columns if c not in df.columns]
+            if df.empty or missing:
+                raise DataProviderError(
+                    f"Tushare returned an unusable frame: {len(df)} rows, "
+                    f"missing required columns {missing}"
+                )
 
         # default trade_date sort is ascending false, not as cache save(start_date to end_date).
         if 'trade_date' in df.columns:
@@ -176,7 +192,27 @@ class TushareDataProvider(DataProvider):
 
 
     def get_basic_information_api(self) -> pd.DataFrame:
-        """Retrieve basic information for all stocks by API"""
+        """Retrieve basic information for all stocks by API (cached 24h, cross-process).
+
+        The endpoint takes no date argument, so every call returns the same
+        current-universe snapshot. The backtest engine runs one strategy
+        subprocess per trading date and this is called in each of them, i.e.
+        ~160 identical full-universe fetches per run.
+
+        The measured cost is only ~1-3s per date against ~23s of other per-date
+        work, so caching buys a few minutes at most. The real win is robustness:
+        each of those ~160 fetches was an independent chance for a transient
+        Tushare failure to abort the whole run, and one did — it killed a 3-hour
+        job at date 47. Caching trades those ~160 chances for one. Shared via the
+        pickle cache (CACHE_PATH) so it is visible across subprocesses.
+        """
+        from .cache import get_global_cache
+
+        cached = get_global_cache().get('stock_basic_all')
+        if isinstance(cached, pd.DataFrame) and not cached.empty:
+            logger.debug(f"Retrieved stock basic information from cache ({len(cached)} rows)")
+            return cached
+
         fields=[
             "ts_code",
             "symbol",
@@ -196,7 +232,12 @@ class TushareDataProvider(DataProvider):
             "delist_date",
             "is_hs"
         ]
-        df = self._ts_call(self.pro.stock_basic, fields=fields)
+        df = self._ts_call(
+            self.pro.stock_basic,
+            required_columns=['ts_code', 'name'],
+            fields=fields,
+        )
+        get_global_cache().set('stock_basic_all', df, ttl=24 * 3600)
         return df
 
 

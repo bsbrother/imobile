@@ -1,19 +1,28 @@
 """
 Characterization / regression test for the ts_7AZ baseline backtest.
 
-This test does NOT re-run the 44-minute backtest. Instead it parses the
-committed period report and asserts the total return stays within a
-tolerance band around the established 70.59% baseline.
+This test does NOT re-run the backtest. Instead it parses the committed
+period report and asserts the total return stays within a tolerance band
+around the established baseline.
 
-The band is intentionally loose (70.4-70.8% with a 65% floor) to avoid
-brittleness from:
+Baseline history:
+  70.59%  measured under max_hold_days 7/5/4/2 (HOLD_DAYS_MULT=0.5)
+  94.84%  measured under max_hold_days 1/1/1/1 (current config)
+
+`trading_rules.risk_reward_ratios` is shared by every strategy, so the 1-day
+cap lifted ts_7AZ too (+24.25pp) — see PR #5. The band stays tight (±0.2%) on
+purpose: that is what catches a semantic change. The 65% floor is only a
+catastrophe guard.
+
+Brittleness the band tolerates:
   - Tushare data drift (minor OHLCV revisions)
   - FP reordering when refactoring engine.py loops (vectorization)
-  - Rounding artifacts (70.59 rounds to 70.60 in the branch name)
 
-To refresh the baseline report after an intentional strategy change:
+To refresh after an intentional strategy change:
   .venv/bin/python backtest/engine.py 20260101 20260619 ts_7AZ --no-search --no-ai
-  # then commit the new report_period_*.md under backtest/results/
+  git add -f backtest/results/20260101_20260619_ts_7AZ/report_period_20260101_20260619.md
+  # `-f` is required: backtest/results/ is gitignored. Without it the report
+  # never lands and this test skips instead of guarding anything.
 """
 
 import re
@@ -29,10 +38,11 @@ REPORT_PATH = (
     / "report_period_20260101_20260619.md"
 )
 
-# Established baseline (committed branch: baseline_returns_ts_7AZ_70.60).
-# Measured value is 70.59% — the branch name rounds to 70.60.
-EXPECTED_RETURN = 70.59
-TOLERANCE_BAND = 0.2       # ±0.2% — accept 70.39 ~ 70.79
+# Baseline re-pinned after the shared max_hold_days change (PR #5).
+# Previous value: 70.59% under holds 7/5/4/2 (branch
+# baseline_returns_ts_7AZ_70.60 — hence the old 70.59 -> 70.60 rounding note).
+EXPECTED_RETURN = 94.84
+TOLERANCE_BAND = 0.2       # ±0.2% — accept 94.64 ~ 95.04
 FLOOR_RETURN = 65.0       # hard floor: anything below 65% is a semantic regression
 
 

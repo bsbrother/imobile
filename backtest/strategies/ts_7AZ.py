@@ -92,7 +92,12 @@ C_EPS_GROWTH_THRESHOLD = 0.25    # C: 当季扣非净利润同比增长 ≥ 25%
 A_ROE_THRESHOLD = 0.17           # A: ROE ≥ 17%
 N_52W_HIGH_RATIO = 0.85          # N: 股价距离52周高点 ≥ 85% (15%以内)
 S_MARKET_CAP_MAX = 500e8         # S: 流通市值 ≤ 500亿
-L_RPS_THRESHOLD = 80             # L: RPS(250日) ≥ 80
+# LEVER 3 (env TS7AZ_RPS_MIN): entry RPS gate. Lowering 80 -> 60 admits
+# earlier-stage trends (the RPS≥80 gate is one of the main reasons picks land
+# late in a trend: a stock in the first weeks of a move has a negative 250-day
+# return). Intended to be paired with the V2.1 extension cap, which removes the
+# top-of-range names the looser gate would otherwise let through.
+L_RPS_THRESHOLD = float(os.getenv('TS7AZ_RPS_MIN', '80'))   # L: RPS(250日) ≥ this
 I_TURNOVER_MIN = 0.02            # I: 换手率 2%-15% (proxy for institutional interest)
 I_TURNOVER_MAX = 0.15
 M_MA200_ABOVE = True            # M: 价格 > 200日均线
@@ -111,19 +116,24 @@ def compute_rps(stock_data: pd.DataFrame, lookback: int = 250) -> float:
 def fetch_financial_data(ts_code: str) -> dict:
     """
     Fetch financial indicators from Tushare.
-    Returns dict with eps_growth, roe, or None values on failure.
+    Returns dict with eps_growth, roe, netprofit_yoy, dt_netprofit_yoy,
+    or None values on failure.
     """
     try:
         fina = PRO.fina_indicator(ts_code=ts_code, period_type=0)
         if fina.empty:
-            return {'eps_growth': None, 'roe': None}
+            return {'eps_growth': None, 'roe': None,
+                    'netprofit_yoy': None, 'dt_netprofit_yoy': None}
         latest = fina.sort_values('end_date', ascending=False).iloc[0]
         return {
             'eps_growth': latest.get('q_dtprofit_yoy', None),
             'roe': latest.get('roe', None),
+            'netprofit_yoy': latest.get('netprofit_yoy', None),
+            'dt_netprofit_yoy': latest.get('dt_netprofit_yoy', None),
         }
     except Exception:
-        return {'eps_growth': None, 'roe': None}
+        return {'eps_growth': None, 'roe': None,
+                'netprofit_yoy': None, 'dt_netprofit_yoy': None}
 
 
 def get_stock_pool() -> pd.DataFrame:
@@ -293,6 +303,11 @@ def canslim_screener(end_date: str, top_n: int = 50) -> pd.DataFrame:
         fin = fetch_financial_data(ts_code)
         c = fin.get('eps_growth') is not None and fin['eps_growth'] >= C_EPS_GROWTH_THRESHOLD
         a = fin.get('roe') is not None and fin['roe'] >= A_ROE_THRESHOLD
+        # non-recurring items gap (Article anchor #3):
+        #   netprofit_yoy - dt_netprofit_yoy > 30pp = growth propped up
+        #   by subsidies, asset sales, or other non-operating income.
+        npy = fin.get('netprofit_yoy'); dpy = fin.get('dt_netprofit_yoy')
+        non_recurring_gap = (npy - dpy) if (npy is not None and dpy is not None) else 0
         
         results.append({
             'ts_code': ts_code, 'name': row.get('name', ts_code),
@@ -304,6 +319,7 @@ def canslim_screener(end_date: str, top_n: int = 50) -> pd.DataFrame:
             'tech_score': tech_score,
             'c_eps': c, 'a_roe': a,
             'eps_growth': fin.get('eps_growth'), 'roe': fin.get('roe'),
+            'non_recurring_gap': non_recurring_gap,
         })
         
         if (i+1) % 20 == 0:

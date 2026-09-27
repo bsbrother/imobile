@@ -16,7 +16,62 @@ Complete reference for all stock-picking strategies in iMobile.
 | `ts_longup` | Technical | No | No | Strong Bull | Fast |
 | `ts_daily` | AI | No | Yes | Any | Slow |
 
-> ⚠ `ts_gb_line` and `ts_combine` exist on disk (`backtest/strategies/`) but are **not registered** in `engine.py`'s dispatch table. They cannot be called via `python backtest/engine.py`. See [Unregistered Strategies](#unregistered-strategies) below.
+> ⚠ `ts_7AZ_96MA_flow_longterm` exists on disk (`backtest/strategies/`) but is **not registered** in `engine.py`'s dispatch table. It cannot be called via `python backtest/engine.py`. See [Unregistered Strategies](#unregistered-strategies) below.
+
+---
+
+## The `ts_7AZ_96MA_flow` Family (Production Default)
+
+`ts_7AZ_96MA_flow_review` is the production strategy and the default `src` for both
+`python backtest/engine.py` (engine.py:3003) and `pick_orders_trading()` (engine.py:2728).
+
+| `src` | File | Role |
+|---|---|---|
+| `ts_7AZ_96MA_flow` | `ts_7AZ_96MA_flow.py` | v1 picking (base) |
+| `ts_7AZ_96MA_flow_v2` | `ts_7AZ_96MA_flow_v2.py` | v2 regime-adaptive LHB + volume boost. **Holds the shipped 157.86% knobs.** |
+| `ts_7AZ_96MA_flow_review` | `ts_7AZ_96MA_flow_review.py` | **DEFAULT.** v2 picking + post-market review overlay. Imports `_regime_96ma`, `_in_crash`, `_apply_flow_filter_v2` from v2. |
+| `ts_7AZ_96MA_flow_review_longterm` | `ts_7AZ_96MA_flow_review_longterm.py` | review overlay + long-term variant |
+| `ts_7AZ_96MA_flow_longterm` | `ts_7AZ_96MA_flow_longterm.py` | On disk but **not registered** — unreachable via the CLI |
+
+**Best measured result: 157.86%** (2026-01-01 → 2026-08-31), with `max_hold_days: 1` for every
+regime in `backtest/config.json`.
+
+| hold setting | result on 20260101-20260831 |
+|---|---|
+| `max_hold_days: 1` (current config) | **157.86%** |
+| intended 7/5/4/2 with `HOLD_DAYS_MULT=0.5` | 138.19% |
+| the old 139.04% run | 139.04% — an artifact, see below |
+
+The 139.04% figure was **not reproducible from the committed config**. `get_regime_config()`
+used to mutate the dict returned by `ConfigManager.get()`, which hands back the live cached
+object rather than a copy, so the multiplicative `HOLD_DAYS_MULT` compounded on every call for
+the same regime — bull `max_hold` went 7 → 3 → 1 across a run. That run was really holding
+about 1 day while the config claimed 7/5/4/2. Fixed on `fix/regime-config-copy`; the effective
+1-day hold it had been applying accidentally is now explicit and beats it by 18.82pp.
+
+---
+
+## Results / Backup Directory Naming
+
+Generated runs live under `backtest/results/` and `backtest/results_backups/`. Both are gitignored —
+they are artifacts, never committed.
+
+A tag in a directory name is **an experiment label, not a strategy.** There is no
+`ts_7AZ_96MA_flow_regime_fcst` strategy; `regime_fcst` records the knob-set that produced that run
+(per-regime trend-age + fixed forecast dates, commit `29eba71`).
+
+Observed layout:
+
+    results/         <start>_<end>_<src>                      e.g. 20260101_20260831_ts_7AZ_96MA_flow_review
+    results_backups/ <start>_<end>_<src>_<tag>_<return>       e.g. 20260101_20260831_ts_7AZ_96MA_flow_review_139.04
+
+Rules:
+
+- `<src>` — the actual `src` value used for the run, so the name always resolves to real code.
+- `<tag>` — OPTIONAL, lowercase experiment label (`regime_fcst`, `trendage_frcst`, `lev34`, …). Omit it
+  for a plain default-config run.
+- `<return>` — total return in percent (`139.04`), matching the `**Total Return**` row of
+  `report_period_*.md`. Keep these two in sync — a dirname that disagrees with its own report is a bug.
 
 ---
 
@@ -162,23 +217,17 @@ When `backtest_ai=false`: redirects to `ts_hma` (HMA+SuperTrend)
 
 These strategy files exist on disk (`backtest/strategies/`) but are **not registered** in `engine.py`'s dispatch table. They cannot be called via `python backtest/engine.py` and are not usable in the backtest pipeline.
 
-### `ts_gb_line` — Golden Cross / Dead Cross
+### `ts_7AZ_96MA_flow_longterm` — Flow + Long-Term Variant
 
-**Type:** Technical crossover  
-**File:** `backtest/strategies/ts_gb_line.py`
+**Type:** Regime-switch + LHB flow  
+**File:** `backtest/strategies/ts_7AZ_96MA_flow_longterm.py`
 
-**How It Works:** Monitors MA crossovers (golden cross = buy, dead cross = sell) with multi-timeframe confirmation and volume filters.
+**How It Works:** The long-term sibling of the `ts_7AZ_96MA_flow` family. Sibling module
+`ts_7AZ_96MA_flow_review_longterm.py` IS registered; this base module is imported by it, which is why
+it stays on disk despite having no dispatch-table entry of its own.
 
-**When To Use:** Trending markets (not sideways). As a supplementary signal for other strategies.
-
-### `ts_combine` — Multi-Strategy Combiner
-
-**Type:** Multi-strategy  
-**File:** `backtest/strategies/ts_combine.py`
-
-**How It Works:** Runs multiple strategies in parallel, merges and deduplicates overlapping picks, allocates capital proportionally.
-
-**When To Use:** Diversification across strategy types. Reducing single-strategy bias. Testing strategy correlation.
+**When To Use:** Extended-hold backtests. Reach it through `ts_7AZ_96MA_flow_review_longterm` rather
+than directly — it has no CLI entry point.
 
 ---
 

@@ -84,7 +84,7 @@ Step 1.2: Fetch App State (unless --dry-run)
 
 Step 1.3: Stock Picking + Order Generation
   │
-  └── pick_orders_trading(start_date, end_date, user_id, src='ts_7AZ',
+  └── pick_orders_trading(start_date, end_date, user_id, src='ts_7AZ_96MA_flow_review',
                           is_live=True, backtest_search=False, backtest_ai=False,
                           app_cash, app_positions, app_running_orders)
         │

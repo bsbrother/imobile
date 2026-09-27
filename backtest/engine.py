@@ -182,7 +182,7 @@ def _run_cli_command(*args: str) -> None:
         )
 
 
-def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ', backtest_search: bool = True, backtest_ai: bool = True) -> str:
+def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ_96MA_flow_review', backtest_search: bool = True, backtest_ai: bool = True) -> str:
     """
     Pick stocks and save to a file for a specific date.
 
@@ -247,6 +247,7 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ', backtest_search: bo
         'ts_7AZ_96MA_flow':  ('backtest/strategies/ts_7AZ_96MA_flow.py', []),
         'ts_7AZ_96MA_flow_v2': ('backtest/strategies/ts_7AZ_96MA_flow_v2.py', []),
         'ts_7AZ_96MA_flow_review': ('backtest/strategies/ts_7AZ_96MA_flow_review.py', []),
+        'ts_7AZ_96MA_flow_review_longterm': ('backtest/strategies/ts_7AZ_96MA_flow_review_longterm.py', []),
         'ts_daily':         ('backtest/strategies/ts_daily.py', []),
         'ts_7AZ':           ('backtest/strategies/ts_7AZ.py', ['ts_7AZ']),
         'ts_7AZ_grok':      ('backtest/strategies/ts_7AZ_grok.py', ['ts_7AZ_grok']),
@@ -943,7 +944,9 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
                     # Increase TP by 10% (let winners run more)
                     profit_price = round(float(profit_price) * 1.10, 2)
                     # Re-pick SL widening (gated by SL_WITH_RE_PICK env var)
-                    _sl_with_repick = os.getenv('SL_WITH_RE_PICK', 'true').lower() in ('true', '1', 'yes')
+                    # Default false = SL frozen (aligned to .env; part of the shipped
+                    # 139.04%/137.55% config). true widens SL 0.5%/re-pick, capped 6%.
+                    _sl_with_repick = os.getenv('SL_WITH_RE_PICK', 'false').lower() in ('true', '1', 'yes')
                     if _sl_with_repick:
                         # Each re-pick drops SL by SL_WIDEN_STEP of entry price (capped at 6%).
                         # Re-picked = CANSLIM confirms quality → give more room.
@@ -958,7 +961,7 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
                             _entry_price = float(_row[0])
                         if _entry_price:
                             _widen_step = float(os.getenv('SL_WIDEN_STEP', '0.005'))
-                            _widen_after = int(os.getenv('SL_WIDEN_AFTER', '0'))
+                            _widen_after = int(os.getenv('SL_WIDEN_AFTER', '2'))
                             _max_sl_pct = 0.06   # cap at 6% below entry
                             _init_sl_pct = regime_data.get('stop_loss_pct', 0.025)
                             # Compute re-picks so far from SL drift
@@ -2779,11 +2782,20 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
         # Dynamically set MAX_POSITIONS based on market regime (memoized)
         regime_data = _detect_market_regime_cached(this_date)
         regime = regime_data.get('regime', 'normal')
+        # Regime breadth (env-overridable). IMPORTANT: these values are
+        # effectively SUPERSEDED — post_market_review.py computes
+        #     max_positions_override = int(BACKTEST_MAX_POSITIONS * pos_scale)
+        # and engine.py applies it whenever the review file exists (i.e. every
+        # day). So the real breadth knob is BACKTEST_MAX_POSITIONS (default 10),
+        # and every pre-2026-09-13 run ran at 10 * pos_scale regardless of these
+        # regime values. Measured 2026-09-13: raising these to 16/14/10/6 changed
+        # nothing (log showed "positions 14→10"); setting BACKTEST_MAX_POSITIONS=16
+        # produced "positions 12→16" and 135.04% vs 134.98%.
         regime_max_positions = {
-            'bull': 12,
-            'normal': 10,
-            'volatile': 8,
-            'bear': 5
+            'bull': int(os.getenv('MAX_POS_BULL', '12')),
+            'normal': int(os.getenv('MAX_POS_NORMAL', '10')),
+            'volatile': int(os.getenv('MAX_POS_VOLATILE', '8')),
+            'bear': int(os.getenv('MAX_POS_BEAR', '5')),
         }
         global MAX_POSITIONS
         MAX_POSITIONS = regime_max_positions.get(regime, 10)
@@ -2893,7 +2905,7 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
         # The review strategy writes /tmp/review_adjustments.json after daily
         # analysis. Apply sentiment-driven position/hold-day overrides here.
         _review_path = '/tmp/review_adjustments.json'
-        if src == 'ts_7AZ_96MA_flow_review' and os.path.exists(_review_path):
+        if src in ('ts_7AZ_96MA_flow_review', 'ts_7AZ_96MA_flow_review_longterm') and os.path.exists(_review_path):
             try:
                 with open(_review_path) as _rf:
                     _review = json.load(_rf)
@@ -2969,7 +2981,7 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
 
 if __name__ == '__main__':
     _valid_sources = ['ts_go', 'ts_daily',
-                      'ts_longup', 'ts_hma', 'ts_96MA', 'ts_7AZ_96MA', 'ts_7AZ_96MA_flow', 'ts_7AZ_96MA_flow_v2', 'ts_7AZ_96MA_flow_review', 'ts_7AZ', 'ts_7AZ_grok', 'ts_ao_er', 'ts_multi_swing_defensive', 'ts_multi_skills']
+                      'ts_longup', 'ts_hma', 'ts_96MA', 'ts_7AZ_96MA', 'ts_7AZ_96MA_flow', 'ts_7AZ_96MA_flow_v2', 'ts_7AZ_96MA_flow_review', 'ts_7AZ_96MA_flow_review_longterm', 'ts_7AZ', 'ts_7AZ_grok', 'ts_ao_er', 'ts_multi_swing_defensive', 'ts_multi_skills']
 
     parser = argparse.ArgumentParser(
         description='Backtest Trading Script — A-Shares T+1 backtesting engine.\n'
@@ -3023,6 +3035,23 @@ Examples:
           f"resume={resume}, backtest_search={backtest_search}, backtest_ai={backtest_ai}")
     REPORT_PATH = os.path.join(REPORT_PATH, f'{start_date}_{end_date}_{src}')
     os.makedirs(REPORT_PATH, exist_ok=True)
+    # Cross-run review state must not leak into a fresh run.
+    # /tmp/review_adjustments.json persists between runs, and the day-1 engine
+    # loop reads it BEFORE the strategy writes a fresh one — so a new backtest
+    # inherited the PREVIOUS run's ending sentiment (e.g. max_positions_override
+    # =7, sl_tightness 0.6) for its first day, silently changing day-1 sizing and
+    # compounding into a different total. Two identically-configured runs
+    # therefore diverged depending on whatever ran before them. Deleting it here
+    # makes day 1 start from the strategy's own fresh (no-history) assessment.
+    # Not deleted on --resume: a resumed run should keep its own last state.
+    if not resume:
+        _stale_review = '/tmp/review_adjustments.json'
+        if os.path.exists(_stale_review):
+            try:
+                os.unlink(_stale_review)
+                logger.info(f"Removed stale {_stale_review} (cross-run review-state cleanup).")
+            except OSError as _e_stale:
+                logger.warning(f"Could not remove {_stale_review}: {_e_stale}")
     # Set env for post_market_review._advance_rate() — prevents picking up
     # stale pick_stocks files from other backtest runs (causes non-reproducible
     # sentiment drift across runs with different end dates).

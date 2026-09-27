@@ -28,13 +28,26 @@ Complete reference for all stock-picking strategies in iMobile.
 | `src` | File | Role |
 |---|---|---|
 | `ts_7AZ_96MA_flow` | `ts_7AZ_96MA_flow.py` | v1 picking (base) |
-| `ts_7AZ_96MA_flow_v2` | `ts_7AZ_96MA_flow_v2.py` | v2 regime-adaptive LHB + volume boost. **Holds the shipped 139.04% knobs.** |
+| `ts_7AZ_96MA_flow_v2` | `ts_7AZ_96MA_flow_v2.py` | v2 regime-adaptive LHB + volume boost. **Holds the shipped 157.86% knobs.** |
 | `ts_7AZ_96MA_flow_review` | `ts_7AZ_96MA_flow_review.py` | **DEFAULT.** v2 picking + post-market review overlay. Imports `_regime_96ma`, `_in_crash`, `_apply_flow_filter_v2` from v2. |
 | `ts_7AZ_96MA_flow_review_longterm` | `ts_7AZ_96MA_flow_review_longterm.py` | review overlay + long-term variant |
 | `ts_7AZ_96MA_flow_longterm` | `ts_7AZ_96MA_flow_longterm.py` | On disk but **not registered** — unreachable via the CLI |
 
-**Best measured result: 139.04%** (2026-01-01 → 2026-08-31). That config is the current code
-default (commit `c94fd1e`). Any backup directory whose report shows 139.04% is the same config.
+**Best measured result: 157.86%** (2026-01-01 → 2026-08-31), with `max_hold_days: 1` for every
+regime in `backtest/config.json`.
+
+| hold setting | result on 20260101-20260831 |
+|---|---|
+| `max_hold_days: 1` (current config) | **157.86%** |
+| intended 7/5/4/2 with `HOLD_DAYS_MULT=0.5` | 138.19% |
+| the old 139.04% run | 139.04% — an artifact, see below |
+
+The 139.04% figure was **not reproducible from the committed config**. `get_regime_config()`
+used to mutate the dict returned by `ConfigManager.get()`, which hands back the live cached
+object rather than a copy, so the multiplicative `HOLD_DAYS_MULT` compounded on every call for
+the same regime — bull `max_hold` went 7 → 3 → 1 across a run. That run was really holding
+about 1 day while the config claimed 7/5/4/2. Fixed on `fix/regime-config-copy`; the effective
+1-day hold it had been applying accidentally is now explicit and beats it by 18.82pp.
 
 ---
 

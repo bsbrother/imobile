@@ -15,18 +15,52 @@ regime occurs, i.e. on the date range — which breaks run-to-run
 reproducibility.
 """
 
+import json
+
 import pytest
 
 from backtest.utils.market_regime import get_regime_config
 from backtest.utils.config import ConfigManager
 
-CONFIG_FILE = "backtest/config.json"
 REGIMES = ("bull", "normal", "volatile", "bear")
 
 
 @pytest.fixture
-def cm():
-    return ConfigManager(config_file=CONFIG_FILE)
+def cm(tmp_path):
+    """A config with known hold values, decoupled from the shipped config.json.
+
+    Deliberately synthetic: the real config's `max_hold_days` is a tuning knob
+    (currently pinned to 1 for every regime, to reproduce the best measured
+    result), and these tests are about the copy/compounding behaviour rather
+    than those values. Reading the shipped file made them break whenever it
+    was retuned for a backtest.
+    """
+    cfg = {
+        "trading_rules": {
+            "risk_reward_ratios": {
+                f"{regime}_market": {
+                    "take_profit_pct": 2.0,
+                    "stop_loss_pct": 0.05,
+                    "trailing_stop_enabled": True,
+                    "max_hold_days": 7,       # > 1 so the multiplier stays observable
+                    "min_hold_days": 1,
+                    "max_open_gap_pct": 0.05,
+                }
+                for regime in REGIMES
+            },
+            "late_trend_filter": {
+                "bull_market": {
+                    "ma_threshold": 1.6,
+                    "short_gain_threshold": 0.6,
+                    "mid_gain_threshold": 1.0,
+                    "volume_multiplier": 5.0,
+                }
+            },
+        }
+    }
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps(cfg), encoding="utf-8")
+    return ConfigManager(config_file=str(path))
 
 
 @pytest.mark.parametrize("regime", REGIMES)

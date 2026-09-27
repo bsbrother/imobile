@@ -39,7 +39,7 @@ cd web && reflex run
 ## 🌟 Subsystem Features
 
 ### 1. Backtest Engine (`backtest/`)
-- **Regime-Aware CANSLIM Strategy:** `ts_7AZ` screens stocks across 7 dimensions (C-A-N-S-L-I-M) with regime-based risk management. The **production default is `ts_7AZ_96MA_flow_review`** — regime-switch CANSLIM + LHB institutional-flow filter + post-market review overlay (best measured: 139.04% on 20260101-20260831).
+- **Regime-Aware CANSLIM Strategy:** `ts_7AZ` screens stocks across 7 dimensions (C-A-N-S-L-I-M) with regime-based risk management. The **production default is `ts_7AZ_96MA_flow_review`** — regime-switch CANSLIM + LHB institutional-flow filter + post-market review overlay (best measured: 157.86% on 20260101-20260831).
 - **Dynamic Risk Management:** Take-profit and stop-loss adjust per regime (Bull 25%/5%, Normal 15%/4%, Volatile 10%/3%, Bear 8%/2%) with trailing SL. ChiNext/STAR (3/688) stocks get boosted TP/SL (35%/15% Bull, 25%/14% Normal) for their 20% daily limit.
 - **Smart Order Generation:** Computes position size, buy price, take-profit, and stop-loss using technical indicators (ATR, Bollinger Bands). Bull regime uses ATR-based gap pricing (`close × (1 + 0.5×ATR/close)`, capped at 7%/13%) to ensure the `股价 ≤ buy_price` trigger fires on gap-up opens.
 - **A-Shares Compliance:** Strictly enforces T+1 settlement, limit-up/limit-down blocking, and realistic fees (Commission + Stamp Duty). *Note: The minimum buy lot size of 200 shares for STAR/ChiNext stocks is currently not enforced in the simulation engine (it uses a 100-shares limit for all A-shares).*
@@ -65,7 +65,7 @@ cd web && reflex run
 | Strategy | Type | Description | Best In |
 |----------|------|-------------|---------|
 | `ts_7AZ_96MA_flow_review` | ✦ Default | Regime-switch CANSLIM + LHB institutional-flow filter + post-market review overlay | Production |
-| `ts_7AZ_96MA_flow_v2` | Technical | Regime-adaptive LHB + volume boost (holds the shipped 139.04% knobs) | Normal/Moderate |
+| `ts_7AZ_96MA_flow_v2` | Technical | Regime-adaptive LHB + volume boost (holds the shipped 157.86% knobs) | Normal/Moderate |
 | `ts_7AZ_96MA_flow` | Technical | v1 of the flow family (base picking) | Normal/Moderate |
 | `ts_7AZ_96MA_flow_review_longterm` | Technical | Review overlay + long-term variant | Extended hold |
 | `ts_7AZ` | Fundamental | CANSLIM 7-factor (C-A-N-S-L-I-M) quality screener with regime-based TP/SL | Normal/Moderate |

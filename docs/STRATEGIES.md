@@ -67,6 +67,29 @@ Only the default clears 139%. Two things fall out of this:
 
 All three are fresh full runs with no skips and no `--resume`.
 
+### Out-of-sample check: 2025
+
+The 1-day cap was validated on a second, never-before-run range (2025 full year), with
+`config@03abc86` (holds 7/5/4/2) as the control. Those two configs differ **only** in the four
+`max_hold_days` values, so the holds are the sole variable in the comparison.
+
+| | 1-day cap | 7/5/4/2 |
+|---|---|---|
+| 2025 total return | **102.66%** | 83.67% |
+| final NAV | ¥1,215,987.76 | ¥1,102,008.65 |
+| transactions | 2849 | 2582 |
+| deepest NAV drawdown | -5.35% | -4.76% |
+
+**+18.99pp** on 2025 against **+19.67pp** on 2026 — the same lever, two independent years, near
+identical magnitude. It won 9 of 12 months and its three losing months were small (-2.06pp,
+-0.46pp, -1.85pp).
+
+Both legs: 243 trading days each, fresh runs, no skips, no `--resume`, zero errors, and
+`config.json` restored afterwards.
+
+It is not free: the drawdown is ~0.6pp deeper (-5.35% vs -4.76%). Faster rotation buys a lot
+more return for a little more risk — worth remembering before sizing real capital on it.
+
 ---
 
 ## Results / Backup Directory Naming

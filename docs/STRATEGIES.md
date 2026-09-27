@@ -117,7 +117,9 @@ Rules:
 
 ### Best Backtest Result
 
-**107.31%** (2026-01-01 to 2026-08-07, ts_7AZ_96MA_flow, open-fill)  
+**107.31%** (2026-01-01 to 2026-08-07, `ts_7AZ_96MA_flow`, open-fill) — **historical**.
+Superseded by the default strategy's 157.86% (see "Best measured result" above). Kept as the
+record of the open-fill validation experiment, which is what selected `BUY_OPEN_PRICE=true`.
 Config: `HOLD_DAYS_MULT=1.0`, `BUY_OPEN_PRICE=true`, `SL_WITH_RE_PICK=false`
 
 ### When To Use

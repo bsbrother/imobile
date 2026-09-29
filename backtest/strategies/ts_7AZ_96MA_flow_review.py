@@ -124,6 +124,14 @@ if __name__ == "__main__":
 
     df = _apply_flow_filter_v2(df, date)
 
+    # ── Step 1b: optional M3 leader re-rank (env-gated, default OFF) ──
+    # Reorders the pool by demand-side leadership read from the CLOSED session
+    # (`date` = target_date - 1), never from target_date. Off by default so the
+    # 157.52% baseline stays reproducible.
+    if date and os.getenv('REVIEW_M3_LEADER', 'false').lower() in ('1', 'true', 'yes'):
+        from backtest.strategies.m3_leader_filter import apply_m3_leader_rerank
+        df = apply_m3_leader_rerank(df, date)
+
     # ── Step 2: Write picks to /tmp/tmp (engine copies to results/) ──
     _write_output(df)
 

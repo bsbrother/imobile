@@ -8,10 +8,11 @@ asserts on an error would spend ~5 backoff rounds proving it).
 
 from types import SimpleNamespace
 
+import akshare as ak
 import pandas as pd
 import pytest
 
-from backtest.data.provider import TushareDataProvider, _is_retryable
+from backtest.data.provider import AkshareDataProvider, TushareDataProvider, _is_retryable
 from backtest.utils.exceptions import DataProviderError
 from backtest.utils.leader_rank import LimitUpCountError, rank_leaders_no_limit_up
 
@@ -353,3 +354,152 @@ def test_empty_input_returns_an_empty_ranking():
 def test_ranking_requires_a_ts_code_column():
     with pytest.raises(ValueError, match="ts_code"):
         rank_leaders_no_limit_up(pd.DataFrame({"something": [1, 2]}))
+
+
+# ================================================== M1/M2 via akshare ========
+
+@pytest.fixture
+def ak_provider():
+    """AkshareDataProvider with no real cache and no live network."""
+    p = object.__new__(AkshareDataProvider)
+    p.rate_limit_delay = 0
+    p.cache = _MemoryCache()  # type: ignore[assignment]
+    return p
+
+
+def _sina_minutes() -> pd.DataFrame:
+    """Shape returned by ak.stock_zh_a_minute: `day`, oldest first."""
+    return pd.DataFrame({
+        "day": [
+            "2026-09-28 14:29:00", "2026-09-28 14:30:00", "2026-09-28 14:45:00",
+            "2026-09-28 15:00:00", "2026-09-29 14:30:00", "2026-09-29 14:31:00",
+        ],
+        "open": [9.0, 9.1, 9.2, 9.3, 9.4, 9.5],
+        "high": [9.0, 9.1, 9.2, 9.3, 9.4, 9.5],
+        "low": [9.0, 9.1, 9.2, 9.3, 9.4, 9.5],
+        "close": [9.0, 9.1, 9.2, 9.3, 9.4, 9.5],
+        "volume": [1, 2, 3, 4, 5, 6],
+    })
+
+
+def _tencent_ticks() -> pd.DataFrame:
+    """Shape returned by ak.stock_zh_a_tick_tx_js -- note row 0 is the 09:25 auction."""
+    return pd.DataFrame({
+        "成交时间": ["09:25:00", "09:30:00", "09:30:03"],
+        "成交价格": [9.15, 9.15, 9.16],
+        "价格变动": [-0.02, 0.0, 0.01],
+        "成交量": [2142, 794, 2517],
+        "成交金额": [1959930, 727216, 2303724],
+        "性质": ["卖盘", "买盘", "买盘"],
+    })
+
+
+def test_ak_prefixed_symbol_mapping():
+    assert AkshareDataProvider._ts_to_ak_prefixed("600519.SH") == "sh600519"
+    assert AkshareDataProvider._ts_to_ak_prefixed("000001.SZ") == "sz000001"
+    assert AkshareDataProvider._ts_to_ak_prefixed("600519") == "sh600519"
+
+
+def test_ak_intraday_filters_window_sorts_and_tags(ak_provider, monkeypatch):
+    monkeypatch.setattr(ak_provider, "_ak_call", lambda func, **kw: _sina_minutes())
+    out = ak_provider.get_intraday_bars("600000", start_time="14:30", end_time="15:00")
+
+    assert list(out["trade_time"]) == [
+        "2026-09-28 14:30:00", "2026-09-28 14:45:00", "2026-09-28 15:00:00",
+        "2026-09-29 14:30:00", "2026-09-29 14:31:00",
+    ], "14:29 must be excluded and the series must be oldest-first"
+    assert list(out["ts_code"].unique()) == ["600000.SH"]
+    assert list(out.columns) == [
+        "ts_code", "trade_time", "open", "high", "low", "close", "volume",
+    ]
+
+
+def test_ak_intraday_trade_date_filter(ak_provider, monkeypatch):
+    monkeypatch.setattr(ak_provider, "_ak_call", lambda func, **kw: _sina_minutes())
+    out = ak_provider.get_intraday_bars("600000", trade_date="20260928")
+    assert set(out["trade_time"].str.slice(0, 10)) == {"2026-09-28"}
+    assert len(out) == 3
+
+
+def test_ak_intraday_rejects_unknown_period(ak_provider):
+    with pytest.raises(DataProviderError, match="Unsupported intraday period"):
+        ak_provider.get_intraday_bars("600000", period="7")
+
+
+def test_ak_auction_uses_tencent_print_when_no_proxy(ak_provider, monkeypatch):
+    """The 09:25 print IS the auction result, and it must be flagged latest-day-only."""
+    monkeypatch.delenv("HTTPS_PROXY", raising=False)
+    monkeypatch.delenv("https_proxy", raising=False)
+    monkeypatch.delenv("HTTP_PROXY", raising=False)
+    monkeypatch.delenv("http_proxy", raising=False)
+    monkeypatch.setattr(ak_provider, "_ak_call", lambda func, **kw: _tencent_ticks())
+
+    out = ak_provider.get_auction_data("600000")
+    row = out.iloc[0]
+
+    assert row["source"] == "tencent_tick"
+    assert row["auction_time"] == "09:25:00"
+    assert row["auction_price"] == 9.15
+    assert row["auction_volume"] == 2142
+    assert row["auction_amount"] == 1959930
+    assert bool(row["is_latest_only"]) is True
+
+
+def test_ak_auction_prefers_eastmoney_when_a_proxy_is_set(ak_provider, monkeypatch):
+    """EastMoney is the only historical 09:15-09:25 source, so a proxy must switch to it."""
+    monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:60001")
+    em_frame = pd.DataFrame({
+        "时间": ["09:15", "09:25"],
+        "最新价": [9.10, 9.15],
+        "成交量": [1000, 2142],
+        "成交额": [910000, 1959930],
+    })
+
+    def dispatch(func, **kwargs):
+        if func is ak.stock_zh_a_hist_pre_min_em:
+            return em_frame
+        raise AssertionError(f"unexpected source with a proxy set: {func}")
+
+    monkeypatch.setattr(ak_provider, "_ak_call", dispatch)
+    out = ak_provider.get_auction_data("600000", trade_date="20260928")
+    row = out.iloc[0]
+
+    assert row["source"] == "eastmoney_pre_min"
+    assert row["auction_price"] == 9.15, "the 09:25 bar is the auction result, not 09:15"
+    assert bool(row["is_latest_only"]) is False
+
+
+def test_ak_auction_falls_back_to_tencent_when_eastmoney_fails(ak_provider, monkeypatch):
+    """A configured proxy that EastMoney still refuses must degrade, not explode."""
+    monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:60001")
+
+    def dispatch(func, **kwargs):
+        if func is ak.stock_zh_a_hist_pre_min_em:
+            raise ConnectionError("RemoteDisconnected")
+        return _tencent_ticks()
+
+    monkeypatch.setattr(ak_provider, "_ak_call", dispatch)
+    out = ak_provider.get_auction_data("600000")
+    assert out.iloc[0]["source"] == "tencent_tick"
+
+
+def test_ak_auction_raises_when_every_source_fails(ak_provider, monkeypatch):
+    def boom(func, **kwargs):
+        raise ConnectionError("RemoteDisconnected")
+
+    monkeypatch.setattr(ak_provider, "_ak_call", boom)
+    with pytest.raises(DataProviderError, match="auction data unavailable"):
+        ak_provider.get_auction_data("600000")
+
+
+def test_ak_intraday_is_cached(ak_provider, monkeypatch):
+    calls = []
+
+    def fake(func, **kwargs):
+        calls.append(kwargs)
+        return _sina_minutes()
+
+    monkeypatch.setattr(ak_provider, "_ak_call", fake)
+    ak_provider.get_intraday_bars("600000")
+    ak_provider.get_intraday_bars("600000")
+    assert len(calls) == 1, "repeat call re-fetched instead of using the cache"

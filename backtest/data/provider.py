@@ -5,6 +5,7 @@ import time
 from tqdm import tqdm
 from typing import List, Optional, Dict, Any, Union
 import json
+import os
 import pandas as pd
 
 import tushare as ts
@@ -988,6 +989,214 @@ class AkshareDataProvider(DataProvider):
         if df.empty:
             time.sleep(self.rate_limit_delay)
             df = func(**kwargs)
+        return df
+
+    # ------------------------------------------------------------------
+    # M1 / M2 — real auction and intraday data, via akshare
+    #
+    # Measured on this host: EastMoney refuses every endpoint outright
+    # (`stock_zh_a_hist_min_em`, `stock_zh_a_hist_pre_min_em` and
+    # `stock_zh_a_spot_em` all die with RemoteDisconnected), while Sina and Tencent
+    # answer normally. Each source below is therefore documented with what it can
+    # and cannot serve here, and the EastMoney branches are only attempted when an
+    # HTTP(S) proxy is exported.
+    # ------------------------------------------------------------------
+
+    # EastMoney's pre-market headers are matched by alias rather than assumed:
+    # that branch cannot be exercised from a host EastMoney refuses, and guessing
+    # exact column names is the kind of untested assumption that only fails later.
+    _EM_AUCTION_ALIASES = {
+        "时间": "auction_time",
+        "开盘": "auction_price",
+        "收盘": "auction_price",
+        "最新价": "auction_price",
+        "成交量": "auction_volume",
+        "成交额": "auction_amount",
+    }
+
+    @staticmethod
+    def _proxy_configured() -> bool:
+        """Whether an HTTP(S) proxy is exported.
+
+        EastMoney closes the connection on this host without one, so this decides
+        whether its sources are worth attempting at all.
+        """
+        return any(
+            os.environ.get(key)
+            for key in ("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy")
+        )
+
+    @staticmethod
+    def _ts_to_ak_prefixed(ts_code: str) -> str:
+        """'600519.SH' -> 'sh600519', the prefixed form Sina/Tencent endpoints want."""
+        code, exch = ts_code.split('.') if '.' in ts_code else (ts_code, '')
+        exch = exch.upper()
+        if exch == 'SH':
+            return f"sh{code}"
+        if exch in ('SZ', 'BJ'):
+            return f"sz{code}"
+        return f"{'sh' if code.startswith('6') else 'sz'}{code}"
+
+    @classmethod
+    def _normalize_em_auction(
+        cls, raw: pd.DataFrame, ts_code: str, trade_date: str | None
+    ) -> pd.DataFrame:
+        """Shape EastMoney's pre-market frame into the M1 contract.
+
+        The 09:25 bar is the auction's own result, so the last row of the requested
+        window is the auction outcome. Column names are mapped by alias and anything
+        unrecognised is carried through untouched, because this branch is unverified
+        from this host (EastMoney refuses it) and I will not invent its headers.
+        """
+        frame = raw.rename(columns=cls._EM_AUCTION_ALIASES).copy()
+        last = frame.iloc[-1]
+        return pd.DataFrame([{
+            "ts_code": ts_code,
+            "trade_date": trade_date,
+            "auction_time": last.get("auction_time"),
+            "auction_price": last.get("auction_price"),
+            "auction_volume": last.get("auction_volume"),
+            "auction_amount": last.get("auction_amount"),
+            "source": "eastmoney_pre_min",
+            "is_latest_only": False,
+        }])
+
+    def get_auction_data(self, symbol: str, trade_date: str | None = None) -> pd.DataFrame:
+        """M1: the 09:15-09:25 opening call auction, from whichever source can serve it.
+
+        Source order:
+          1. EastMoney `stock_zh_a_hist_pre_min_em` — the full 09:15-09:25 indicative
+             path as a historical series. Attempted only when an HTTP(S) proxy is
+             exported, because EastMoney refuses this host directly.
+          2. Tencent `stock_zh_a_tick_tx_js` — the 09:25 auction PRINT (price, volume,
+             amount). Real auction data needing no proxy, but the endpoint takes only a
+             symbol and carries the most recent trading day, so it cannot be backfilled.
+
+        Args:
+            symbol: '600000', '600000.SH' or 'sh600000'.
+            trade_date: optional label. The Tencent route has no date field of its own,
+                so it cannot confirm which day it returned — hence `is_latest_only`.
+        Returns:
+            One row: ts_code, trade_date, auction_price, auction_volume (手),
+            auction_amount (元), source, is_latest_only.
+        """
+        ts_code = self._ensure_ts_code(symbol)
+        cache_key = f"ak_auction_{ts_code}_{trade_date or ''}"
+        cached = self.cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        errors: list[str] = []
+
+        if self._proxy_configured():
+            try:
+                raw = self._ak_call(
+                    ak.stock_zh_a_hist_pre_min_em,
+                    symbol=self._ts_to_ak_symbol(ts_code),
+                    start_time="09:15:00",
+                    end_time="09:25:00",
+                )
+                if not raw.empty:
+                    out = self._normalize_em_auction(raw, ts_code, trade_date)
+                    self.cache.set(cache_key, out)
+                    return out
+                errors.append("EastMoney pre_min: no rows in 09:15-09:25")
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"EastMoney pre_min: {type(exc).__name__}: {str(exc)[:80]}")
+
+        try:
+            ticks = self._ak_call(
+                ak.stock_zh_a_tick_tx_js, symbol=self._ts_to_ak_prefixed(ts_code)
+            )
+        except Exception as exc:  # noqa: BLE001
+            raise DataProviderError(
+                f"auction data unavailable for {ts_code}: tencent tick failed "
+                f"({type(exc).__name__}: {str(exc)[:80]}); earlier attempts: {errors}"
+            ) from exc
+
+        if ticks.empty or "成交时间" not in ticks.columns:
+            raise DataProviderError(
+                f"auction data unavailable for {ts_code}: tencent tick returned "
+                f"{len(ticks)} rows; earlier attempts: {errors}"
+            )
+
+        # The opening auction prints once, at 09:25:00. Fall back to the first print
+        # of the day if the labelling ever changes.
+        auction = ticks[ticks["成交时间"].astype(str).str.startswith("09:25")]
+        if auction.empty:
+            auction = ticks.head(1)
+        first = auction.iloc[0]
+
+        out = pd.DataFrame([{
+            "ts_code": ts_code,
+            "trade_date": trade_date,
+            "auction_time": str(first["成交时间"]),
+            "auction_price": float(first["成交价格"]),
+            # Tencent reports volume in 手 (lots); 2142 x 100 x 9.15 == the 成交金额.
+            "auction_volume": float(first["成交量"]),
+            "auction_amount": float(first["成交金额"]),
+            "source": "tencent_tick",
+            "is_latest_only": True,
+        }])
+        self.cache.set(cache_key, out)
+        return out
+
+    def get_intraday_bars(
+        self,
+        symbol: str,
+        trade_date: str | None = None,
+        start_time: str = "14:30",
+        end_time: str = "15:00",
+        period: str = "1",
+    ) -> pd.DataFrame:
+        """M2: intraday bars, by default the closing half hour 14:30-15:00.
+
+        Source: Sina `stock_zh_a_minute` — the one that works from this host. It returns
+        real bars as day/open/high/low/close/volume covering roughly the last ten
+        sessions, continuous session only. It carries NO 09:15-09:25 bars (verified: zero
+        in that window), which is exactly why M1 needs a different source.
+
+        Args:
+            symbol: '600000', '600000.SH' or 'sh600000'.
+            trade_date: if given, keep only that day.
+            start_time, end_time: 'HH:MM' bounds, inclusive.
+            period: minutes per bar — '1', '5', '15', '30' or '60'.
+        Returns:
+            ts_code, trade_time, open, high, low, close, volume — oldest first.
+        """
+        if period not in ("1", "5", "15", "30", "60"):
+            raise DataProviderError(f"Unsupported intraday period: {period}")
+
+        ts_code = self._ensure_ts_code(symbol)
+        cache_key = f"ak_intraday_{ts_code}_{trade_date or ''}_{period}_{start_time}_{end_time}"
+        cached = self.cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        raw = self._ak_call(
+            ak.stock_zh_a_minute,
+            symbol=self._ts_to_ak_prefixed(ts_code),
+            period=period,
+            adjust="",
+        )
+        if raw.empty:
+            return raw
+
+        df = raw.rename(columns={"day": "trade_time"}).copy()
+        df["trade_time"] = df["trade_time"].astype(str)
+
+        clock = df["trade_time"].str.slice(11, 16)
+        df = df[(clock >= start_time) & (clock <= end_time)]
+
+        if trade_date:
+            day = convert_trade_date(trade_date)
+            stamps = df["trade_time"].str.slice(0, 10).str.replace("-", "", regex=False)
+            df = df[stamps == day]
+
+        df = df.sort_values("trade_time", ascending=True).reset_index(drop=True)
+        df.insert(0, "ts_code", ts_code)
+
+        self.cache.set(cache_key, df)
         return df
 
     def _enrich_with_spot_data(self, df: pd.DataFrame, code6: str) -> None:

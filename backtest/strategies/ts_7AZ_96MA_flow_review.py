@@ -132,6 +132,23 @@ if __name__ == "__main__":
         from backtest.strategies.m3_leader_filter import apply_m3_leader_rerank
         df = apply_m3_leader_rerank(df, date)
 
+    # ── Step 1c: optional M1/M2 auction + late-session veto (env-gated, default OFF) ──
+    # Drops candidates showing auction or late-session weakness on the CLOSED session
+    # (`date` = target_date - 1), reading 30-min bars because that is the finest
+    # granularity covering the whole backtest range. Veto-only: it never reorders.
+    # Off by default so the 157.52% baseline stays reproducible.
+    if date and os.getenv('REVIEW_M1M2_INTRADAY', 'false').lower() in ('1', 'true', 'yes'):
+        from backtest.strategies.m1m2_intraday_filter import (
+            apply_m1m2_rerank,
+            apply_m1m2_veto,
+        )
+        # default 'rank' keeps the pool size fixed (caps 12/10/8/5 vs pools of 18-33);
+        # 'veto' drops weak names instead, which risks leaving the book under-filled.
+        if os.getenv('REVIEW_M1M2_MODE', 'rank').strip().lower() == 'veto':
+            df = apply_m1m2_veto(df, date)
+        else:
+            df = apply_m1m2_rerank(df, date)
+
     # ── Step 2: Write picks to /tmp/tmp (engine copies to results/) ──
     _write_output(df)
 

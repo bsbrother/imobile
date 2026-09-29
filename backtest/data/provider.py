@@ -10,7 +10,7 @@ import pandas as pd
 import tushare as ts
 import akshare as ak  # type: ignore  # noqa: E402
 from pytdx.hq import TdxHq_API
-from tenacity import before_sleep_log, retry, retry_if_exception_type, stop_after_attempt, wait_random_exponential
+from tenacity import before_sleep_log, retry, retry_if_exception, retry_if_exception_type, stop_after_attempt, wait_random_exponential
 
 from .sqlite_cache import SQLiteDataCache
 from .validator import DataValidator
@@ -22,6 +22,19 @@ from .. import DB_CACHE_FILE
 # Create a standard logging logger for tenacity
 tenacity_logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore", category=UserWarning, module='py_mini_racer')
+
+# Tushare reports a denied interface, an exhausted quota, or an insufficient
+# points balance in the error text. Retrying those is pointless and actively
+# harmful: tenacity's exponential backoff hammered `stk_mins` until its cap
+# escalated from 1 call/minute to 1 call/hour.
+_NON_RETRYABLE_MARKERS = ("权限", "频率超限", "积分不足")
+
+
+def _is_retryable(exc: BaseException) -> bool:
+    """Retry transient Tushare failures, but never permission or quota denials."""
+    message = str(exc)
+    return not any(marker in message for marker in _NON_RETRYABLE_MARKERS)
+
 
 class TushareDataProvider(DataProvider):
     """
@@ -53,10 +66,16 @@ class TushareDataProvider(DataProvider):
     @retry(
         stop=stop_after_attempt(5),
         wait=wait_random_exponential(multiplier=1.0, min=2, max=10),
-        retry=retry_if_exception_type(Exception),
+        retry=retry_if_exception(_is_retryable),
         before_sleep=before_sleep_log(tenacity_logger, logging.INFO)
     )
-    def _ts_call(self, func, required_columns: list[str] | None = None, **kwargs) -> pd.DataFrame:
+    def _ts_call(
+        self,
+        func,
+        required_columns: list[str] | None = None,
+        allow_empty: bool = False,
+        **kwargs,
+    ) -> pd.DataFrame:
         """Make Tushare API call with automatic retry using tenacity decorator.
 
         required_columns -- columns the caller cannot work without. Checking them
@@ -65,10 +84,17 @@ class TushareDataProvider(DataProvider):
         an unrelated module. That is exactly how a bad stock_basic response
         surfaced: `KeyError: 'name'` in ts_ths_dc.no_risky_stocks, by which point
         _ts_call had already returned a frame and tenacity could no longer help.
+
+        allow_empty -- set True when "no rows" is a legitimate answer (a holiday, or
+        an interface that has no data for that date) rather than evidence of a bad
+        response. The default keeps retry-on-empty for callers that cannot proceed
+        without rows.
         """
-        # Convert date formats from 'yyyy-mm-dd' to 'yyyymmdd' for Tushare API compatibility
+        # Convert date formats from 'yyyy-mm-dd' to 'yyyymmdd' for Tushare API compatibility.
+        # Timestamps are deliberately left alone: `stk_mins` needs 'YYYY-MM-DD HH:MM:SS',
+        # and convert_trade_date would silently truncate the clock component off the end.
         for date_param in ['start_date', 'end_date', 'trade_date']:
-            if date_param in kwargs and kwargs[date_param]:
+            if date_param in kwargs and kwargs[date_param] and ":" not in str(kwargs[date_param]):
                 kwargs[date_param] = convert_trade_date(kwargs[date_param])
 
         time.sleep(self.rate_limit_delay)
@@ -81,7 +107,7 @@ class TushareDataProvider(DataProvider):
 
         if required_columns:
             missing = [c for c in required_columns if c not in df.columns]
-            if df.empty or missing:
+            if missing or (df.empty and not allow_empty):
                 raise DataProviderError(
                     f"Tushare returned an unusable frame: {len(df)} rows, "
                     f"missing required columns {missing}"
@@ -101,7 +127,8 @@ class TushareDataProvider(DataProvider):
         end_date = convert_trade_date(end_date)
         if not start_date or not end_date:
             raise DataProviderError("Start date and end date are required")
-        # TODO: [stk_mins realy k-lines by minutes](https://tushare.pro/document/2?doc_id=370)
+        # Minute k-lines are served by `stk_mins` — see get_intraday_bars() for the
+        # intraday path. This method covers daily/weekly/monthly bars.
         df = self._ts_call(self.pro.bar, ts_code=symbol, start_date=start_date, end_date=end_date, adj=adj, freq=freq)
         # TODO: cache
         return df
@@ -548,6 +575,339 @@ class TushareDataProvider(DataProvider):
             Dictionary with cache statistics
         """
         return self.cache.get_cache_stats()
+
+    # ------------------------------------------------------------------
+    # M1 / M2 / M3 — alternative-data methods
+    #
+    # The picking logic in this family is driven by daily bars plus LHB flow. It
+    # never sees the pre-open auction, never sees the closing half hour, and ranks
+    # leaders on how many boards a name has strung together. These three methods
+    # open those three doors. Each Tushare interface behind them is granted
+    # separately, so the account reality is documented per method.
+    # ------------------------------------------------------------------
+
+    AUCTION_FIELDS = [
+        "ts_code", "trade_date", "open", "high", "low", "close", "vol", "amount", "vwap",
+    ]
+
+    def _call_gated_api(
+        self,
+        api_name: str,
+        func,
+        required_columns: list[str] | None = None,
+        allow_empty: bool = False,
+        **kwargs,
+    ) -> pd.DataFrame:
+        """Call a separately-permissioned Tushare interface, with an actionable error.
+
+        Tushare grants these interfaces individually rather than by points tier, so a
+        perfectly healthy token can still be refused outright. Translating the raw
+        error here means callers learn which interface is missing and where to ask,
+        instead of having to read a Chinese message out of a stack trace.
+        """
+        try:
+            return self._ts_call(
+                func, required_columns=required_columns, allow_empty=allow_empty, **kwargs
+            )
+        except DataProviderError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            message = str(exc)
+            if "权限" in message:
+                raise DataProviderError(
+                    f"Tushare denied interface `{api_name}` ({message}). These interfaces are "
+                    "granted separately from the points tier — request access at "
+                    "https://tushare.pro/document/1?doc_id=108."
+                ) from exc
+            if "频率" in message:
+                raise DataProviderError(
+                    f"Tushare rate limit for `{api_name}` ({message}). Successful queries are "
+                    "cached, so re-running reuses whatever was already fetched."
+                ) from exc
+            raise
+
+    def get_auction_data(
+        self,
+        ts_code: str | None = None,
+        trade_date: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> pd.DataFrame:
+        """M1: opening call-auction data — the 09:15-09:25 window that sets the open.
+
+        Uses Tushare `stk_auction_o` (https://tushare.pro/document/2?doc_id=353), which
+        returns the auction phase's own open/high/low/close plus vol, amount and vwap,
+        refreshed after each close, so it is a historical series rather than a snapshot.
+
+        ACCOUNT STATUS: this interface is granted separately from the points tier and the
+        token configured in this repo is currently refused. The method raises a
+        DataProviderError naming the interface rather than returning an empty frame, and
+        `_ts_call` no longer burns five retries on a denial.
+
+        Args:
+            ts_code: a single stock, e.g. '600000.SH'. Optional.
+            trade_date: one date, 'YYYYMMDD' or 'YYYY-MM-DD'. Optional.
+            start_date, end_date: inclusive range. Optional.
+        Returns:
+            ts_code, trade_date, open, high, low, close, vol, amount, vwap.
+        """
+        start_date = convert_trade_date(start_date)
+        end_date = convert_trade_date(end_date)
+        trade_date = convert_trade_date(trade_date)
+        if not (ts_code or trade_date or start_date or end_date):
+            raise DataProviderError(
+                "get_auction_data needs at least one of ts_code, trade_date, start_date, end_date"
+            )
+
+        cache_key = (
+            f"auction_data_{ts_code or 'ALL'}_{trade_date or ''}"
+            f"_{start_date or ''}_{end_date or ''}"
+        )
+        cached = self.cache.get(cache_key)
+        if cached is not None:
+            logger.debug(f"Retrieved auction data from cache: {cache_key}")
+            return cached
+
+        kwargs = {
+            key: value
+            for key, value in {
+                "ts_code": ts_code,
+                "trade_date": trade_date,
+                "start_date": start_date,
+                "end_date": end_date,
+            }.items()
+            if value
+        }
+
+        # `fields` is not requested from the API on purpose: a subset of Tushare
+        # interfaces reject it, and being refused for a cosmetic reason would look
+        # like a permission problem. The columns are selected here instead.
+        df = self._call_gated_api(
+            "stk_auction_o",
+            self.pro.stk_auction_o,
+            required_columns=["ts_code", "trade_date", "close"],
+            allow_empty=True,
+            **kwargs,
+        )
+        if not df.empty:
+            wanted = [c for c in self.AUCTION_FIELDS if c in df.columns]
+            if wanted:
+                df = df[wanted]
+
+        self.cache.set(cache_key, df)
+        return df
+
+    def get_intraday_bars(
+        self,
+        ts_code: str,
+        trade_date: str,
+        start_time: str = "14:30",
+        end_time: str = "15:00",
+        freq: str = "1min",
+    ) -> pd.DataFrame:
+        """M2: intraday bars for the close of the session (default 14:30-15:00).
+
+        Uses Tushare `stk_mins` (https://tushare.pro/document/2?doc_id=370), filtered to
+        the requested window and returned oldest-first, because stk_mins answers
+        newest-first. The default window is the closing half hour, where the closing
+        auction and end-of-day positioning show up.
+
+        QUOTA REALITY: on a low-points account `stk_mins` is capped hard — observed as
+        "频率超限(1次/分钟)" and then, after repeated calls, "频率超限(1次/小时)". Repeating
+        calls raises the penalty, which is why `_ts_call` no longer retries rate-limit
+        errors. Results are cached per (code, date, freq, window), so a historical series
+        can be built incrementally and resumed across runs rather than in one sitting.
+
+        Args:
+            ts_code: a single stock, e.g. '600000.SH'.
+            trade_date: one date, 'YYYYMMDD' or 'YYYY-MM-DD'.
+            start_time, end_time: 'HH:MM' bounds of the window, inclusive.
+            freq: '1min', '5min', '15min', '30min' or '60min'.
+        Returns:
+            ts_code, trade_time, open, high, low, close, vol, amount.
+        """
+        if not ts_code or not trade_date:
+            raise DataProviderError("get_intraday_bars requires both ts_code and trade_date")
+        if freq not in ("1min", "5min", "15min", "30min", "60min"):
+            raise DataProviderError(f"Unsupported freq for stk_mins: {freq}")
+
+        day = convert_trade_date(trade_date)
+        if not day:
+            raise DataProviderError(f"Unparseable trade_date: {trade_date}")
+
+        cache_key = f"intraday_{ts_code}_{day}_{freq}_{start_time}_{end_time}"
+        cached = self.cache.get(cache_key)
+        if cached is not None:
+            logger.debug(f"Retrieved intraday bars from cache: {cache_key}")
+            return cached
+
+        # stk_mins wants 'YYYY-MM-DD HH:MM:SS'. _ts_call leaves these alone because of
+        # the clock component, so build them in that shape here.
+        day_fmt = f"{day[:4]}-{day[4:6]}-{day[6:]}"
+        df = self._call_gated_api(
+            "stk_mins",
+            self.pro.stk_mins,
+            required_columns=["ts_code", "trade_time", "close"],
+            allow_empty=True,
+            ts_code=ts_code,
+            freq=freq,
+            start_date=f"{day_fmt} {start_time}:00",
+            end_date=f"{day_fmt} {end_time}:00",
+        )
+
+        if not df.empty and "trade_time" in df.columns:
+            clock = df["trade_time"].astype(str).str.slice(11, 16)
+            df = df[(clock >= start_time) & (clock <= end_time)]
+            df = df.sort_values("trade_time", ascending=True).reset_index(drop=True)
+
+        self.cache.set(cache_key, df)
+        return df
+
+    def get_sector_flow(self, trade_date: str, content_type: str = "行业") -> pd.DataFrame:
+        """M3 support: sector-level money flow, from Tushare `moneyflow_ind_dc`.
+
+        Sector net inflow is a leadership measure that has nothing to do with counting
+        limit-ups. `buy_sm_amount_stock` names the stock the sector's flow concentrated
+        in, and `rank` is the provider's own ordering.
+
+        Args:
+            trade_date: one date, 'YYYYMMDD' or 'YYYY-MM-DD'.
+            content_type: '行业' (default) or '概念'.
+        Returns:
+            Sector rows sorted by net inflow, with net_amount, net_amount_rate,
+            buy_elg_amount, rank, buy_sm_amount_stock.
+        """
+        day = convert_trade_date(trade_date)
+        if not day:
+            raise DataProviderError(f"Unparseable trade_date: {trade_date}")
+
+        cache_key = f"sector_flow_{day}_{content_type}"
+        cached = self.cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        df = self._call_gated_api(
+            "moneyflow_ind_dc",
+            self.pro.moneyflow_ind_dc,
+            required_columns=["ts_code", "net_amount"],
+            allow_empty=True,
+            trade_date=day,
+        )
+        if not df.empty:
+            if "content_type" in df.columns:
+                df = df[df["content_type"].astype(str) == content_type]
+            if "net_amount" in df.columns:
+                df = df.sort_values("net_amount", ascending=False).reset_index(drop=True)
+
+        self.cache.set(cache_key, df)
+        return df
+
+    def get_leader_signals(self, trade_date: str) -> pd.DataFrame:
+        """M3: per-stock leadership signals that contain NO limit-up count.
+
+        Merges four verified-reachable interfaces for one date, all keyed on ts_code:
+
+          ths_hot (热股)  同花顺 App popularity: hot_rank, hot, concept
+          moneyflow_dc    东财 money flow: mf_net_amount(_rate), mf_buy_elg_amount(_rate)
+          top_list        龙虎榜 daily record: lhb_net_amount, lhb_net_rate, lhb_reason
+          top_inst        龙虎榜 institutional seats: summed inst_net_buy
+
+        It deliberately excludes `limit_list_d` and any consecutive-limit-up count. That
+        exclusion is the point of M3: rank leaders on demand-side evidence — money,
+        attention, institutional seats — rather than on how many boards a name has run.
+
+        Missing signals stay NaN and are never zero-filled, so a caller can tell "this
+        stock had no LHB seat today" apart from "this stock's LHB net was exactly zero".
+
+        Args:
+            trade_date: one date, 'YYYYMMDD' or 'YYYY-MM-DD'.
+        Returns:
+            One row per ts_code with hot_rank, hot, concept, mf_net_amount,
+            mf_net_amount_rate, mf_buy_elg_amount, mf_buy_elg_amount_rate,
+            lhb_net_amount, lhb_net_rate, lhb_reason, inst_net_buy.
+        """
+        day = convert_trade_date(trade_date)
+        if not day:
+            raise DataProviderError(f"Unparseable trade_date: {trade_date}")
+
+        cache_key = f"leader_signals_{day}"
+        cached = self.cache.get(cache_key)
+        if cached is not None:
+            logger.debug(f"Retrieved leader signals from cache: {cache_key}")
+            return cached
+
+        frames: list[pd.DataFrame] = []
+
+        # 同花顺 App popularity. data_type splits 热股/热基/可转债/ETF/港股/美股/概念板块/
+        # 行业板块/期货; only 热股 is A-share equity, and only it carries `concept`.
+        hot = self._call_gated_api(
+            "ths_hot", self.pro.ths_hot,
+            required_columns=["ts_code"], allow_empty=True, trade_date=day,
+        )
+        if not hot.empty:
+            if "data_type" in hot.columns:
+                hot = hot[hot["data_type"].astype(str).str.contains("热股", na=False)]
+            hot = hot.rename(columns={"rank": "hot_rank"}).copy()
+            keep = [c for c in ["ts_code", "hot_rank", "hot", "concept"] if c in hot.columns]
+            frames.append(hot[keep])
+
+        # 东财 money flow. Rank on the *_rate columns: they are percentages of that
+        # stock's own turnover, so they compare across market caps without depending
+        # on guessing the API's amount units.
+        mf = self._call_gated_api(
+            "moneyflow_dc", self.pro.moneyflow_dc,
+            required_columns=["ts_code"], allow_empty=True, trade_date=day,
+        )
+        if not mf.empty:
+            mf = mf.rename(columns={
+                "net_amount": "mf_net_amount",
+                "net_amount_rate": "mf_net_amount_rate",
+                "buy_elg_amount": "mf_buy_elg_amount",
+                "buy_elg_amount_rate": "mf_buy_elg_amount_rate",
+            })
+            keep = [c for c in [
+                "ts_code", "mf_net_amount", "mf_net_amount_rate",
+                "mf_buy_elg_amount", "mf_buy_elg_amount_rate",
+            ] if c in mf.columns]
+            frames.append(mf[keep].copy())
+
+        # 龙虎榜 daily record — one row per stock per reason, so collapse duplicates.
+        lhb = self._call_gated_api(
+            "top_list", self.pro.top_list,
+            required_columns=["ts_code"], allow_empty=True, trade_date=day,
+        )
+        if not lhb.empty:
+            lhb = lhb.rename(columns={
+                "net_amount": "lhb_net_amount",
+                "net_rate": "lhb_net_rate",
+                "reason": "lhb_reason",
+            })
+            keep = [c for c in ["ts_code", "lhb_net_amount", "lhb_net_rate", "lhb_reason"] if c in lhb.columns]
+            frames.append(lhb[keep].drop_duplicates(subset=["ts_code"]).copy())
+
+        # 龙虎榜 institutional seats — many rows per stock, so sum them.
+        inst = self._call_gated_api(
+            "top_inst", self.pro.top_inst,
+            required_columns=["ts_code", "net_buy"], allow_empty=True, trade_date=day,
+        )
+        if not inst.empty:
+            frames.append(
+                inst.groupby("ts_code", as_index=False)["net_buy"]
+                .sum()
+                .rename(columns={"net_buy": "inst_net_buy"})
+            )
+
+        if not frames:
+            signals = pd.DataFrame(columns=["ts_code"])
+        else:
+            signals = frames[0]
+            for frame in frames[1:]:
+                signals = signals.merge(frame, on="ts_code", how="outer")
+            signals = signals.reset_index(drop=True)
+
+        self.cache.set(cache_key, signals)
+        logger.debug(f"Assembled leader signals for {day}: {len(signals)} rows")
+        return signals
 
 class AkshareDataProvider(DataProvider):
     """

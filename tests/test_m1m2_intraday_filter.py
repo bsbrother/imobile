@@ -9,6 +9,7 @@ import pandas as pd
 from backtest.strategies.m1m2_intraday_filter import (
     apply_m1m2_rerank,
     apply_m1m2_veto,
+    regime_allows,
     session_features,
 )
 
@@ -207,3 +208,43 @@ def test_rerank_fetch_failure_leaves_the_order_alone(monkeypatch):
     monkeypatch.setattr("backtest.strategies.m1m2_intraday_filter._collect", boom)
     out = apply_m1m2_rerank(_candidates(), "20260928")
     assert list(out["ts_code"]) == ["A.SZ", "B.SZ", "C.SZ"]
+
+
+# ----------------------------------------------------------- regime gate ======
+
+def _fake_regime(monkeypatch, regime):
+    monkeypatch.setattr("backtest.utils.market_regime.detect_market_regime",
+                        lambda d, *a, **k: {"regime": regime})
+
+
+def test_gate_absent_means_always_allowed(monkeypatch):
+    assert regime_allows("20260928", None) is True
+    assert regime_allows("20260928", set()) is True
+
+
+def test_gate_allows_matching_regime(monkeypatch):
+    _fake_regime(monkeypatch, "bear")
+    assert regime_allows("20260928", {"bear", "volatile"}) is True
+
+
+def test_gate_blocks_non_matching_regime(monkeypatch):
+    _fake_regime(monkeypatch, "bull")
+    assert regime_allows("20260928", {"bear", "volatile"}) is False
+
+
+def test_gate_is_case_insensitive(monkeypatch):
+    _fake_regime(monkeypatch, "BEAR")
+    assert regime_allows("20260928", {"bear"}) is True
+
+
+def test_gate_fails_closed_when_the_regime_lookup_raises(monkeypatch):
+    def boom(d, *a, **k):
+        raise ValueError("insufficient index data")
+
+    monkeypatch.setattr("backtest.utils.market_regime.detect_market_regime", boom)
+    assert regime_allows("20260928", {"bear"}) is False, "must not intervene blind"
+
+
+def test_gate_fails_closed_without_a_reference_date(monkeypatch):
+    _fake_regime(monkeypatch, "bear")
+    assert regime_allows("", {"bear"}) is False

@@ -141,6 +141,30 @@ def _collect(df: pd.DataFrame, ref_date: str) -> dict[str, dict]:
     return out
 
 
+def regime_allows(ref_date: str, allowed: set[str] | None) -> bool:
+    """Is `ref_date`'s detected regime in `allowed`?
+
+    The regime is read for the CLOSED reference session, so it is known before the
+    picks are acted on. Fails CLOSED: if the regime cannot be determined, the
+    intervention is skipped rather than applied blind.
+    """
+    if not allowed:
+        return True                      # no gate configured
+    if not ref_date:
+        return False
+    try:
+        from backtest.utils.market_regime import detect_market_regime
+
+        regime = str(detect_market_regime(ref_date).get("regime", "")).lower()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(f"[m1m2] regime lookup failed for {ref_date}: "
+                       f"{type(exc).__name__}: {str(exc)[:80]} - skipping intervention")
+        return False
+    allowed_hit = regime in allowed
+    logger.info(f"[m1m2] {ref_date}: regime={regime} gate={'fire' if allowed_hit else 'skip'}")
+    return allowed_hit
+
+
 def apply_m1m2_rerank(
     df: pd.DataFrame,
     ref_date: str,

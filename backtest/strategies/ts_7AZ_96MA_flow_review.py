@@ -141,13 +141,19 @@ if __name__ == "__main__":
         from backtest.strategies.m1m2_intraday_filter import (
             apply_m1m2_rerank,
             apply_m1m2_veto,
+            regime_allows,
         )
-        # default 'rank' keeps the pool size fixed (caps 12/10/8/5 vs pools of 18-33);
-        # 'veto' drops weak names instead, which risks leaving the book under-filled.
-        if os.getenv('REVIEW_M1M2_MODE', 'rank').strip().lower() == 'veto':
-            df = apply_m1m2_veto(df, date)
-        else:
-            df = apply_m1m2_rerank(df, date)
+        # REVIEW_M1M2_REGIMES=bear,volatile restricts the intervention to those
+        # regimes (read for the closed reference session). Unset -> no gate.
+        _allowed = {r.strip().lower()
+                    for r in os.getenv('REVIEW_M1M2_REGIMES', '').split(',') if r.strip()}
+        if regime_allows(date, _allowed or None):
+            # default 'rank' keeps the pool size fixed (caps 12/10/8/5 vs pools of 18-33);
+            # 'veto' drops weak names instead, which risks leaving the book under-filled.
+            if os.getenv('REVIEW_M1M2_MODE', 'rank').strip().lower() == 'veto':
+                df = apply_m1m2_veto(df, date)
+            else:
+                df = apply_m1m2_rerank(df, date)
 
     # ── Step 2: Write picks to /tmp/tmp (engine copies to results/) ──
     _write_output(df)

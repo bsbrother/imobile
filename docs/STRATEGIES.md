@@ -151,9 +151,10 @@ That row order is **not fixed**, and the chain is:
 4. The engine buys `selected_stocks[:MAX_POSITIONS]` in file order, so a tie-order flip changes
    which name is bought.
 
-The picker itself is deterministic: three runs of `pick_96mv_stocks('20260108')` in separate
-processes — two with random `PYTHONHASHSEED`, one pinned to 0 — returned byte-identical
-orderings. The variation is the cached universe order, not process hash randomisation.
+The picker itself is deterministic: four runs of `pick_96mv_stocks('20260108')` in separate
+processes — two with random `PYTHONHASHSEED`, two pinned to 0 — returned byte-identical
+orderings (n=12, same order, scores `85, 83, 82, 79, 78, 78, 78, 76, 75, 74, 73, 73`). The
+variation is the cached universe order, not process hash randomisation.
 
 Consequence: two runs of the same config on different days produce different picks. Measured on
 20260101-20260928, 47 of 134 non-gated dates differed, diverging from the 5th session (20260109

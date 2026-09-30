@@ -90,6 +90,88 @@ Both legs: 243 trading days each, fresh runs, no skips, no `--resume`, zero erro
 It is not free: the drawdown is ~0.6pp deeper (-5.35% vs -4.76%). Faster rotation buys a lot
 more return for a little more risk — worth remembering before sizing real capital on it.
 
+### Alternative-data experiments — NEGATIVE, do not re-run
+
+Three signal families were built to see whether auction/intraday data or a demand-side leader
+ranking could beat 157.52% on 20260101-20260928. All four runs lost. Every switch defaults
+**OFF**, so 157.52% stays reproducible from `main`.
+
+| run | return | vs baseline | maxDD |
+|---|---|---|---|
+| baseline (all flags off) | 157.52% | — | -1.75% |
+| M3 leader re-rank (`REVIEW_M3_LEADER`) | 117.08% | **-40.44pp** | -1.69% |
+| M1/M2 auction + late-session (`REVIEW_M1M2_INTRADAY`) | 129.92% | **-27.60pp** | -1.56% |
+| M1/M2 + M3 | 129.92% | **-27.60pp** | -1.56% |
+| M1/M2 gated to bear/volatile (`REVIEW_M1M2_REGIMES`) | 150.07% | **-7.45pp** | -1.77% |
+
+Key readings:
+
+- **M3 is inert when combined with M1/M2.** The two re-ranks both sort the whole frame and
+  M1/M2 is applied second, so M3's ordering is overwritten; with continuous scores, ties are
+  measure-zero. 178 of 179 dates produced identical order sets. Enable one or the other.
+- **The gate only shrinks the loss.** Gating to bear/volatile fired on 45/179 dates (Jun 5,
+  Jul 5, Aug 19, Sep 16) and recovered 73% of M1/M2's damage, but June still surrendered
+  65,527 and the total stayed negative. `volatile` never occurs in this range, so it is
+  purely a bear gate.
+- **Why a strong offline signal still lost.** The auction gap separated returns well *among
+  trades the strategy had already chosen* (corr +0.2933; quartile means 0.655 / 0.913 / 2.223
+  / 3.589%), but a re-rank also *imports* names sitting lower in the pool, whose returns were
+  never observed. The test validated the signal on a set the intervention then changes. The
+  late-session feature was weak to begin with (corr +0.0787).
+- **The monthly pattern is not regime-aligned.** Jan/Feb/May were bull and lost, Mar was
+  normal and gained, and the worst month (June, -137,266) sits *inside* the gate. Hypothesis
+  forming and testing on the same data is how that trap gets set — a 2025 out-of-sample run
+  would be required before believing any of it.
+
+Data-availability constraints measured on this host, which bound any future attempt: EastMoney
+refuses every endpoint (`RemoteDisconnected`, and `stock_zh_a_hist_pre_min_em` goes to
+`push2his.eastmoney.com`); Tushare `stk_auction_o` is not permitted and `stk_mins` is capped at
+1 call/hour; TDX accepts connections but every bar call errors. Sina's fixed 1970-bar window is
+the only reachable history, so granularity sets depth: 1-min reaches 9 sessions, 5-min 42,
+15-min 124, 30-min 247 (2025-09-22 onward), 60-min 493. 30-min is the finest that covers a
+multi-month backtest.
+
+### Reproducibility caveat: ties are ordered non-deterministically
+
+`pick_96mv_stocks` (`backtest/strategies/ts_96MA.py:548`) sorts with
+`df.sort_values('composite_score', ascending=False)` — pandas' default quicksort, which is not
+stable, and with no tie-break column. Candidate pools carry many equal scores (9 of 12 at
+`0.0`, and often long runs at `5.0`), so the order *within* a tie group falls back to whatever
+row order the frame arrived in.
+
+That row order is **not fixed**, and the chain is:
+
+1. The universe comes from `data_provider.get_basic_information_api()` (`ts_96MA.py:471`), which
+   reads `shared/data_cache/cache_stock_basic_all.pkl`. Its `ts_code` column is **not sorted** —
+   the first six rows are `920202.BJ, 920025.BJ, 920229.BJ, 301716.SZ, 920201.BJ, 301686.SZ`.
+2. `ts_96MA.py:514` iterates that frame to build candidates, so tie order inherits it.
+3. The cache is refreshed on TTL expiry during any picking run, and the refreshed order differs.
+   Observed: the cache was rewritten 2026-09-29 16:48, between the 157.52% baseline (09-28
+   19:41) and the alternative-data runs (09-30).
+4. The engine buys `selected_stocks[:MAX_POSITIONS]` in file order, so a tie-order flip changes
+   which name is bought.
+
+The picker itself is deterministic: three runs of `pick_96mv_stocks('20260108')` in separate
+processes — two with random `PYTHONHASHSEED`, one pinned to 0 — returned byte-identical
+orderings. The variation is the cached universe order, not process hash randomisation.
+
+Consequence: two runs of the same config on different days produce different picks. Measured on
+20260101-20260928, 47 of 134 non-gated dates differed, diverging from the 5th session (20260109
+picks `301138.SZ` in one run and `301446.SZ` in the other; same 12 candidates, same scores,
+different tie order).
+
+The monetary impact here was small — the 95 non-gated Jan-May dates totalled +395 realized
+against the earlier baseline, ~0.07% — so the comparisons above hold. But three habits follow:
+
+- Re-run the baseline **on the same day** for any A/B claiming single-digit-pp precision.
+- A deterministic tie-break (sort by `composite_score` desc **then `ts_code` asc**) removes the
+  dependency on universe order entirely, at the cost of re-baselining every strategy that calls
+  `pick_96mv_stocks` (7 call sites, including `ts_96MA`'s own CLI). Sorting the universe after
+  load would only be defensive — the cache order cannot be guaranteed.
+- Watch for this masking effect: the M1/M2 runs hid the instability by re-sorting on a
+  continuous score, and matched 179/179 across days. A deterministic-looking run is not
+  evidence the pipeline is deterministic.
+
 ---
 
 ## Results / Backup Directory Naming

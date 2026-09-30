@@ -11,7 +11,7 @@ help:
 	@echo "  test             Run unit tests (skips integration, ~45s)"
 	@echo "  test-integration Run all tests including network-dependent ones"
 	@echo "  test-fast        Run only fast unit tests (no integration, no freeride)"
-	@echo "  backtest         Run ts_7AZ baseline backtest (20260101-20260619, ~44min)"
+	@echo "  backtest         Run DEFAULT_STRATEGY (.env) backtest (20260101-20260619, ~44min)"
 	@echo "  lint             Run ruff + pyright on backtest/ and tests/"
 	@echo "  clean            Remove __pycache__, .pytest_cache, .ruff_cache"
 
@@ -25,7 +25,7 @@ test-fast:
 	$(PYTEST) tests/ -v --timeout=10 -k "baseline_regression or freeride"
 
 backtest:
-	$(PYTHON) backtest/engine.py 20260101 20260619 ts_7AZ --no-search --no-ai
+	$(PYTHON) backtest/engine.py 20260101 20260619 --no-search --no-ai
 
 lint:
 	@command -v ruff >/dev/null 2>&1 && ruff check backtest/ tests/ || echo "ruff not installed, skipping"

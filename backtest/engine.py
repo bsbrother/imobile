@@ -3002,9 +3002,10 @@ Examples:
                         help='Start date in YYYYMMDD format')
     parser.add_argument('end_date',
                         help='End date in YYYYMMDD format')
-    parser.add_argument('src', nargs='?', default='ts_7AZ_96MA_flow_review',
+    parser.add_argument('src', nargs='?', default=None,
                         choices=_valid_sources,
-                        help='Strategy source (default: ts_7AZ_96MA_flow_review — production)')
+                        help='Strategy source. Omit it to use DEFAULT_STRATEGY from .env '
+                             '(falling back to ts_7AZ_96MA_flow_review — production)')
     parser.add_argument('--user-id', type=int, default=1,
                         help='User ID for trading account (default: 1)')
     parser.add_argument('--search', action=argparse.BooleanOptionalAction, default=True,
@@ -3030,6 +3031,26 @@ Examples:
     backtest_search = args.search
     backtest_ai = args.ai
     resume = args.resume
+
+    # Strategy resolution: CLI positional wins, else DEFAULT_STRATEGY from .env.
+    # Then force that strategy's .env section into the environment so its values
+    # replace same-named keys set globally in .env or read from config.json.
+    from backtest.utils.strategy_env import apply_strategy_env, default_strategy, redact
+
+    if not src:
+        src = default_strategy(fallback='ts_7AZ_96MA_flow_review', known=_valid_sources)
+        logger.info(f"Strategy taken from .env DEFAULT_STRATEGY: {src}")
+    _scoped_out: list[str] = []
+    _section_keys = apply_strategy_env(src, neutralized=_scoped_out)
+    if _section_keys:
+        _shown = ", ".join(
+            f"{k}=<redacted>" if redact(k) else f"{k}={os.environ.get(k)}"
+            for k in _section_keys
+        )
+        logger.info(f"Applied .env section [{src}]: {_shown}")
+    if _scoped_out:
+        logger.info(f"Scoped out .env keys owned by other strategies: "
+                    f"{', '.join(sorted(set(_scoped_out)))}")
 
     print(f"DEBUG: Running with start_date={start_date}, end_date={end_date}, src={src}, "
           f"resume={resume}, backtest_search={backtest_search}, backtest_ai={backtest_ai}")

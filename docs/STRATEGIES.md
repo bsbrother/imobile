@@ -173,6 +173,56 @@ against the earlier baseline, ~0.07% — so the comparisons above hold. But thre
   continuous score, and matched 179/179 across days. A deterministic-looking run is not
   evidence the pipeline is deterministic.
 
+### Position sizing — POSITIVE, +36.02pp (opt-in, default OFF)
+
+`REVIEW_COMPOUND_SIZING=true` makes position size scale with the account instead of staying
+anchored to the starting capital.
+
+**The ceiling.** `cli.py` sizes each position as `per_slot_cash = initial_cash / max_positions`,
+and there are exactly `max_positions` slots — so `per_slot_cash x max_positions == initial_cash`,
+always. The engine passes `--current-cash` but never `--initial-cash`, so the base stays at the
+config's 600,000 for the whole run. Total invested capital is therefore capped at 600,000 no
+matter how large the account grows, and deployment decays mechanically:
+
+| month | realized P&L | deployed | equity |
+|---|---|---|---|
+| 202601 | 43,340 | 43.5% | 625,606 |
+| 202604 | 170,885 | 39.5% | 893,417 |
+| 202606 | 335,951 | 34.4% | 1,302,395 |
+| 202608 | 61,796 | 15.0% | 1,527,676 |
+| 202609 | 17,574 | 11.3% | 1,547,058 |
+
+**The edge does not fade**, which is what makes this capital inefficiency rather than a decaying
+signal: return on *deployed* capital was positive in all nine months (15.9 / 28.9 / 20.6 / 48.5 /
+41.8 / 75.0 / 5.8 / 26.9 / 10.0%).
+
+**Result** (20260101-20260928, same code otherwise):
+
+| metric | baseline | compounding | delta |
+|---|---|---|---|
+| total return | 157.52% | **193.54%** | **+36.02pp** |
+| final equity | 1,545,148 | 1,761,247 | +216,099 |
+| realized P&L | 951,638 | 1,173,918 | +222,280 |
+| max drawdown | -1.75% | -1.80% | -0.06pp |
+| mean deployed | 29.7% | 33.8% | +4.1pp |
+
+The gain lands exactly where the multiplier bites — 202606 +68,651, 202607 +37,683 (deployed
+15.4%→25.0%), 202608 +67,652 (15.0%→28.4%), 202609 +34,251 (11.3%→21.3%) — and the extra return
+cost almost nothing in drawdown. Jan/Feb are untouched by the flag; their -2,658/-964 is the
+tie-order noise described above, not an effect.
+
+**Before enabling this for live trading:** `cli.py` is the same code path used for real orders,
+so the flag changes real position sizes too. It is also not a free lunch in production — the
+backtest assumes unlimited liquidity, and larger size will not fill as cleanly in small caps.
+
+Two pre-existing issues surfaced while checking this, neither caused by the flag:
+
+- The per-day `report_orders_*.md` files overstate realized P&L by a consistent **~3.2%**
+  (baseline +30,197, compound +37,247, gated +29,732). The period report's figure is the one
+  that reconciles with its own daily table.
+- 18-21 of ~1050 orders exceed the 25% per-position cap in *every* run, because the cap is
+  applied to the per-slot budget rather than to the resulting position.
+
 ---
 
 ## Results / Backup Directory Naming
@@ -192,8 +242,8 @@ Observed layout:
 Rules:
 
 - `<src>` — the actual `src` value used for the run, so the name always resolves to real code.
-- `<tag>` — OPTIONAL, lowercase experiment label (`regime_fcst`, `trendage_frcst`, `lev34`, …). Omit it
-  for a plain default-config run.
+- `<tag>` — OPTIONAL, lowercase experiment label (`regime_fcst`, `trendage_frcst`, `lev34`, `compound`,
+  `m1m2only`, `regimegated`, …). Omit it for a plain default-config run.
 - `<return>` — total return in percent (`139.04`), matching the `**Total Return**` row of
   `report_period_*.md`. Keep these two in sync — a dirname that disagrees with its own report is a bug.
 

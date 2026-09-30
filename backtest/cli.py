@@ -488,6 +488,9 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
         else:
             remaining_cash = float(initial_cash)
         remaining_slots = remaining_slots if remaining_slots is not None else int(max_positions)
+        # Cash available at the START of the day. Captured once here because remaining_cash is
+        # spent down inside the loop below, which would otherwise shrink later slots.
+        sizing_cash_base = float(remaining_cash)
 
         for symbol in symbols:
             try:
@@ -627,9 +630,21 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                     logger.info(f"Symbol {symbol} is already held, assigning 0 buy_quantity to preserve cash.")
                 else:
                     if position_sizing_enabled:
-                        per_slot_cash = float(initial_cash) / max_positions
+                        # Sizing base. By default this is the INITIAL capital, which caps total
+                        # deployment at initial_cash forever: per_slot_cash * max_positions ==
+                        # initial_cash, so as equity grows past it the invested fraction decays
+                        # and the account accumulates idle cash.
+                        # REVIEW_COMPOUND_SIZING raises the base to the cash actually available,
+                        # so position size scales with the account. It never drops below the
+                        # original behaviour (the initial_cash floor), which keeps the early
+                        # months unchanged when equity is still near its starting value.
+                        sizing_base = float(initial_cash or 0.0)
+                        if os.getenv('REVIEW_COMPOUND_SIZING', 'false').lower() in ('1', 'true', 'yes'):
+                            sizing_base = max(sizing_base, sizing_cash_base)
+                        slots = max(1, int(max_positions or 1))
+                        per_slot_cash = sizing_base / slots
                         # Max 25% of capital per position to avoid concentration (e.g. 中际旭创 at 59%)
-                        max_position_cash = float(initial_cash) * 0.25
+                        max_position_cash = sizing_base * 0.25
                         effective_slot_cash = min(per_slot_cash, max_position_cash)
                     else:
                         # Disable sizing limits — distribute ALL remaining cash evenly across remaining slots

@@ -83,7 +83,7 @@ config section. Implemented in `backtest/utils/strategy_env.py`.
 
 | Variable | Default | Description |
 |---|---|---|
-| `DEFAULT_STRATEGY` | `ts_7AZ_96MA_flow_review` | Strategy used when none is given on the command line — including `make backtest`. Must be a real strategy name, else it warns and falls back. **Backtest CLI only**: the live path never calls `apply_strategy_env` and hardcodes its strategy (`trading/runner.py:164`) |
+| `DEFAULT_STRATEGY` | `ts_7AZ_96MA_flow_review` | Strategy used when none is given on the command line — including `make backtest` — and by the live path, which resolves it at start-up (`trading/runner.py`). Must be a real strategy name, else it warns and falls back |
 
 **Sections.** A comment header holding exactly a strategy name opens a section; the `KEY=VALUE`
 lines under it apply **only when that strategy runs**:
@@ -100,6 +100,36 @@ old line commented out because python-dotenv keeps the first assignment.
 python-dotenv has no concept of sections and exports every line as a global, so
 `apply_strategy_env()` also removes keys owned only by a different strategy's section. Without
 that, a value in one strategy's section would silently apply to all of them.
+
+**Where this applies.** Both the backtest CLI and the live path resolve `DEFAULT_STRATEGY` and call
+`apply_strategy_env()` — `backtest/engine.py` on start-up, `trading/runner.py` on import — each
+wrapped so a malformed `.env` cannot stop a run. The live resolution was missing until recently,
+which is why `REVIEW_COMPOUND_SIZING=true` reached live sizing no matter which strategy was meant
+to run: not a decision, just python-dotenv's flat read leaking through.
+
+### Live Trading (`trading/runner.py`)
+
+| Variable | Default | Description |
+|---|---|---|
+| `TRADING_SUBMIT_BY` | `0915` | `HHMM` at which pre-market submission starts. Orders placed in the 09:15-09:25 call auction clear at the auction price = the open, which is the fill the backtest assumes on both sides. The old 09:24:00 start left ~60s for 15-20 ADB-driven orders, so the tail missed the auction |
+| `TRADING_AUCTION_BUFFER_PCT` | `0.005` | Buffer over the indicative auction price when bidding, so convergence drift does not leave the order unfilled. Bounded by the board's daily band (10% / 20% 科创·创业 / 30% 北交所) and floored at the engine's suggested price |
+
+### Paper Simulation (`stock_cron_tasks.py`)
+
+The daemon's as-backtest settlement (`simulate_trading_day`) fills pending buys at the open and
+settles sells TP-then-SL, in the engine's priority. A bar that now **gaps through** a level fills at
+the **open** — better than the take-profit, worse than the stop-loss, annotated `跳空开盘` — and
+retail costs are charged.
+
+| Variable | Default | Description |
+|---|---|---|
+| `PAPER_COMMISSION_PCT` | `0.00025` | Commission per side (万2.5 retail) |
+| `PAPER_COMMISSION_MIN` | `5` | Commission floor per order (¥5) |
+| `PAPER_STAMP_DUTY_PCT` | `0.0005` | Stamp duty, sells only (0.05%) |
+| `PAPER_SLIPPAGE_PCT` | `0.0` | Slippage per side: buys pay `price*(1+s)`, sells receive `price*(1-s)`. Off by default — enabling it is the single largest correction to the paper returns |
+
+Costs are deducted from `paper['cash']` and accumulated in `paper['fees']`. `paper['realized']` nets
+the sell-side fee; the buy-side fee is already out of `cash`, so equity is net of both sides.
 
 ---
 

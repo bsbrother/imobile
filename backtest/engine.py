@@ -494,10 +494,23 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
                     'name': order[5]
                 }
         
-        # Create TP/SL orders for ALL DB holdings (both backtest and real trading)
-        # This ensures every holding gets fresh daily TP/SL orders.
-        if app_positions is None:
-            # Backtest mode: read holdings from DB
+        # Create TP/SL orders for ALL holdings — backtest AND real trading.
+        # This ensures every holding gets fresh daily TP/SL orders, and it is also the
+        # only code path that produces a scheduled exit for a held position (the force-sell
+        # branch below, which prices the trigger at the auction/open so the app sells ~at
+        # the open).
+        #
+        # The gate used to be `if app_positions is None:`, which silently disabled BOTH of
+        # those in live trading: runner.py always passes app_positions, so no held position
+        # ever got a renewed bracket, and no scheduled exit was ever emitted. Observed
+        # consequence: 32 of 34 live pre-market runs emitted no TP/SL at all, none after
+        # 2026-07-13, and positions were held with no stop.
+        #
+        # Positions still come from holding_stocks. That is correct in live mode too:
+        # runner.py syncs app -> DB (check_app_vs_db, then cron_sync_app_to_db on mismatch)
+        # before calling this, so the table mirrors the broker account — including the real
+        # cost basis that _adaptive_tp_sl anchors the bracket on.
+        if app_positions is None or is_live:
             take_profit_pct = regime_data.get('take_profit_pct', 0.10)
             stop_loss_pct = regime_data.get('stop_loss_pct', 0.10)
 

@@ -23,11 +23,100 @@ from loguru import logger
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from backtest.utils.trading_calendar import calendar
+from backtest.utils.strategy_env import apply_strategy_env, default_strategy, redact
 import dotenv
 dotenv.load_dotenv(os.path.expanduser('.env'), verbose=True)
 
 from trading.guotai import GUOTAI_PACKAGE_NAME, login
 from trading.sync_app_to_db import cron_sync_app_to_db, check_app_vs_db
+
+
+# ─── Live strategy selection ─────────────────────────────────
+# Same source of truth as the backtest CLI: .env DEFAULT_STRATEGY, then force that strategy's
+# .env section into the environment. The live path previously hardcoded its strategy and never
+# called apply_strategy_env, so the per-strategy sections governed backtests only — while the
+# section values still reached this process by accident, because python-dotenv reads every line
+# flat and so leaked REVIEW_COMPOUND_SIZING=true in from the ts_7AZ_96MA_flow_review section no
+# matter which strategy was meant to run. Resolving it here makes live config deterministic and
+# scopes out keys owned only by other strategies' sections.
+# Wrapped in try/except on purpose: a malformed .env must never stop live trading.
+LIVE_STRATEGY = 'ts_7AZ_96MA_flow_review'
+_SCOPED_OUT: list[str] = []
+try:
+    LIVE_STRATEGY = default_strategy(fallback=LIVE_STRATEGY)
+    _applied = apply_strategy_env(LIVE_STRATEGY, neutralized=_SCOPED_OUT)
+    logger.info(f"Live strategy from .env DEFAULT_STRATEGY: {LIVE_STRATEGY}")
+    if _applied:
+        logger.info("Applied .env section [{}]: {}".format(
+            LIVE_STRATEGY,
+            ", ".join(f"{k}=<redacted>" if redact(k) else f"{k}={os.environ.get(k)}" for k in _applied),
+        ))
+    if _SCOPED_OUT:
+        logger.info(f"Scoped out keys owned by other strategy sections: {', '.join(sorted(set(_SCOPED_OUT)))}")
+except Exception as e:
+    logger.warning(f"Could not apply .env strategy section ({e}); using {LIVE_STRATEGY}")
+
+
+# ─── Auction submission ──────────────────────────────────────
+# An order placed during the 09:15-09:25 call auction clears at the auction price, which is the
+# open — the fill the backtest assumes on both sides. Submission used to start at 09:24:00,
+# leaving ~60s for 15-20 ADB-driven orders at 5-10s each, so the tail missed the auction and
+# filled in continuous trading instead. TRADING_SUBMIT_BY (HHMM) sets when submission starts.
+SUBMIT_BY = os.getenv('TRADING_SUBMIT_BY', '0915')
+AUCTION_BUFFER_PCT = float(os.getenv('TRADING_AUCTION_BUFFER_PCT', '0.005'))
+
+
+def _wait_for_auction_window(dry_run: bool = False) -> None:
+    """Sleep until the configured auction submission time (default 09:15)."""
+    import time
+    now = datetime.now()
+    hhmm = (SUBMIT_BY or '0915').strip()
+    try:
+        target = now.replace(hour=int(hhmm[:2]), minute=int(hhmm[2:4]), second=0, microsecond=0)
+    except (ValueError, IndexError):
+        logger.warning(f"Invalid TRADING_SUBMIT_BY={SUBMIT_BY!r}; falling back to 09:15")
+        target = now.replace(hour=9, minute=15, second=0, microsecond=0)
+    if now < target and now.hour < 12:
+        wait_seconds = (target - now).total_seconds()
+        logger.info(f"⏳ Waiting {wait_seconds:.0f}s until {target:%H:%M} to submit inside the call auction...")
+        if dry_run:
+            logger.info("[DRY RUN] Skipping actual time.sleep wait.")
+        else:
+            time.sleep(wait_seconds)
+
+
+def _daily_band_pct(symbol: str) -> float:
+    """Price-limit band for the board a symbol trades on.
+
+    科创板 688/689 and 创业板 300/301 move ±20%, 北交所 ±30%, everything else ±10%. ST names are
+    ±5% but that is not discoverable from the code. This is only a sanity bound on the auction bid
+    (in an auction you pay the clearing price, not your limit, so the limit only decides whether
+    you are in the match); the real ceiling is the exchange's and the broker rejects beyond it.
+    """
+    c = (symbol or '').split('.')[0]
+    if c.startswith(('688', '689', '300', '301')):
+        return 0.20
+    if c.startswith(('4', '8')):
+        return 0.30
+    return 0.10
+
+
+def _auction_buy_price(order: dict, rt_price) -> str:
+    """Limit price for a BUY that must clear in the call auction.
+
+    Bid the indicative auction price plus a small buffer, so convergence drift does not leave the
+    order unfilled. Never below the engine's suggested price, never above the board's daily band.
+    Falls back to the suggested price if no quote is available.
+    """
+    suggested = float(order.get('buy_price') or 0)
+    if rt_price and rt_price > 0:
+        cap = rt_price * (1 + _daily_band_pct(order.get('symbol', '')))
+        bid = min(max(rt_price * (1 + AUCTION_BUFFER_PCT), suggested), cap)
+        if bid > suggested:
+            logger.info(f"Bid {bid:.2f} to clear the auction (indicative {rt_price:.2f}, suggested {suggested:.2f})")
+        return f"{bid:.2f}"
+    logger.warning(f"No auction quote for {order.get('symbol')}; falling back to suggested {suggested:.2f}")
+    return str(order['buy_price'])
 
 
 # ─── Phase time guards ──────────────────────────────────────
@@ -68,8 +157,6 @@ def submit_orders_to_app(smart_orders_file: str, submit: bool = False, market_pa
     from trading.create_order_tp_sl import create_tp_sl_order
     from trading.create_order_ordinary import create_ordinary_order
     from utils.tools import get_realtime_quote
-    import time
-    from datetime import datetime
 
     with open(smart_orders_file, 'r') as f:
         data = json.load(f)
@@ -80,30 +167,28 @@ def submit_orders_to_app(smart_orders_file: str, submit: bool = False, market_pa
     buy_orders = all_orders[:total_new_buys]
     tp_sl_orders = all_orders[total_new_buys:]
 
-    # 1. Submit TP/SL orders FIRST (can be done anytime before market opens)
+    # 1. Wait for the call-auction window (default 09:15) so everything below clears at the
+    # auction price = the open. Previously the wait targeted 09:24:00 and only guarded the BUYs,
+    # which left roughly a minute for 15-20 ADB-driven orders.
+    if buy_orders or tp_sl_orders:
+        _wait_for_auction_window(dry_run=dry_run)
+
+    # 2. Held-position orders: the daily bracket, plus the scheduled exits. The engine emits a
+    # scheduled exit with both trigger prices set to the auction/open price and a name ending in
+    # _expired (expired / stagnation cut / ER trend / max-hold). These are the strategy's real
+    # exits — they are not brackets, they are a sell instruction. The app holds them server-side
+    # until they trigger or the day's validity expires.
     for order in tp_sl_orders:
         code = order['symbol'].split('.')[0]
         tp = str(order.get('sell_take_profit_price', 0))
         sl = str(order.get('sell_stop_loss_price', 0))
         qty = str(order.get('buy_quantity', 0))
+        label = 'SCHEDULED EXIT' if str(order.get('name', '')).endswith('_expired') else 'TP/SL'
         try:
             create_tp_sl_order(code=code, tp_price=tp, sl_price=sl, quantity=qty, submit=submit, dry_run=dry_run)
-            logger.info(f"  {'✅' if submit else 'ℹ️'} TP/SL {'submitted' if submit else 'filled (dry-run)'}: {code} TP={tp} SL={sl} x{qty}")
+            logger.info(f"  {'✅' if submit else 'ℹ️'} {label} {'submitted' if submit else 'filled (dry-run)'}: {code} TP={tp} SL={sl} x{qty}")
         except Exception as e:
-            logger.error(f"  ❌ TP/SL failed: {code} — {e}")
-
-    # 2. Wait until 09:24:00 if necessary to capture the near-real open price during the auction period
-    if buy_orders:
-        now = datetime.now()
-        target_time = now.replace(hour=9, minute=24, second=0, microsecond=0)
-        # If it's before 09:24:00 and we are running in the morning (before 12:00)
-        if now < target_time and now.hour < 12:
-            wait_seconds = (target_time - now).total_seconds()
-            logger.info(f"⏳ Waiting {wait_seconds:.0f} seconds until 09:24:00 to fetch real-time auction open price for BUY orders...")
-            if not dry_run:
-                time.sleep(wait_seconds)
-            else:
-                logger.info("[DRY RUN] Skipping actual time.sleep wait.")
+            logger.error(f"  ❌ {label} failed: {code} — {e}")
 
     # 3. Submit BUY orders
     for order in buy_orders:
@@ -111,17 +196,12 @@ def submit_orders_to_app(smart_orders_file: str, submit: bool = False, market_pa
         if quantity == '0':
             continue
         code = order['symbol'].split('.')[0]
-        
-        # Override the suggested buy_price with the real-time open price if available
-        rt_price = get_realtime_quote(code)
-        if rt_price and rt_price > 0:
-            price = f"{rt_price:.2f}"
-            logger.info(f"Using real-time auction open price {price} for {code} instead of suggested {order['buy_price']}")
-        else:
-            price = str(order['buy_price'])
-            
+
+        # Price to clear in the auction: indicative open + buffer, never above limit-up.
+        price = _auction_buy_price(order, get_realtime_quote(code))
+
         try:
-            # All regimes: use ordinary limit buy order during pre-market to execute exactly at Open price
+            # All regimes: use ordinary limit buy order during the call auction to execute exactly at Open price
             create_ordinary_order(code=code, price=price, quantity=quantity, action='buy', submit=submit, dry_run=dry_run, skip_dup_check=True)
             logger.info(f"  {'✅' if submit else 'ℹ️'} Ordinary BUY {'submitted' if submit else 'filled (dry-run)'}: {code} @{price} x{quantity}")
         except Exception as e:
@@ -158,10 +238,13 @@ async def run_pre_market(this_date, user_id, submit, dry_run, app_package_name):
                      f"RunningOrders={len(app_running_orders)}")
 
     # Step 3: Pick stocks + create smart orders
+    # LIVE_STRATEGY comes from .env DEFAULT_STRATEGY (see the top of this module). The engine now
+    # also runs its held-position block in live mode, so this call emits the daily bracket for
+    # every holding plus a scheduled exit for any position whose hold window has closed.
     from backtest.engine import pick_orders_trading
     pick_orders_trading(
         start_date=this_date, end_date=this_date,
-        user_id=user_id, src='ts_7AZ_96MA_flow_review',
+        user_id=user_id, src=LIVE_STRATEGY,
         backtest_search=False, backtest_ai=False,
         resume=False, is_live=True,
         app_cash=app_cash if app_cash is not None else (600000.0 if dry_run else None),

@@ -104,15 +104,30 @@ Step 1.4: Summary Logging
 
 Step 1.5: Submit to App (only with --submit flag)
   │
+  ├── Wait for the call auction window (TRADING_SUBMIT_BY, default 09:15)
   ├── Parse smart_orders JSON
-  ├── Separate: BUY orders (first N), TP/SL orders (rest)
-  ├── For each BUY order:
-  │     create_buy_order(code, price, quantity, submit=True)
-  │       └── ADB taps through app UI to submit buy order
-  ├── For each TP/SL order:
+  ├── Separate: BUY orders (first N), held-position orders (rest)
+  ├── For each held-position order:
   │     create_tp_sl_order(code, tp_price, sl_price, quantity, submit=True)
-  │       └── ADB taps through app UI to set TP/SL conditions
+  │       └── ADB taps through app UI to set the condition
+  │     ├── name ends _expired -> SCHEDULED EXIT: both triggers sit at the auction
+  │     │     price, so the app sells into the open. These are the strategy's real
+  │     │     exits (expired / stagnation / ER-trend / max-hold) and they carry the
+  │     │     bulk of the backtest's profit — they are a sell, not a bracket
+  │     └── otherwise -> the daily TP/SL bracket, re-placed every morning
+  ├── For each BUY order:
+  │     create_buy_order(code, _auction_buy_price(order, quote), quantity, submit=True)
+  │       └── indicative price + TRADING_AUCTION_BUFFER_PCT, floored at the engine's
+  │           suggested price, capped by the board's band; clears at the auction price
   └── Note: Without --submit, orders stay in DB only
+
+  Strategy comes from .env DEFAULT_STRATEGY via default_strategy() +
+  apply_strategy_env(), the same resolution the backtest CLI uses.
+
+  Until recently this step had two silent defects: the engine emitted no bracket and
+  no scheduled exit for a held position in live mode at all, and submission began at
+  09:24:00, leaving ~60s for 15-20 ADB-driven orders against a 09:25 auction close.
+  See docs/backtest_optimization_real_trading_alignment.md.
 
 Step 1.6: Cleanup
   └── OrderAnalyzer is NOT run — no daily report generation for live trades

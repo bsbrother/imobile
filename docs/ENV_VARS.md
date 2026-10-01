@@ -83,7 +83,7 @@ config section. Implemented in `backtest/utils/strategy_env.py`.
 
 | Variable | Default | Description |
 |---|---|---|
-| `DEFAULT_STRATEGY` | `ts_7AZ_96MA_flow_review` | Strategy used when none is given on the command line — including `make backtest`. Must be a real strategy name, else it warns and falls back. |
+| `DEFAULT_STRATEGY` | `ts_7AZ_96MA_flow_review` | Strategy used when none is given on the command line — including `make backtest`. Must be a real strategy name, else it warns and falls back. **Backtest CLI only**: the live path never calls `apply_strategy_env` and hardcodes its strategy (`trading/runner.py:164`) |
 
 **Sections.** A comment header holding exactly a strategy name opens a section; the `KEY=VALUE`
 lines under it apply **only when that strategy runs**:

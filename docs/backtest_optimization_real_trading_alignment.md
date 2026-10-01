@@ -108,6 +108,47 @@ consistent with the gap-aware row but folded slippage and fees into an unmeasure
 +200% take-profit, which never triggers in 767 trades. Any automation must place that scheduled
 exit, not only the TP/SL brackets.
 
+### Structural gaps in the live path
+
+The table above understates the problem: it prices execution slippage while assuming the live
+system issues the same trades. It does not. Three separate systems exist and none reproduces the
+strategy's exits:
+
+| path | what it is | can it match the backtest? |
+|---|---|---|
+| `trading/runner.py` | real ADB automation of the 国泰 app (`--submit`) | **No** — emits only BUY + TP/SL, never a SELL |
+| `stock_cron_tasks.py` | paper-sim daemon (¥100,000, "NO trading is executed here") | mirrors the mechanics, but shares the optimistic stop fill and charges no fees |
+| `pre_market_run.py` | older pre-market path (legacy force-sells) | the only place a scheduled exit exists, and only for legacy holdings |
+
+- `pick_orders_trading` (engine.py:2730-2981), the live entry point, contains **zero** sell /
+  exit / expired / take_profit generation. The 192 scheduled exits that carry +1,270,456 of the
+  run's +1,157,271 profit have no live counterpart, and `create_order_sell` is never called from
+  `runner.py`.
+- Bracket renewal for held positions is gated off in live mode: engine.py:499 `if app_positions is
+  None:` runs the "TP/SL for ALL DB holdings" block only in backtest mode, while runner.py:168
+  passes `app_positions` (an empty list is coerced to `None`, which is why the only 2 of 34 live
+  runs that emitted a bracket were runs where the app read came back empty). Observed: 32 of 34
+  live pre-market runs emitted no TP/SL, and none since 2026-07-13 — so positions were held naked.
+- App-side orders are set `set_valid_until_today()`, so any bracket expires the same day.
+- Submission starts at 09:24 (runner.py:95-104) at 5-10s per ADB order, so with 15-20 orders the
+  later ones miss the 09:25 auction close.
+- `apply_strategy_env` is wired into the backtest CLI only (engine.py:3038); the live path never
+  calls it and hardcodes `src='ts_7AZ_96MA_flow_review'` (runner.py:164). The `.env` strategy
+  section therefore governs backtests, not live trading — except that python-dotenv's flat read
+  still leaks `REVIEW_COMPOUND_SIZING=true` into the live process, so live sizing compounds as a
+  side effect.
+- The paper sim fills stops at the trigger price exactly like the backtest
+  (stock_cron_tasks.py:850-853) and applies no commission or stamp duty, so its reported returns
+  track the same inflated number.
+
+The live account is not comparable evidence either: principal ¥300,000, 6 legacy holdings whose
+names are not strategy picks, 36 transactions, and `summary_account.last_updated` stuck at
+2026-07-14.
+
+Closing the gap means: a live sell path for scheduled exits; daily bracket renewal in live mode
+(iterate `app_positions`); `apply_strategy_env` in `runner.py`; submitting before 09:24; and a
+gap-aware, fee-charging paper sim if it is used as a gauge. Even then, expect ~25-60%.
+
 ### Critical Risk: Spike Days
 
 The strategy's returns are concentrated in ~6 explosive days. Missing even one due to app/ADB failure is the dominant risk. Ensure broker app is logged in and ADB verified before every trading day.

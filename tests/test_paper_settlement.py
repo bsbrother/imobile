@@ -181,3 +181,56 @@ def test_simulate_reads_existing_state_without_fees_key(monkeypatch):
 
     sct.simulate_trading_day("20251023", state)
     assert state["paper"]["fees"] == 0.0
+
+
+# ── real_fill_orders: the intraday fill path (live quotes, same paper account) ──
+
+def _pending_order():
+    return {
+        "name": "PINGAN", "code": "000001", "qty": 1000, "buy_price": 10.0,
+        "tp": 20.0, "sl": 5.0,
+    }
+
+
+def test_real_fill_orders_charges_buy_commission(monkeypatch):
+    """real_fill_orders is called from the open scan and moves real paper cash — it used to
+    deduct the notional with no commission at all."""
+    state = _base_state()
+    state["paper"]["orders"]["000001.SZ"] = _pending_order()
+    monkeypatch.setattr(sct, "realtime_prices", lambda codes: {"000001": 10.0})
+    monkeypatch.setattr(sct, "save_state", lambda s: None)
+
+    sct.real_fill_orders(state, "20251023")
+    paper = state["paper"]
+    fee = _buy_fee(1000 * 10.0)
+    assert fee == 5.0
+    assert paper["fees"] == fee
+    assert paper["cash"] == 200_000.0 - 10_000.0 - fee
+    assert paper["holdings"]["000001"]["cost"] == 10.0
+    assert paper["orders"] == {}
+
+
+def test_real_fill_orders_counts_the_fee_before_affordability(monkeypatch):
+    """Cash that covers the notional but not the commission must leave the order pending,
+    not overdraw the paper account."""
+    state = _base_state()
+    state["paper"]["cash"] = 10_000.0          # exactly the notional; fee on top
+    state["paper"]["orders"]["000001.SZ"] = _pending_order()
+    monkeypatch.setattr(sct, "realtime_prices", lambda codes: {"000001": 10.0})
+    monkeypatch.setattr(sct, "save_state", lambda s: None)
+
+    sct.real_fill_orders(state, "20251023")
+    assert "000001.SZ" in state["paper"]["orders"], "order should stay pending"
+    assert state["paper"]["cash"] == 10_000.0
+    assert state["paper"].get("fees", 0.0) == 0.0
+
+
+def test_real_fill_orders_reads_existing_state_without_fees_key(monkeypatch):
+    state = _base_state()
+    del state["paper"]["fees"]
+    state["paper"]["orders"]["000001.SZ"] = _pending_order()
+    monkeypatch.setattr(sct, "realtime_prices", lambda codes: {"000001": 10.0})
+    monkeypatch.setattr(sct, "save_state", lambda s: None)
+
+    sct.real_fill_orders(state, "20251023")
+    assert state["paper"]["fees"] == _buy_fee(1000 * 10.0)

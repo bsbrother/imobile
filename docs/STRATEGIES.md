@@ -284,6 +284,21 @@ Every figure above is reproducible from a run's own reports, without re-running 
 
     python backtest/analysis/execution_realism.py backtest/results/20260101_20260930_ts_7AZ_96MA_flow_review
 
+**What even a gap-aware run still cannot know.** Re-running with `SELL_OPEN_PRICE=false` swaps the
+offline re-pricing above for the engine's own arithmetic and lets the size feedback play out (with
+`REVIEW_COMPOUND_SIZING=true`, lower profits mean smaller positions), but it is a differently-specified
+backtest, *not* ground truth. The engine only ever sees daily OHLC, so it cannot order intraday
+events: a bar touching both the TP and the SL is still resolved by rule, and a stop that triggered
+mid-session is still assumed to fill at the stop price. Slippage stays a parameter you assert
+(`SELL_SLIPPAGE_PCT`), not a measurement; partial fills, queue position and the impact of buying 10+
+names at the open in small caps are all outside the model; the data source is the same, so any data
+error persists. Read the scenarios as "if slippage were X, the return would be Y".
+
+30-min bars *are* cached for this window (`shared/data_cache/m1m2_min30`, 2025-09-22 → 2026-09-29,
+8 bars/day over 180 days), which is enough to place each stop breach in the morning vs the afternoon
+and build a better fill model than "the open or the stop". Minute-level bars are not available. Real
+broker fills remain the only true ground truth.
+
 ---
 
 ## Results / Backup Directory Naming

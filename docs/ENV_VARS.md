@@ -76,6 +76,33 @@ Organized by subsystem. Variables marked with `*` are required.
 
 ---
 
+## Strategy Selection & Per-Strategy Sections
+
+`.env` is the source of truth for which strategy a run uses, and each strategy can carry its own
+config section. Implemented in `backtest/utils/strategy_env.py`.
+
+| Variable | Default | Description |
+|---|---|---|
+| `DEFAULT_STRATEGY` | `ts_7AZ_96MA_flow_review` | Strategy used when none is given on the command line — including `make backtest`. Must be a real strategy name, else it warns and falls back. |
+
+**Sections.** A comment header holding exactly a strategy name opens a section; the `KEY=VALUE`
+lines under it apply **only when that strategy runs**:
+
+    # ── ts_7AZ_96MA_flow_review ──────────────────────────────────
+    REVIEW_COMPOUND_SIZING=true
+    # ── end ts_7AZ_96MA_flow_review ──
+
+A section ends at the next header, an `end` marker, a divider line, or EOF. Section values
+**replace** same-named keys set globally above or read from `config.json`. Within a section the
+**last** assignment wins, so appending a line is enough — unlike the global area, which needs the
+old line commented out because python-dotenv keeps the first assignment.
+
+python-dotenv has no concept of sections and exports every line as a global, so
+`apply_strategy_env()` also removes keys owned only by a different strategy's section. Without
+that, a value in one strategy's section would silently apply to all of them.
+
+---
+
 ## Backtest Strategy Parameters
 
 These override values in `backtest/config.json`. Comment out any to use config.json defaults.
@@ -106,6 +133,7 @@ These override values in `backtest/config.json`. Comment out any to use config.j
 | `POS_SCORE_WEIGHT` | `false` | `true` = score-weighted sizing (higher-score stocks get more capital). `false` = rank-weighted |
 | `HOLD_DAYS_MULT` | 1.0 | Multiplier on max_hold_days per regime. Default 1.0 = config values: Bull 7d, Normal 5d, Volatile 4d, Bear 2d |
 | `POSITION_SIZING_ALGORITHM` | `true` | `true` = max 25% per position (~10%/slot). `false` = use all available cash |
+| `REVIEW_COMPOUND_SIZING` | `false` | `true` = position size scales with the account instead of the fixed initial capital (the 600k ceiling). Measured 157.52% → 193.54% (maxDD -1.75% → -1.80%). **Changes real position sizes on real money** — `cli.py` is the same path that generates live orders. Read by the shared CLI sizing path, so it applies to whichever strategy runs |
 
 ### Buy/Sell Filters
 
@@ -115,7 +143,11 @@ These override values in `backtest/config.json`. Comment out any to use config.j
 | `INDEX_TREND_FILTER` | `false` | `true` = skip buys when CSI 300 below 10-day MA |
 | `ER_EXIT_ENABLED` | `true` | `true` = Kaufman Efficiency Ratio exit: sell when ER > 0.7 + profit > 3% + price rising |
 | `BALANCE_PRICE_RATIO` | 0.0 | 0.0 = buy at market open. 1.0 = strict limit price entry |
-| `BACKTEST_BUY_OPEN_PRICE` | `true` | `true` = buy at open price (baseline 70.60%). `false` = buy at limit-up level (40.86%) |
+| `BUY_OPEN_PRICE` | `true` | `true` = buy at the day's open, unconditionally (baseline). `false` = simulate a pre-market limit order (fills between buy_price and open, or not at all) |
+| `SELL_OPEN_PRICE` | `true` | `true` = sell **exactly at the TP/SL price** whenever the day's high/low touches it. `false` = gap-aware: if the day opens through the TP/SL, fill at the **open** instead. **Use `false` for realistic results** — with `true`, 143 of 575 stops in the 193.58% run are booked above the day's high (see `docs/STRATEGIES.md`) |
+| `SELL_SLIPPAGE_PCT` | `0.0` | Sell-side slippage as a fraction (`0.002` = 0.2%). A-share reality is 0.2-0.8%. The cost is large here because turnover is ~219x the account |
+| `BUY_SLIPPAGE_PCT` | `0.0` | Buy-side slippage (usually 0) |
+| `BACKTEST_BUY_OPEN_PRICE` | — | Legacy, superseded by `BUY_OPEN_PRICE` + `SELL_OPEN_PRICE`; still serves as the fallback for both |
 | `SWITCH_INDEX_COMBINE_MA` | `false` | `true` = use CSI500+MA20 for regime. `false` = SSE+MA120 (default, avoids over-detecting bears) |
 | `START_REAL_TRADING_DATE` | `2026-06-29` | Cutoff date for real trading sync |
 

@@ -78,18 +78,35 @@ Documents the evolution of ts_7AZ / ts_7AZ_96MA_flow backtest optimization and r
 
 | Aspect | Backtest | Real Trading | Gap |
 |---|---|---|---|
-| Buy fill | OPEN price (instant) | Broker trigger when price ≤ buy_price | ~0.1-0.3% |
-| Sell fill | Exact TP/SL from OHLCV | Market fill at trigger | ~0.1-0.5% |
+| Buy fill | OPEN price (instant) | Broker trigger at 09:30 fills ≈ the open | small (~0.1%) |
+| Sell fill | exactly the TP/SL price | stop fills at the **open** when it gaps through | **measured: -132pp** (see below) |
+| Slippage | 0 by default (`SELL_SLIPPAGE_PCT`/`BUY_SLIPPAGE_PCT`) | 0.2-0.8% per side in A-shares | **measured: -33pp** at 0.2%/0.1% |
 | Order submission | Instant (DB write) | ADB automation: 5-10s/order | 1-3 min total |
 | Missed trades | 0 | App login/network/ADB failures | 1-5% of days |
 | Partial fills | Always 100% | A-share can have partial fills | Rare for small sizes |
 
 ### Realistic Return Estimate
 
-- **Conservative (85% capture):** ~60% return
-- **Realistic (92% capture):** ~65% return
-- **Optimistic (97% capture):** ~68% return
-- **Worst case (one spike missed):** ~55-58% return
+Measured from the run's own per-day reports (767 closed round-trips), not assumed as a capture
+rate. Same picks and same sizes — only fill prices, slippage and commission were changed:
+
+| scenario | return |
+|---|---|
+| as booked by the backtest | 192.88% |
+| gap-aware stop fills (`SELL_OPEN_PRICE=false`) | **61.04%** |
+| + 0.2% sell / 0.1% buy slippage | **28.34%** |
+| + retail commission (0.025% vs 0.00341%) | **24.27%** |
+| + 0.5% sell / 0.2% buy slippage (pessimistic) | -19.34% |
+
+The dominant correction is not slippage but **gap-through**: 143 of 575 stops (25%) are booked at a
+price the day never traded, and 346 (60%) opened below their stop, where a real order fills at the
+open — with a median stop of only -1.4%, opening that low is routine. Slippage then bites hard
+because turnover is 219x the account (¥131M on ¥600k). The earlier "~60-68%" capture estimate is
+consistent with the gap-aware row but folded slippage and fees into an unmeasured haircut.
+
+`max_hold_days: 1` means the profit comes from the **192 scheduled exits** (+1,270,456), not from the
++200% take-profit, which never triggers in 767 trades. Any automation must place that scheduled
+exit, not only the TP/SL brackets.
 
 ### Critical Risk: Spike Days
 

@@ -234,6 +234,13 @@ OrderAnalyzer.generate_daily_report(this_date)
           └── SELL ORDER execution:
                 ├── TP hit:  high >= take_profit_price → SELL at TP
                 ├── SL hit:  low  <= stop_loss_price    → SELL at SL
+                │     OPTIMISTIC: the fill is booked at the TP/SL price even when the day
+                │     GAPPED through it and never traded there (and the TP wins ties when
+                │     both are touched). Set SELL_OPEN_PRICE=false for a gap-aware fill at
+                │     the open. Measured on the 193.58% run: 143/575 stops were booked above
+                │     that day's high and 346/575 opened below their stop, so the same trades
+                │     give ~61%, or ~28% once 0.2% sell slippage is added.
+                │     See docs/STRATEGIES.md -> "Execution realism".
                 └── INSERT sell into transactions
                       UPDATE holding_stocks (reduce/remove)
                       Record P&L: net = (sell_price - cost) × qty - fees
@@ -243,6 +250,9 @@ OrderAnalyzer.generate_daily_report(this_date)
 **Fee calculation:**
 - Commission: 0.00341% × amount, min ¥5
 - Stamp duty: 0.05% on sells only
+- The commission is an **institutional** rate (~万0.34). Retail A-share accounts pay ~0.025%
+  (~万2.5), which over a run with 219x turnover is roughly ¥30k more; override it via
+  `portfolio_config.commission` in `config.json`.
 - Net = sell_amount - commission - stamp_duty
 
 ---
@@ -426,6 +436,10 @@ Day D: Order created with valid_until = D (one-day expiry)
 | `SL_WIDEN_AFTER` | Re-picks before widening starts | 0 |
 | `HOLD_DAYS_MULT` | Multiplier on max_hold_days | 1.0 |
 | `SKIP_GAPS_DOWN_OPEN_PRICE` | Skip buy if today open < prev close | true |
+| `DEFAULT_STRATEGY` | Strategy used when none is given on the CLI (also `make backtest`) | ts_7AZ_96MA_flow_review |
+| `BUY_OPEN_PRICE` / `SELL_OPEN_PRICE` | Open fill / exact-TP-SL fill. Set `SELL_OPEN_PRICE=false` for gap-aware fills | true |
+| `SELL_SLIPPAGE_PCT` / `BUY_SLIPPAGE_PCT` | Per-side slippage as a fraction (`0.002` = 0.2%) | 0.0 |
+| `REVIEW_COMPOUND_SIZING` | Scale position size with the account instead of the fixed initial capital | false |
 | `BACKTEST_PATH` | Root path for backtest module | ./backtest |
 | `REPORT_DIR` | Results output directory | ./backtest/results |
 | `CONFIG_FILE` | Path to config.json | ./backtest/config.json |

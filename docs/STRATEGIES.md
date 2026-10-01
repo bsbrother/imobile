@@ -225,6 +225,67 @@ Two pre-existing issues surfaced while checking this, neither caused by the flag
 
 ---
 
+### Execution realism — the 193.58% is not achievable as booked
+
+The headline return assumes stop orders always fill *at the stop price*. Measured from the run's
+own 181 `report_orders_*.md` files (767 closed round-trips, matching the period report's 767 sells).
+
+**The fill model** (`BUY_OPEN_PRICE=true` / `SELL_OPEN_PRICE=true`, both .env defaults):
+
+| leg | assumed fill | code |
+|---|---|---|
+| BUY | the day's **open**, unconditionally | `engine.py:1830-1833` |
+| SELL on take-profit | exactly the **TP price** | `engine.py:1427` |
+| SELL on stop-loss | exactly the **SL price** | `engine.py:1427` |
+| SELL when the order expires | the **open** | `engine.py:1410` |
+| SELL on ER/trend exit or max-hold | the **close** | `engine.py:1523,1573,1617,1664` |
+
+Sells are therefore **not** booked at the day's high. Checked against each day's own OHLC, the
+close-based exits match that day's Close 100% of the time and only 9% coincide with its High.
+The real optimism is narrower and sharper: a stop always fills at the stop price.
+
+**Where it breaks.** The per-order TP is `+200%`, so it never traded — **0 of 767** exits hit it.
+The stop is tight (median **-1.4%** vs entry: 166 are breakeven stops, 263 are -1.5%), and the
+exit mix is 575 stops / 114 expired / 55 max-hold / 23 trend:
+
+    STRICT_MAX_HOLD_CLOSE   +617,236  (55)      STOP_LOSS        -113,186  (575)
+    ORDER_EXPIRED_BEFORE... +473,219  (114)     ER_TREND_EXIT    +180,001  (23)
+
+- **143 of 575 stops (25%)** are booked at a price the day **never traded** — the booked stop sits
+  *above the day's high* (300394.SZ 20260317: booked ¥320.21, high ¥289.35, +10.7%).
+- **346 of 575 (60%)** opened below their stop, so a real stop order triggers at the **open**, not
+  at the stop. With a median stop of -1.4%, opening 1.4% down is routine.
+
+**Cost of being honest** — same picks, same sizes, only the fill prices corrected:
+
+| scenario | realized P&L | return |
+|---|---|---|
+| as booked (`SELL_OPEN_PRICE=true`) | 1,157,271 | 192.88% |
+| gap-aware stops (`SELL_OPEN_PRICE=false`) | 366,227 | **61.04%** |
+| + 0.2% sell / 0.1% buy slippage | 170,049 | **28.34%** |
+| + retail commission (0.025% vs the config's 0.00341%) | 145,647 | **24.27%** |
+| + 0.5% sell / 0.2% buy slippage (pessimistic) | -116,018 | -19.34% |
+
+Slippage dominates because turnover is **219x the account** — ¥131M traded on ¥600k, since
+`max_hold_days: 1` turns nearly the whole book over every day. This, not the signal, is what the
+upper scenarios are actually betting on.
+
+**For auto-trading by TP/SL.** A broker-side TP/SL-only bot cannot reproduce this strategy, and
+not because of fills: the TP (+200%) never triggers, and the whole +1,270,456 of profit comes from
+the **192 scheduled exits** — selling at the close or the next open. A pure TP/SL bot would hold
+those winners until they too hit -1.4% and would forfeit the edge. Automation must place the
+*scheduled* exit as well, not just the brackets.
+
+To measure the honest number, re-run with `SELL_OPEN_PRICE=false` plus `SELL_SLIPPAGE_PCT` and
+`BUY_SLIPPAGE_PCT` (both default 0). Cross-reference:
+`docs/backtest_optimization_real_trading_alignment.md`.
+
+Every figure above is reproducible from a run's own reports, without re-running the backtest:
+
+    python backtest/analysis/execution_realism.py backtest/results/20260101_20260930_ts_7AZ_96MA_flow_review
+
+---
+
 ## Results / Backup Directory Naming
 
 Generated runs live under `backtest/results/` and `backtest/results_backups/`. Both are gitignored —

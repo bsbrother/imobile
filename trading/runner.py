@@ -64,6 +64,8 @@ except Exception as e:
 # filled in continuous trading instead. TRADING_SUBMIT_BY (HHMM) sets when submission starts.
 SUBMIT_BY = os.getenv('TRADING_SUBMIT_BY', '0915')
 AUCTION_BUFFER_PCT = float(os.getenv('TRADING_AUCTION_BUFFER_PCT', '0.005'))
+# 'indicative' (conservative bid) or 'limit_up' (guaranteed participation) — see _auction_buy_price.
+BUY_LIMIT_MODE = os.getenv('TRADING_BUY_LIMIT_MODE', 'indicative').strip().lower()
 
 
 def _wait_for_auction_window(dry_run: bool = False) -> None:
@@ -104,19 +106,39 @@ def _daily_band_pct(symbol: str) -> float:
 def _auction_buy_price(order: dict, rt_price) -> str:
     """Limit price for a BUY that must clear in the call auction.
 
-    Bid the indicative auction price plus a small buffer, so convergence drift does not leave the
-    order unfilled. Never below the engine's suggested price, never above the board's daily band.
-    Falls back to the suggested price if no quote is available.
+    In an auction you pay the clearing price, not your limit, so the limit only decides whether
+    you are IN the match — bidding higher raises the fill probability without raising the price
+    paid. Two modes (TRADING_BUY_LIMIT_MODE):
+
+    - ``indicative`` (default): indicative price + buffer, floored at the engine's suggested
+      price. Conservative: a fast-converging auction can leave the order unfilled, and a miss is
+      a deviation from the backtest, which always fills.
+    - ``limit_up``: the day's price limit, computed from the PREVIOUS CLOSE (``current_price`` in
+      the cli order) times the board's band. Guaranteed >= any possible open, so the order always
+      participates — at the cost of also taking buys on gap-up days the engine's confirmed-open
+      `max_open_gap_pct` check would skip.
+
+    Either way the bid is capped at the real limit-up, and falls back to the suggested price if no
+    quote is available.
     """
+    symbol = order.get('symbol', '')
     suggested = float(order.get('buy_price') or 0)
-    if rt_price and rt_price > 0:
-        cap = rt_price * (1 + _daily_band_pct(order.get('symbol', '')))
-        bid = min(max(rt_price * (1 + AUCTION_BUFFER_PCT), suggested), cap)
+    prev_close = float(order.get('current_price') or 0)   # cli stores the previous close here
+    limit_up = prev_close * (1 + _daily_band_pct(symbol)) if prev_close > 0 else None
+
+    if BUY_LIMIT_MODE == 'limit_up' and limit_up:
+        bid = limit_up
+    elif rt_price and rt_price > 0:
+        bid = max(rt_price * (1 + AUCTION_BUFFER_PCT), suggested)
         if bid > suggested:
             logger.info(f"Bid {bid:.2f} to clear the auction (indicative {rt_price:.2f}, suggested {suggested:.2f})")
-        return f"{bid:.2f}"
-    logger.warning(f"No auction quote for {order.get('symbol')}; falling back to suggested {suggested:.2f}")
-    return str(order['buy_price'])
+    else:
+        logger.warning(f"No auction quote for {symbol}; falling back to suggested {suggested:.2f}")
+        bid = suggested
+
+    if limit_up:
+        bid = min(bid, limit_up)
+    return f"{bid:.2f}"
 
 
 # ─── Phase time guards ──────────────────────────────────────

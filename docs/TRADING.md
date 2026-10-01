@@ -118,7 +118,10 @@ Step 1.5: Submit to App (only with --submit flag)
   ├── For each BUY order:
   │     create_buy_order(code, _auction_buy_price(order, quote), quantity, submit=True)
   │       └── indicative price + TRADING_AUCTION_BUFFER_PCT, floored at the engine's
-  │           suggested price, capped by the board's band; clears at the auction price
+  │           suggested price, capped at the real limit-up (prev close x board band);
+  │           clears at the auction price. TRADING_BUY_LIMIT_MODE=limit_up bids the
+  │           whole band instead — guaranteed participation, but it also takes gap-up
+  │           buys the engine's confirmed-open max_open_gap_pct check would skip
   └── Note: Without --submit, orders stay in DB only
 
   Strategy comes from .env DEFAULT_STRATEGY via default_strategy() +

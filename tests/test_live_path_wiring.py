@@ -117,15 +117,33 @@ def test_auction_price_honours_a_suggested_price_above_the_indicative(runner_mod
 
 
 def test_auction_price_is_capped_at_the_boards_daily_band(runner_mod):
-    """A stale plan above the band must not produce an out-of-band bid."""
-    # 600xxx = ±10% band
-    price = runner_mod._auction_buy_price({'symbol': '600000.SH', 'buy_price': 30.0}, 10.0)
-    assert float(price) <= 10.0 * 1.10 + 1e-9
-    # 688xxx = ±20% band (科创板), the sample live order was 688347.SH
-    price = runner_mod._auction_buy_price({'symbol': '688347.SH', 'buy_price': 30.0}, 10.0)
-    assert float(price) <= 10.0 * 1.20 + 1e-9
+    """A stale plan above the real limit-up must not produce an out-of-band bid."""
+    # 600xxx = ±10%; previous close 10 -> limit-up 11
+    price = runner_mod._auction_buy_price(
+        {'symbol': '600000.SH', 'buy_price': 30.0, 'current_price': 10.0}, 10.0)
+    assert float(price) == pytest.approx(11.0)
+    # 688xxx = ±20% band (科创板), the board of the sample live order 688347.SH
+    price = runner_mod._auction_buy_price(
+        {'symbol': '688347.SH', 'buy_price': 30.0, 'current_price': 10.0}, 10.0)
+    assert float(price) == pytest.approx(12.0)
     assert runner_mod._daily_band_pct('300308.SZ') == pytest.approx(0.20)
     assert runner_mod._daily_band_pct('600919.SH') == pytest.approx(0.10)
+
+
+def test_indicative_mode_bids_just_over_the_quote(runner_mod):
+    """Default mode stays conservative — the real sample row (688347.SH, prev close 324)."""
+    order = {'symbol': '688347.SH', 'buy_price': 279.18, 'current_price': 324.0}
+    price = runner_mod._auction_buy_price(order, 324.0)
+    assert float(price) == pytest.approx(324.0 * (1 + runner_mod.AUCTION_BUFFER_PCT), abs=0.01)
+    assert float(price) < 324.0 * 1.20, "default mode must not bid the whole band"
+
+
+def test_limit_up_mode_bids_the_full_band(runner_mod, monkeypatch):
+    """TRADING_BUY_LIMIT_MODE=limit_up trades the miss risk for guaranteed participation."""
+    monkeypatch.setattr(runner_mod, 'BUY_LIMIT_MODE', 'limit_up')
+    order = {'symbol': '688347.SH', 'buy_price': 279.18, 'current_price': 324.0}
+    price = runner_mod._auction_buy_price(order, 324.0)
+    assert float(price) == pytest.approx(324.0 * 1.20)
 
 
 def test_auction_price_falls_back_when_no_quote(runner_mod):

@@ -113,6 +113,7 @@ to run: not a decision, just python-dotenv's flat read leaking through.
 |---|---|---|
 | `TRADING_SUBMIT_BY` | `0915` | `HHMM` at which pre-market submission starts. Orders placed in the 09:15-09:25 call auction clear at the auction price = the open, which is the fill the backtest assumes on both sides. The old 09:24:00 start left ~60s for 15-20 ADB-driven orders, so the tail missed the auction |
 | `TRADING_AUCTION_BUFFER_PCT` | `0.005` | Buffer over the indicative auction price when bidding, so convergence drift does not leave the order unfilled. Bounded by the board's daily band (10% / 20% 科创·创业 / 30% 北交所) and floored at the engine's suggested price |
+| `TRADING_BUY_LIMIT_MODE` | `indicative` | `indicative` = bid the indicative price + buffer — conservative, but a fast-converging auction can leave the order unfilled, and a miss is a deviation from the backtest, which always fills. `limit_up` = bid the day's price limit computed from the previous close (`current_price` in the cli order), which is guaranteed ≥ any possible open so the order always participates — at the cost of also taking buys on gap-up days the engine's confirmed-open `max_open_gap_pct` check would skip. Capped at the real limit-up either way |
 
 ### Paper Simulation (`stock_cron_tasks.py`)
 

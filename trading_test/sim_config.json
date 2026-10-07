@@ -1,0 +1,28 @@
+{
+  "start": "20260901",
+  "end": "20260930",
+  "cash": 300000.0,
+  "pick_source": "live",
+  "max_positions": 10,
+  "max_hold_days": null,
+  "tp_mult": 3.0,
+  "sl_pct": 0.025,
+  "buy_limit_mode": "limit_up",
+  "auction_buffer_pct": 0.005,
+  "force_exit_codes": [],
+  "fees": {
+    "commission_pct": 0.00025,
+    "commission_min": 5.0,
+    "stamp_duty_pct": 0.0005
+  },
+  "_notes": {
+    "cash": "starting cash; the live account principal is 300,000. Per-slot sizing uses THIS fixed base (cash / max_positions), matching how cli.py sizes live orders — it does not compound.",
+    "pick_source": "live = backtest/results/daily/pick_stocks_<date>.json first, else the backtest run's pick file for that date",
+    "max_positions": "per_slot = cash / max_positions, whole 100-share lots; also caps how many positions are held at once",
+    "max_hold_days": "null = read the regime's max_hold_days from backtest/config.json x HOLD_DAYS_MULT, floored at 1, the way the engine does. A number forces a fixed cap.",
+    "tp_mult": "+200% off the previous close (the pre-market reference price), matching the engine's orders",
+    "sl_pct": "-2.5% off the previous close",
+    "buy_limit_mode": "limit_up = prev_close x band (always in the auction) | prev_close_buffer | order_price",
+    "force_exit_codes": "symbols to force-sell at the open regardless of brackets"
+  }
+}

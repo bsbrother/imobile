@@ -234,15 +234,11 @@ async def main(submit: bool = False):
         # Use PREV CLOSE (current_price) as the band base — NOT the discounted
         # buy_price. buy_price can already sit above close in bull gap-ups, so
         # buy_price×(1+ratio) would EXCEED the real band and get rejected as
-        # an invalid (over-limit) order.
-        if sym.startswith('3') or sym.startswith('688'):
-            limit_ratio = 0.20
-        elif sym.startswith('8') or sym.startswith('4'):
-            limit_ratio = 0.30
-        else:
-            limit_ratio = 0.10
+        # an invalid (over-limit) order. Band comes from the shared table so the
+        # 689 STAR / 30% 北交所 cases cannot drift from the backtest.
+        from backtest.utils.limit_board import board_band, board_state, buy_block_reason
         prev_close = float(o.get('current_price') or o['buy_price'])
-        limit_up_price = round(prev_close * (1 + limit_ratio) + 1e-8, 2)
+        limit_up_price = round(prev_close * (1 + board_band(sym)) + 1e-8, 2)
 
         # Regime open-gap risk control: if the auction has confirmed (>=09:25)
         # and the stock opens more than MAX_GAP_<REGIME> above prev close,
@@ -253,6 +249,38 @@ async def main(submit: bool = False):
             if open_gap > max_open_gap_pct:
                 logger.info(f"  SKIP {sym} {o['name']}: open {confirmed_open:.2f} "
                             f"gap {open_gap:.1%} > regime cap {max_open_gap_pct:.1%}")
+                continue
+
+        # Price-limit board. At the limit-up there are no sellers, so a fill cannot happen — bidding
+        # the band top would just sit in an unfillable queue. At the limit-down the stock is a crash
+        # open, which voids the momentum premise the pick was made on. Both skip, using the same
+        # policy the backtest applies to its fills.
+        #
+        # Gated on the confirmed 09:25 open when it exists, else on the live indicative quote — but
+        # only after TRADING_QUOTE_TRUST_FROM (09:20), because before the cancel lock the indicative
+        # price can be placed-and-pulled. With no trustworthy price at all there is nothing to judge:
+        # log it and submit at the band top, which cannot fill while the board is locked anyway.
+        gate_price, gate_note = confirmed_open, 'confirmed open'
+        if gate_price is None and prev_close > 0:
+            trust_from = os.getenv('TRADING_QUOTE_TRUST_FROM', '0920')
+            if datetime.now().strftime('%H%M%S') >= trust_from + '00':
+                try:
+                    from utils.tools import get_realtime_quote
+                    _rt = get_realtime_quote(sym.split('.')[0])
+                    if _rt and float(_rt) > 0:
+                        gate_price, gate_note = float(_rt), 'indicative quote'
+                except Exception:
+                    pass
+            if gate_price is None:
+                logger.warning(f"  ⚠️ {sym} {o['name']}: no trustworthy price to board-check "
+                               f"(before {trust_from} or no quote) — submitting at the band top; it "
+                               f"cannot fill while the board is locked.")
+        if gate_price is not None and prev_close > 0:
+            board = board_state(gate_price, gate_price, gate_price, prev_close, sym)
+            board_block = buy_block_reason(board)
+            if board_block:
+                logger.info(f"  SKIP {sym} {o['name']}: {gate_note} {gate_price:.2f} is a {board} "
+                            f"board — {board_block}")
                 continue
 
         min_qty = 200 if (sym.startswith('3') or sym.startswith('688')) else 100
@@ -311,6 +339,21 @@ async def main(submit: bool = False):
         profit_price = round(h_price * 1.10, 2)
         lose_price = round(h_price * 0.97, 2)
 
+        # Pre-open gap exit: if the confirmed 09:25 print has already reached the stop, exit there
+        # instead of carrying a position the market has gapped past. An open at the limit-down asks
+        # for the same exit and cannot get it (no buyers) — the floor warning below says so.
+        from backtest.utils.limit_board import gap_exit_enabled, gap_exit_reason
+        if gap_exit_enabled():
+            try:
+                _auction = get_confirmed_open(code.split('.')[0])
+                if _auction and float(_auction) > 0:
+                    _why = gap_exit_reason(float(_auction), lose_price, h_price, code)
+                    if _why:
+                        logger.warning(f"  ⚠️ {code} {name}: {_why} — force-selling at the auction price.")
+                        profit_price = lose_price = round(float(_auction), 2)
+            except Exception:
+                pass
+
         tpsl_orders.append({
             'symbol': code,
             'name': name,
@@ -321,6 +364,18 @@ async def main(submit: bool = False):
             'current_price': h_price,
             'status': 'EXPIRED (force-sell)',
         })
+        # A stop-loss at/below the day's limit-down can never fill: at the floor there are no buyers.
+        # The order still goes out (harmless — a limit sell fills at or above its limit), but say so,
+        # because the log otherwise reads as though a losing position is being liquidated when it is
+        # in fact trapped until the floor lifts. The backtest refuses the same fill.
+        try:
+            from backtest.utils.limit_board import limit_prices
+            _limit_down, _limit_up = limit_prices(h_price, code)
+            if 0 < lose_price <= _limit_down:
+                logger.warning(f"  ⚠️ {code} {name}: SL ¥{lose_price:.2f} sits at/below the limit-down "
+                               f"¥{_limit_down:.2f} — it cannot fill at the floor; the position carries.")
+        except Exception:
+            pass
         logger.info(f"  ⚠️ FORCE-SELL {code} {name}: TP=¥{profit_price:.2f} SL=¥{lose_price:.2f} ×{h_qty} "
                     f"(cost=¥{h_cost:.2f}, price=¥{h_price:.2f})")
 

@@ -31,6 +31,7 @@ from .utils.util import convert_trade_date
 from .utils.trading_calendar import get_trading_days_after, get_trading_days_before
 from .analysis.indicators import TechnicalIndicators
 from .utils.market_regime import detect_market_regime
+from .utils.limit_board import board_band
 
 def create_parser() -> argparse.ArgumentParser:
     """Create and configure the argument parser."""
@@ -555,10 +556,10 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                     # Solution: set buy_price above close by an ATR-estimated gap, capped well
                     #           below the daily limit-up to avoid chasing parabolic moves.
                     #
-                    # ChiNext (300) / STAR (688): daily limit = ±20%, cap gap at 13%.
-                    # Main board everything else:  daily limit = ±10%, cap gap at 7%.
-                    is_wide_limit = symbol.startswith('3') or symbol.startswith('688')
-                    max_gap_pct   = 0.13 if is_wide_limit else 0.07
+                    # ChiNext (300/301) / STAR (688/689): daily limit = ±20%, cap gap at 13%.
+                    # 北交所 (±30%) takes the same wide cap. Main board: ±10%, cap gap at 7%.
+                    # The band itself comes from the shared table, so 689 cannot be missed.
+                    max_gap_pct   = 0.13 if board_band(symbol) >= 0.20 else 0.07
                     min_gap_pct   = 0.02  # at least 2% above close so the trigger always fires
 
                     # Use 0.5×ATR as the expected single-session gap move.
@@ -579,8 +580,7 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                     # a rising market rarely drop to their previous close.
                     sse_change = _get_sse_change_pct(base_date) if base_date else None
                     if sse_change is not None and sse_change > 0.5:
-                        is_wide_limit = symbol.startswith('3') or symbol.startswith('688')
-                        max_gap = 0.03 if is_wide_limit else 0.02  # mild 2-3% gap
+                        max_gap = 0.03 if board_band(symbol) >= 0.20 else 0.02  # mild 2-3% gap
                         buy_price = round(close_price * (1 + max_gap), 2)
                         logger.debug(f"{symbol}: bullish SSE ({sse_change:+.1f}%), "
                                      f"gap-up entry: {buy_price}")

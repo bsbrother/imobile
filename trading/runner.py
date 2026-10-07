@@ -23,6 +23,10 @@ from loguru import logger
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from backtest.utils.trading_calendar import calendar
+from backtest.utils.limit_board import (
+    board_band, board_state, buy_block_reason, fill_block_reason, limit_prices,
+    gap_exit_enabled, gap_exit_reason,
+)
 from backtest.utils.strategy_env import apply_strategy_env, default_strategy, redact
 import dotenv
 dotenv.load_dotenv(os.path.expanduser('.env'), verbose=True)
@@ -58,29 +62,79 @@ except Exception as e:
 
 
 # ─── Auction submission ──────────────────────────────────────
-# An order placed during the 09:15-09:25 call auction clears at the auction price, which is the
-# open — the fill the backtest assumes on both sides. Submission used to start at 09:24:00,
-# leaving ~60s for 15-20 ADB-driven orders at 5-10s each, so the tail missed the auction and
-# filled in continuous trading instead. TRADING_SUBMIT_BY (HHMM) sets when submission starts.
-SUBMIT_BY = os.getenv('TRADING_SUBMIT_BY', '0915')
+# A-share call-auction timeline (exchange rules):
+#   09:15-09:20  place AND cancel allowed. Because cancels are allowed, the displayed indicative
+#                price/volume can be FAKE — large players place and pull orders to probe demand.
+#                A quote read in this window is not evidence of anything.
+#   09:20-09:25  place only; cancellation is LOCKED. The indicative price printed here is real
+#                committed demand, and it is what converges to the open.
+#   09:25:00     a single match of the 09:20-09:25 book at ONE price = the opening price. Orders
+#                placed after this do NOT join the auction.
+#   09:25-09:30  orders are accepted but do not enter the trading system; they queue for the 09:30
+#                continuous session. Being early in that window buys TIME priority at 09:30, not
+#                the auction's single price.
+#
+# Consequences for this module:
+#   * quotes are only read from TRADING_QUOTE_TRUST_FROM (default 09:20), after the cancel lock;
+#   * 09:15-09:25 is DORMANT — nothing is submitted, and no order is priced off the indicative
+#     quote, which before the 09:20 cancel lock can be placed and pulled;
+#   * the default is TRADING_SUBMIT_MODE=confirmed_open: wait for the 09:25 print, then create and
+#     submit every order in 09:25-09:30 priced off that auction price — which IS the 09:30 open, the
+#     price the backtest fills at, so the two stay comparable;
+#   * TRADING_SUBMIT_MODE=auction is the legacy path: submit by TRADING_SUBMIT_BY (default 09:20) to
+#     join the auction itself, bidding from the indicative quote.
+SUBMIT_BY = os.getenv('TRADING_SUBMIT_BY', '0920')
+SUBMIT_MODE = os.getenv('TRADING_SUBMIT_MODE', 'confirmed_open').strip().lower()  # confirmed_open | auction
+QUOTE_TRUST_FROM = os.getenv('TRADING_QUOTE_TRUST_FROM', '0920')
+AUCTION_CONFIRM_AT = os.getenv('TRADING_AUCTION_CONFIRM_AT', '0925')        # 09:25 print + settle delay
 AUCTION_BUFFER_PCT = float(os.getenv('TRADING_AUCTION_BUFFER_PCT', '0.005'))
 # 'indicative' (conservative bid) or 'limit_up' (guaranteed participation) — see _auction_buy_price.
 BUY_LIMIT_MODE = os.getenv('TRADING_BUY_LIMIT_MODE', 'indicative').strip().lower()
 
 
+def _hhmm_secs(hhmm: str, default: int) -> int:
+    """'0920' -> seconds since midnight; `default` when unparseable."""
+    try:
+        return int(hhmm[:2]) * 3600 + int(hhmm[2:4]) * 60
+    except (ValueError, IndexError, TypeError):
+        return default
+
+
+def _now_secs() -> int:
+    n = datetime.now()
+    return n.hour * 3600 + n.minute * 60 + n.second
+
+
+def _quote_is_trustworthy(now_secs: int | None = None) -> bool:
+    """False during 09:15-09:20, when the indicative price can be spoofed by cancellation."""
+    t = _now_secs() if now_secs is None else now_secs
+    lock = _hhmm_secs(QUOTE_TRUST_FROM, 9 * 3600 + 20 * 60)
+    return t >= lock or t < 9 * 3600          # before the auction opens there is no quote anyway
+
+
+def _submit_target_secs() -> int:
+    """Clock time (seconds since midnight) at which orders may be created and submitted.
+
+    Confirmed-open mode (the default) targets the 09:25 print plus a 5s settle — the 09:15-09:25
+    window is dormant. Legacy auction mode targets TRADING_SUBMIT_BY so the order joins the auction.
+    """
+    if SUBMIT_MODE == 'confirmed_open':
+        return _hhmm_secs(AUCTION_CONFIRM_AT, 9 * 3600 + 25 * 60) + 5
+    default = '0920'
+    return _hhmm_secs((SUBMIT_BY or default).strip(), _hhmm_secs(default, 9 * 3600 + 20 * 60))
+
+
 def _wait_for_auction_window(dry_run: bool = False) -> None:
-    """Sleep until the configured auction submission time (default 09:15)."""
+    """Sleep until the submission time: the 09:25 auction print by default, never 09:15-09:25."""
     import time
     now = datetime.now()
-    hhmm = (SUBMIT_BY or '0915').strip()
-    try:
-        target = now.replace(hour=int(hhmm[:2]), minute=int(hhmm[2:4]), second=0, microsecond=0)
-    except (ValueError, IndexError):
-        logger.warning(f"Invalid TRADING_SUBMIT_BY={SUBMIT_BY!r}; falling back to 09:15")
-        target = now.replace(hour=9, minute=15, second=0, microsecond=0)
+    target_secs = _submit_target_secs()
+    target = now.replace(hour=target_secs // 3600, minute=target_secs % 3600 // 60, second=target_secs % 60,
+                         microsecond=0)
     if now < target and now.hour < 12:
         wait_seconds = (target - now).total_seconds()
-        logger.info(f"⏳ Waiting {wait_seconds:.0f}s until {target:%H:%M} to submit inside the call auction...")
+        logger.info(f"⏳ Waiting {wait_seconds:.0f}s until {target:%H:%M:%S} to submit "
+                    f"(mode={SUBMIT_MODE}, auction closes 09:25:00 — orders after that do not join it)...")
         if dry_run:
             logger.info("[DRY RUN] Skipping actual time.sleep wait.")
         else:
@@ -88,46 +142,66 @@ def _wait_for_auction_window(dry_run: bool = False) -> None:
 
 
 def _daily_band_pct(symbol: str) -> float:
-    """Price-limit band for the board a symbol trades on.
-
-    科创板 688/689 and 创业板 300/301 move ±20%, 北交所 ±30%, everything else ±10%. ST names are
-    ±5% but that is not discoverable from the code. This is only a sanity bound on the auction bid
-    (in an auction you pay the clearing price, not your limit, so the limit only decides whether
-    you are in the match); the real ceiling is the exchange's and the broker rejects beyond it.
-    """
-    c = (symbol or '').split('.')[0]
-    if c.startswith(('688', '689', '300', '301')):
-        return 0.20
-    if c.startswith(('4', '8')):
-        return 0.30
-    return 0.10
+    """Price-limit band for the board a symbol trades on — see backtest/utils/limit_board.py."""
+    return board_band(symbol)
 
 
-def _auction_buy_price(order: dict, rt_price) -> str:
-    """Limit price for a BUY that must clear in the call auction.
+def _auction_buy_price(order: dict, rt_price, now_secs: int | None = None) -> tuple[str | None, str]:
+    """(limit price, reason). A None price means SKIP the order — do not submit it.
 
-    In an auction you pay the clearing price, not your limit, so the limit only decides whether
-    you are IN the match — bidding higher raises the fill probability without raising the price
-    paid. Two modes (TRADING_BUY_LIMIT_MODE):
+    The bid is capped at the real limit-up, which is computed from the PREVIOUS CLOSE (``current_price``
+    in the cli order). Two skips are decided here, both from the price-limit board policy:
 
-    - ``indicative`` (default): indicative price + buffer, floored at the engine's suggested
-      price. Conservative: a fast-converging auction can leave the order unfilled, and a miss is
-      a deviation from the backtest, which always fills.
-    - ``limit_up``: the day's price limit, computed from the PREVIOUS CLOSE (``current_price`` in
-      the cli order) times the board's band. Guaranteed >= any possible open, so the order always
-      participates — at the cost of also taking buys on gap-up days the engine's confirmed-open
-      `max_open_gap_pct` check would skip.
+      * the auction indicates a LIMIT-UP board — you cannot buy a sealed board (no sellers), and an
+        open at the top of the band is a +10%/+20% entry versus the previous close;
+      * the auction indicates a LIMIT-DOWN board — a crash open, which voids the momentum premise
+        the pick was made on.
 
-    Either way the bid is capped at the real limit-up, and falls back to the suggested price if no
-    quote is available.
+    A quote read before the 09:20 cancel lock is refused rather than trusted, because it can be spoofed.
+
+    TRADING_BUY_LIMIT_MODE picks how the bid is sized. In an auction you pay the CLEARING price, not
+    your limit, so the limit only decides whether you are IN the match:
+
+      * ``indicative`` — indicative quote + buffer, floored at the plan. Fills the auction whenever it
+        clears near the quote, including gap-up days the backtest refused;
+      * ``limit_up`` — the whole band off the prev close: guaranteed participation, same gap-up cost;
+      * ``plan_capped`` — never above the engine's own planned limit, so live trades the list the
+        backtest traded (461/1052 = 43.8% of historical orders faced an open above the previous close
+        and so never filled in the backtest). The price is matching misses.
     """
     symbol = order.get('symbol', '')
     suggested = float(order.get('buy_price') or 0)
     prev_close = float(order.get('current_price') or 0)   # cli stores the previous close here
     limit_up = prev_close * (1 + _daily_band_pct(symbol)) if prev_close > 0 else None
 
+    if not _quote_is_trustworthy(now_secs) and BUY_LIMIT_MODE != 'limit_up':
+        return None, (f"quote taken before {QUOTE_TRUST_FROM} is spoofable (09:15-09:20 cancels are "
+                      f"allowed) and no limit-up bid mode is set")
+
+    # Board gate on whatever the auction is showing right now.
+    if rt_price and rt_price > 0 and prev_close > 0:
+        state = board_state(rt_price, rt_price, rt_price, prev_close, symbol)
+        block = buy_block_reason(state)
+        if block:
+            return None, f"auction board {state} at {rt_price:.2f} (prev {prev_close:.2f}): {block}"
+
     if BUY_LIMIT_MODE == 'limit_up' and limit_up:
         bid = limit_up
+    elif BUY_LIMIT_MODE == 'plan_capped':
+        # Match the backtest's own discipline: never bid above the strategy's planned limit. The
+        # engine fills a BUY only when the open is at or below that limit, so bidding above it buys
+        # days the backtest refused — 461/1052 (43.8%) of historical orders faced an open above the
+        # previous close and so never filled there. Capping keeps live and backtest on the same
+        # trade list; the price is that an order whose auction clears above the plan now misses,
+        # which is the miss the backtest also takes.
+        if rt_price and rt_price > 0:
+            aggressive = rt_price * (1 + AUCTION_BUFFER_PCT)
+            bid = min(aggressive, suggested) if suggested > 0 else aggressive
+            if bid < rt_price:
+                logger.info(f"Bid {bid:.2f} is below the indicative {rt_price:.2f} — this order only "
+                            f"fills if the auction clears at or under the plan (backtest parity).")
+        else:
+            bid = suggested
     elif rt_price and rt_price > 0:
         bid = max(rt_price * (1 + AUCTION_BUFFER_PCT), suggested)
         if bid > suggested:
@@ -138,7 +212,43 @@ def _auction_buy_price(order: dict, rt_price) -> str:
 
     if limit_up:
         bid = min(bid, limit_up)
-    return f"{bid:.2f}"
+    return f"{bid:.2f}", f"bid {bid:.2f} (mode={BUY_LIMIT_MODE})"
+
+
+def _confirmed_open_buy_price(order: dict, code: str) -> tuple[str | None, str]:
+    """(limit price, reason) for TRADING_SUBMIT_MODE=confirmed_open.
+
+    Uses the REAL opening price printed at 09:25, so both gates are certain rather than indicative:
+    the regime `max_open_gap_pct` cap and the price-limit board. Orders go out in 09:25-09:30, which
+    puts them at the front of the 09:30 continuous-session queue rather than in the auction.
+    """
+    try:
+        from trading.pre_market_run import get_confirmed_open
+        from backtest.utils.market_regime import detect_market_regime
+    except Exception as e:                                     # pragma: no cover - import wiring
+        return None, f"confirmed-open mode unavailable ({e})"
+
+    symbol = order.get('symbol', '')
+    prev_close = float(order.get('current_price') or 0)
+    open_price = get_confirmed_open(code)
+    if open_price is None or open_price <= 0:
+        return None, "no confirmed open at 09:25 (quote backend unavailable)"
+    if prev_close > 0:
+        state = board_state(open_price, open_price, open_price, prev_close, symbol)
+        block = buy_block_reason(state)
+        if block:
+            return None, f"confirmed open {open_price:.2f} board {state}: {block}"
+        try:
+            cap = float(detect_market_regime(datetime.now().strftime('%Y%m%d')).get('max_open_gap_pct', 0.05))
+        except Exception:
+            cap = 0.05
+        gap = (open_price - prev_close) / prev_close
+        if gap > cap:
+            return None, (f"confirmed open {open_price:.2f} gaps {gap:.1%} > regime cap {cap:.1%}")
+        limit_up = round(prev_close * (1 + _daily_band_pct(symbol)), 2)
+        bid = min(round(open_price * (1 + AUCTION_BUFFER_PCT), 2), limit_up)
+        return f"{bid:.2f}", f"confirmed open {open_price:.2f} -> bid {bid:.2f}"
+    return f"{open_price:.2f}", f"confirmed open {open_price:.2f} (no prev close to gate on)"
 
 
 # ─── Phase time guards ──────────────────────────────────────
@@ -189,10 +299,13 @@ def submit_orders_to_app(smart_orders_file: str, submit: bool = False, market_pa
     buy_orders = all_orders[:total_new_buys]
     tp_sl_orders = all_orders[total_new_buys:]
 
-    # 1. Wait for the call-auction window (default 09:15) so everything below clears at the
-    # auction price = the open. Previously the wait targeted 09:24:00 and only guarded the BUYs,
-    # which left roughly a minute for 15-20 ADB-driven orders.
+    # 1. Wait for the submission window. auction mode (default): 09:20, so (a) the indicative quote
+    # read below is post-cancel-lock and therefore real, and (b) every order still joins the auction
+    # that matches at 09:25 and fills at the open. confirmed_open mode: wait for the 09:25 print
+    # instead, then gate each BUY on the REAL open (see _confirmed_open_buy_price).
     if buy_orders or tp_sl_orders:
+        logger.info(f"Submit mode: {SUBMIT_MODE} | buy limit mode: {BUY_LIMIT_MODE} | "
+                    f"quote trust from: {QUOTE_TRUST_FROM}")
         _wait_for_auction_window(dry_run=dry_run)
 
     # 2. Held-position orders: the daily bracket, plus the scheduled exits. The engine emits a
@@ -206,6 +319,68 @@ def submit_orders_to_app(smart_orders_file: str, submit: bool = False, market_pa
         sl = str(order.get('sell_stop_loss_price', 0))
         qty = str(order.get('buy_quantity', 0))
         label = 'SCHEDULED EXIT' if str(order.get('name', '')).endswith('_expired') else 'TP/SL'
+        # Pre-open gap exit, for every held name (not just scheduled exits): if the confirmed 09:25
+        # print is already at/below the bracket's stop — or within GAP_EXIT_NEAR_PCT of it — sell at
+        # that print. Carrying the position only lets a stop that the market has already passed fill
+        # lower. A print at the limit-down asks for the same exit and cannot get it (no buyers); the
+        # warnings below report that and the position carries.
+        if label != 'SCHEDULED EXIT' and gap_exit_enabled():
+            try:
+                from trading.pre_market_run import get_confirmed_open
+                _auction = get_confirmed_open(code)
+                if _auction and float(_auction) > 0:
+                    _why = gap_exit_reason(float(_auction),
+                                           float(order.get('sell_stop_loss_price') or 0),
+                                           float(order.get('current_price') or 0), order['symbol'])
+                    if _why:
+                        logger.warning(f"  ⚠️ {label} {code}: {_why} — replacing the bracket with a "
+                                       f"sell at the auction price {float(_auction):.2f}.")
+                        tp = sl = f"{float(_auction):.2f}"
+            except Exception:
+                pass
+        # A scheduled exit means "sell at the auction price". The pre-market plan priced it off the
+        # previous close; now that the 09:25 print is in, re-price it at that print so the order the
+        # app holds is the price we actually expect. Brackets (TP/SL) are strategy levels relative to
+        # cost and are deliberately left alone.
+        if label == 'SCHEDULED EXIT' and SUBMIT_MODE == 'confirmed_open':
+            try:
+                from trading.pre_market_run import get_confirmed_open
+                _auction = get_confirmed_open(code)
+                _prev_for_band = float(order.get('current_price') or 0)
+                if _auction and float(_auction) > 0 and _prev_for_band > 0:
+                    _dn, _up = limit_prices(_prev_for_band, order['symbol'])
+                    _px = min(max(float(_auction), _dn), _up)
+                    if f"{_px:.2f}" != tp:
+                        logger.info(f"  ℹ️ {label} {code}: re-priced at the 09:25 auction {_px:.2f} "
+                                    f"(plan said TP={tp} SL={sl})")
+                        tp = sl = f"{_px:.2f}"
+            except Exception:
+                pass
+        # A SELL needs a buyer at the price it would print at. At the limit-down there are none, so
+        # the exit cannot fill today and the position carries — whatever the trigger says. Checked
+        # for the live quote (a scheduled exit is priced at the open) and for the order's own
+        # triggers, since a stop sitting at/below the limit-down can never be reached either.
+        try:
+            from utils.tools import get_realtime_quote as _rtq
+            _rt = _rtq(code)
+            _prev = float(order.get('current_price') or 0)
+            if _prev > 0:
+                _limit_down, _limit_up = limit_prices(_prev, order['symbol'])
+                for _px, _what in ((tp, 'take-profit'), (sl, 'stop-loss')):
+                    try:
+                        if 0 < float(_px) <= _limit_down:
+                            logger.warning(f"  ⚠️ {label} {code}: {_what} {float(_px):.2f} sits at/below "
+                                           f"the limit-down {_limit_down:.2f} — it can never fill, so the "
+                                           f"position will carry instead.")
+                    except (TypeError, ValueError):
+                        pass
+                if _rt and float(_rt) > 0:
+                    _why = fill_block_reason('sell', float(_rt), _prev, order['symbol'])
+                    if _why:
+                        logger.warning(f"  ⚠️ {label} {code}: {_why} — this exit cannot fill today; "
+                                       f"the position carries to the next session.")
+        except Exception:
+            pass
         try:
             create_tp_sl_order(code=code, tp_price=tp, sl_price=sl, quantity=qty, submit=submit, dry_run=dry_run)
             logger.info(f"  {'✅' if submit else 'ℹ️'} {label} {'submitted' if submit else 'filled (dry-run)'}: {code} TP={tp} SL={sl} x{qty}")
@@ -213,14 +388,26 @@ def submit_orders_to_app(smart_orders_file: str, submit: bool = False, market_pa
             logger.error(f"  ❌ {label} failed: {code} — {e}")
 
     # 3. Submit BUY orders
+    skipped_buys: list[tuple[str, str]] = []
     for order in buy_orders:
         quantity = str(order['buy_quantity'])
         if quantity == '0':
             continue
         code = order['symbol'].split('.')[0]
 
-        # Price to clear in the auction: indicative open + buffer, never above limit-up.
-        price = _auction_buy_price(order, get_realtime_quote(code))
+        # Price rule: indicative auction price + buffer in auction mode (and never above the real
+        # limit-up); the confirmed 09:25 open in confirmed_open mode. A None price means the order
+        # must NOT be submitted — the price-limit board or the gap gate refused it.
+        if SUBMIT_MODE == 'confirmed_open':
+            price, why = _confirmed_open_buy_price(order, code)
+        else:
+            price, why = _auction_buy_price(order, get_realtime_quote(code))
+
+        if price is None:
+            logger.warning(f"  ⏭️  SKIP BUY {code} {order.get('name', '')}: {why}")
+            skipped_buys.append((code, why))
+            continue
+        logger.info(f"  BUY {code} {order.get('name', '')}: {why}")
 
         try:
             # All regimes: use ordinary limit buy order during the call auction to execute exactly at Open price
@@ -228,6 +415,10 @@ def submit_orders_to_app(smart_orders_file: str, submit: bool = False, market_pa
             logger.info(f"  {'✅' if submit else 'ℹ️'} Ordinary BUY {'submitted' if submit else 'filled (dry-run)'}: {code} @{price} x{quantity}")
         except Exception as e:
             logger.error(f"  ❌ BUY failed: {code} — {e}")
+
+    if skipped_buys:
+        logger.warning(f"  {len(skipped_buys)} BUY order(s) skipped on price-limit/gap rules: "
+                       + "; ".join(f"{c} ({w})" for c, w in skipped_buys))
 
 
 # ─── Pre-market phase ────────────────────────────────────────

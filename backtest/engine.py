@@ -42,7 +42,12 @@ from backtest.utils.logging_config import configure_logger
 from backtest.utils.config import ConfigManager
 from backtest.utils.util import convert_to_datetime
 from backtest.utils.market_regime import detect_market_regime
+from backtest.utils.limit_board import (
+    board_band, board_state, buy_block_reason, sell_block_reason, fill_block_reason,
+    board_guard_enabled, gap_exit_enabled, gap_exit_reason,
+)
 from backtest.utils.trailing_stop import calculate_trailing_stop
+from backtest.utils.tp_sl import adaptive_tp_sl as _adaptive_tp_sl
 from shared.db.db import DBTEST as DB
 
 load_dotenv()
@@ -573,8 +578,9 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
                 stagnation_days = max(3, holding_days // 2 + 1)
                 current_return_pct = ((h_current_price - h_cost) / h_cost) * 100 if h_cost else 0.0
 
-                is_wide = pos_code.startswith('3') or pos_code.startswith('688')
-                widen_pct = 0.80 if is_wide else 0.90
+                # `widen_pct` is the price band's floor as a fraction of the previous close. Taken
+                # from the shared table so 689 STAR and 30% 北交所 names are not mis-banded.
+                widen_pct = 1 - board_band(pos_code)
 
                 is_force_sell = False
                 reason_of_ending = ''
@@ -740,8 +746,9 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
                 stagnation_days = max(3, holding_days // 2 + 1)
                 current_return_pct = ((h_current_price - h_cost) / h_cost) * 100 if h_cost else 0.0
 
-                is_wide = pos_code.startswith('3') or pos_code.startswith('688')
-                widen_pct = 0.80 if is_wide else 0.90
+                # `widen_pct` is the price band's floor as a fraction of the previous close. Taken
+                # from the shared table so 689 STAR and 30% 北交所 names are not mis-banded.
+                widen_pct = 1 - board_band(pos_code)
 
                 is_force_sell = False
                 reason_of_ending = ''
@@ -1025,7 +1032,8 @@ def execute_buy_order(user_id: int, symbol: str, name: str,
                      buy_price: float, quantity: int,
                      take_profit: float, stop_loss: float,
                      transaction_date: str, order_number: str,
-                     holding_days: int = 4) -> bool:
+                     holding_days: int = 4,
+                     prev_close: float | None = None) -> bool:
     """
     Execute buy order following T+1 rules and update database.
 
@@ -1038,10 +1046,20 @@ def execute_buy_order(user_id: int, symbol: str, name: str,
         transaction_date: Trading date (YYYYMMDD)
         order_number: Order number
         holding_days: Max holding days for this order
+        prev_close: The day's previous close, for the price-limit board rule. Pass it: without it the
+            board guard cannot fire, and a fill printed at the limit-up (no sellers) would be booked.
 
     Returns:
         bool: True if successful
     """
+    # A BUY needs a seller at buy_price. At the limit-up there are none. The engine's caller already
+    # refuses a limit-up session before creating the order; this makes the invariant hold at the fill
+    # itself, so no call site can book an impossible buy by forgetting the earlier check.
+    impossible = fill_block_reason('buy', buy_price, prev_close, symbol)
+    if impossible and board_guard_enabled():
+        logger.warning(f"Cannot buy {symbol} on {transaction_date}: {impossible}")
+        return False
+
     has_exceptions = True
     with DB.cursor() as cursor:
         # Calculate transaction costs
@@ -1132,7 +1150,8 @@ def execute_buy_order(user_id: int, symbol: str, name: str,
 def execute_sell_order(user_id: int, symbol: str, name: str,
                       sell_price: float, quantity: int,
                       transaction_date: str, order_number: str,
-                      reason: str = 'take_profit') -> bool:
+                      reason: str = 'take_profit',
+                      prev_close: float | None = None) -> bool:
     """
     Execute sell order following T+1 rules and update database.
 
@@ -1145,10 +1164,22 @@ def execute_sell_order(user_id: int, symbol: str, name: str,
         transaction_date: Trading date (YYYYMMDD)
         order_number: Order number
         reason: Reason for selling ('take_profit', 'stop_loss', 'manual')
+        prev_close: The day's previous close, for the price-limit board rule. Pass it: without it
+            the board guard cannot fire, and a fill at the limit-down (no buyers) would be booked.
 
     Returns:
         bool: True if successful
     """
+    # A SELL needs a buyer at sell_price. At the limit-down there are none, so the exit is impossible
+    # regardless of what triggered it — the position is trapped for the session and carried. Checked
+    # at the fill PRICE, so a branch that books the open/close at the limit-down is refused while a
+    # take-profit the stock reached later that same session still fills.
+    impossible = fill_block_reason('sell', sell_price, prev_close, symbol)
+    if impossible and board_guard_enabled():
+        logger.warning(f"Cannot sell {symbol} on {transaction_date} ({reason}): {impossible} "
+                       f"— position carried to the next session.")
+        return False
+
     has_exceptions = True
     with DB.cursor() as cursor:
         # Get current holding
@@ -1396,39 +1427,84 @@ class OrderAnalyzer:
 
             can_sell_today = available_shares > 0 and purchase_date < date
             if can_sell_today:
-                # REAL-WORLD FIX: Cannot sell if stock is locked at limit down all day
-                is_wide = symbol.startswith('3') or symbol.startswith('688')
-                limit_down_price = round(prev_close * (0.80 if is_wide else 0.90), 2)
-                if high_price <= limit_down_price:
-                    logger.warning(f"Stock {symbol} locked at limit down {limit_down_price} all day. Cannot sell.")
-                    return {
-                        'executed': False,
-                        'reason': 'locked_limit_down',
-                        'market_summary': {
-                            'prev_close': prev_close,
-                            'open': open_price,
-                            'high': high_price,
-                            'low': low_price,
-                            'close': close_price
+                # PRICE-LIMIT BOARD GUARD — a sealed limit-down board traps the position: there are
+                # no buyers, so no exit exists at ANY trigger price. Shared with the BUY guard and
+                # with the live path (backtest/utils/limit_board.py); the legacy inline check used a
+                # hardcoded 10%/20% band and so mis-banded 689 STAR and 30% 北交所 names.
+                if board_guard_enabled():
+                    _board_s = board_state(open_price, high_price, low_price, prev_close, symbol)
+                    _sell_block = sell_block_reason(_board_s)
+                    if _sell_block:
+                        logger.warning(f"Stock {symbol} {date}: limit board {_board_s} — {_sell_block}")
+                        return {
+                            'executed': False,
+                            'reason': f'limit board ({_board_s}): {_sell_block}',
+                            'market_summary': {
+                                'prev_close': prev_close,
+                                'open': open_price,
+                                'high': high_price,
+                                'low': low_price,
+                                'close': close_price
+                            }
                         }
-                    }
+                else:
+                    # REAL-WORLD FIX: Cannot sell if stock is locked at limit down all day
+                    is_wide = symbol.startswith('3') or symbol.startswith('688')
+                    limit_down_price = round(prev_close * (0.80 if is_wide else 0.90), 2)
+                    if high_price <= limit_down_price:
+                        logger.warning(f"Stock {symbol} locked at limit down {limit_down_price} all day. Cannot sell.")
+                        return {
+                            'executed': False,
+                            'reason': 'locked_limit_down',
+                            'market_summary': {
+                                'prev_close': prev_close,
+                                'open': open_price,
+                                'high': high_price,
+                                'low': low_price,
+                                'close': close_price
+                            }
+                        }
 
                 # Check sell triggers (take-profit or stop-loss)
                 tp_hit = high_price >= take_profit
                 sl_hit = low_price <= stop_loss
 
-                if tp_hit or sl_hit or '_expired' in name:
+                # Pre-open gap exit. Today's auction print (the open) is the first price on offer:
+                # if the position is already at/below its stop — or within GAP_EXIT_NEAR_PCT of it —
+                # exit HERE, at that print, whether or not the session later trades back through the
+                # trigger. Waiting only risks filling lower, and the stop's trigger price is fiction
+                # once the market has opened past it. An open at the limit-down asks for the same
+                # exit and cannot get it (no buyers): the reason says so and fill_block_reason
+                # enforces it, so the position carries instead of booking an impossible fill.
+                gap_exit = None
+                if gap_exit_enabled() and '_expired' not in name:
+                    gap_exit = gap_exit_reason(open_price, stop_loss, prev_close, symbol)
+                    if gap_exit:
+                        logger.info(f"Order {order_number} for {symbol}: {gap_exit}")
+
+                if tp_hit or sl_hit or '_expired' in name or gap_exit:
                     if '_expired' in name:
                         logger.info(f"Order {order_number} for {symbol} is expired, force sell today.")
                         sell_price = open_price
                         reason = 'order_expired_before_sell'
                     else:
-                        # Check real-world execution logic vs original backtest
-                        use_open_price_default = os.getenv('SELL_OPEN_PRICE', os.getenv('BACKTEST_BUY_OPEN_PRICE', 'true')).lower() == 'true'
-                        if not use_open_price_default:
+                        # The 09:25 auction price is the reference. If the market opens through the
+                        # trigger, that open IS the executable price — a stop at 97 does not fill at
+                        # 97 when the stock opens at 90, and a take-profit at 105 does not fill at
+                        # 105 when it opens at 112. SELL_AT_OPEN_WHEN_GAPPED=0 restores the legacy
+                        # trigger-price fill (optimistic: it books a price the market had left).
+                        _at_open = os.getenv('SELL_AT_OPEN_WHEN_GAPPED')
+                        if _at_open is None:
+                            # legacy key, explicit 'false' keeps the old behaviour
+                            _at_open = 'false' if os.getenv('SELL_OPEN_PRICE', '').strip().lower() == 'false' else 'true'
+                        gapped_fill_at_open = _at_open.strip().lower() not in ('false', '0', 'no')
+                        if gapped_fill_at_open:
                             if open_price >= take_profit:
                                 sell_price = open_price
                                 reason = 'take_profit (gap up)'
+                            elif gap_exit:
+                                sell_price = open_price
+                                reason = 'gap_exit'
                             elif open_price <= stop_loss:
                                 sell_price = open_price
                                 reason = 'stop_loss (gap down)'
@@ -1436,14 +1512,14 @@ class OrderAnalyzer:
                                 sell_price = take_profit if tp_hit else stop_loss
                                 reason = 'take_profit' if tp_hit else 'stop_loss'
                         else:
-                            # original backtest behavior
+                            # legacy behaviour
                             sell_price = take_profit if tp_hit else stop_loss
                             reason = 'take_profit' if tp_hit else 'stop_loss'
 
                     success = execute_sell_order(
                         self.user_id, symbol, name, sell_price,
                         min(available_shares, quantity), date,
-                        order_number, reason
+                        order_number, reason, prev_close=prev_close
                     )
                     if success:
                         # Calculate P&L
@@ -1499,7 +1575,7 @@ class OrderAnalyzer:
                         success = execute_sell_order(
                             self.user_id, symbol, name, sell_price,
                             min(available_shares, quantity), date,
-                            order_number, reason
+                            order_number, reason, prev_close=prev_close
                         )
                         if success:
                             cost = cost_basis * quantity
@@ -1539,7 +1615,7 @@ class OrderAnalyzer:
                         success = execute_sell_order(
                             self.user_id, symbol, name, sell_price,
                             min(available_shares, quantity), date,
-                            order_number, reason
+                            order_number, reason, prev_close=prev_close
                         )
                         if success:
                             cost = cost_basis * quantity
@@ -1589,7 +1665,7 @@ class OrderAnalyzer:
                     success = execute_sell_order(
                         self.user_id, symbol, name, sell_price,
                         min(available_shares, quantity), date,
-                        order_number, reason
+                        order_number, reason, prev_close=prev_close
                     )
                     if success:
                         cost = cost_basis * quantity
@@ -1633,7 +1709,7 @@ class OrderAnalyzer:
                     success = execute_sell_order(
                         self.user_id, symbol, name, sell_price,
                         min(available_shares, quantity), date,
-                        order_number, reason
+                        order_number, reason, prev_close=prev_close
                     )
                     if success:
                         cost = cost_basis * quantity
@@ -1680,7 +1756,7 @@ class OrderAnalyzer:
                             success = execute_sell_order(
                                 self.user_id, symbol, name, sell_price,
                                 min(available_shares, quantity), date,
-                                order_number, reason
+                                order_number, reason, prev_close=prev_close
                             )
                             if success:
                                 cost = cost_basis * quantity
@@ -1776,21 +1852,43 @@ class OrderAnalyzer:
             #return {"executed": False, "reason": f"gap_up_fade_filter: {(open_price/prev_close):.2%}, {prev_close}, {open_price}, {close_price}"}
             pass
 
-        # REAL-WORLD FIX: Filter out impossible limit-up opens (retail cannot reliably buy a limit-up open)
-        is_wide = symbol.startswith('3') or symbol.startswith('688')
-        limit_up_price = round(prev_close * (1.20 if is_wide else 1.10), 2)
-        if open_price >= limit_up_price:
-            return {
-                'executed': False,
-                'reason': f'Open price {open_price} hit limit up {limit_up_price}',
-                'market_summary': {
-                    'prev_close': prev_close,
-                    'open': open_price,
-                    'high': high_price,
-                    'low': low_price,
-                    'close': close_price
+        # PRICE-LIMIT BOARD GUARD — see backtest/utils/limit_board.py.
+        # Legacy behaviour refused only a limit-UP open, with a hardcoded 10%/20% band, which
+        # missed two real cases: a crash open AT limit-down (a knife-catch the pick's momentum
+        # premise never contemplated) and the 30% 北交所 / 689 STAR bands. LIMIT_BOARD_GUARD=0
+        # restores the legacy behaviour exactly, for an A/B against a pinned run.
+        if board_guard_enabled():
+            _board = board_state(open_price, high_price, low_price, prev_close, symbol)
+            _board_block = buy_block_reason(_board)
+            if _board_block:
+                logger.info(f"Skip BUY {symbol} {date}: limit board {_board} — {_board_block}")
+                return {
+                    'executed': False,
+                    'reason': f'limit board ({_board}): {_board_block}',
+                    'market_summary': {
+                        'prev_close': prev_close,
+                        'open': open_price,
+                        'high': high_price,
+                        'low': low_price,
+                        'close': close_price
+                    }
                 }
-            }
+        else:
+            # REAL-WORLD FIX: Filter out impossible limit-up opens (retail cannot reliably buy a limit-up open)
+            is_wide = symbol.startswith('3') or symbol.startswith('688')
+            limit_up_price = round(prev_close * (1.20 if is_wide else 1.10), 2)
+            if open_price >= limit_up_price:
+                return {
+                    'executed': False,
+                    'reason': f'Open price {open_price} hit limit up {limit_up_price}',
+                    'market_summary': {
+                        'prev_close': prev_close,
+                        'open': open_price,
+                        'high': high_price,
+                        'low': low_price,
+                        'close': close_price
+                    }
+                }
 
         # REGIME OPEN-GAP RISK CONTROL (mirrors trading/pre_market_run.py):
         # if the day opens more than max_open_gap_pct above prev close (per
@@ -1900,7 +1998,8 @@ class OrderAnalyzer:
             buy_fill_price, quantity,
             new_take_profit, new_stop_loss, # Use recalculated values
             date, order_number,
-            holding_days=self.holding_days
+            holding_days=self.holding_days,
+            prev_close=prev_close
         )
         if success:
             return {
@@ -2710,34 +2809,32 @@ def _after_market_close() -> bool:
     return now.hour * 60 + now.minute > 15 * 60
 
 
-def _adaptive_tp_sl(h_cost, h_current_price, days_held, tp_pct, sl_pct,
-                    last_sl=None, last_tp=None):
-    """Day/profit-adaptive TP/SL for a held position (no lookahead:
-    h_current_price is the PREVIOUS day's close).
-    Base: SL = cost*(1-sl_pct), TP = cost*(1+tp_pct).
-    Then, carried prior trailing order is ratcheted up, and (env-gated by
-    HOLD_SL_ADAPT, default on):
-      - breakeven: after SL_BREAKEVEN_DAY held trading days, if in profit the
-        SL is raised to at least cost (protect capital);
-      - trail: SL keeps ratcheting to h_current_price*(1-SL_TRAIL_PCT);
-      - TP ratchets up with recent highs (let winners run).
-    Returns (profit_price, lose_price)."""
-    sl = h_cost * (1 - sl_pct) if h_cost > 0 else 0.0
-    tp = h_cost * (1 + tp_pct) if h_cost > 0 else 0.0
-    if last_sl is not None and last_sl > 0:
-        sl = max(sl, float(last_sl))
-    if last_tp is not None and last_tp > 0:
-        tp = max(tp, float(last_tp))
-    if os.getenv('HOLD_SL_ADAPT', 'true').lower() in ('true', '1', 'yes'):
-        in_profit = h_current_price > h_cost
-        breakeven_day = int(os.getenv('SL_BREAKEVEN_DAY', '1'))
-        trail_pct = float(os.getenv('SL_TRAIL_PCT', '0.05'))
-        if in_profit and days_held >= breakeven_day:
-            sl = max(sl, h_cost)                            # breakeven shield
-            sl = max(sl, h_current_price * (1 - trail_pct))  # trail up
-        if in_profit and h_current_price > 0:
-            tp = max(tp, h_current_price * (1 + tp_pct))     # let winners run
-    return tp, sl
+# `_adaptive_tp_sl` (the held-position bracket policy) now lives in backtest/utils/tp_sl.py and is
+# imported above, so the live pre-market path recomputes a holding's bracket with the same rule.
+
+
+def apply_review_env_overrides(hold_mult: float, tp_agg: float, sl_tight: float,
+                               environ=os.environ) -> None:
+    """Write the review's per-date multipliers into the environment, clearing stale ones.
+
+    `market_regime.get_regime_config` reads `REVIEW_HOLD_MULT or HOLD_DAYS_MULT`
+    (and REVIEW_SL_TIGHT multiplies stop_loss_pct), so a value written for one date
+    keeps overriding the global setting on every later date unless it is removed.
+    Setting only when `!= 1.0` therefore leaked the last non-1.0 override across the
+    rest of the run — which silently invalidated any HOLD_DAYS_MULT / SL A/B.
+
+    Clearing on `== 1.0` (rather than skipping) is what makes each date's brackets
+    depend on that date's review, not on an earlier one.
+    """
+    for key, val in (
+        ('REVIEW_HOLD_MULT', hold_mult),
+        ('REVIEW_TP_AGGRESSIVE', tp_agg),
+        ('REVIEW_SL_TIGHT', sl_tight),
+    ):
+        if val != 1.0:
+            environ[key] = str(val)
+        else:
+            environ.pop(key, None)
 
 
 def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=None, user_id: int = 1, src: str = 'ts_7AZ_96MA_flow_review', resume: bool = False, backtest_search: bool = True, backtest_ai: bool = True, is_live: bool = False, app_cash: float = None, app_positions: list = None, app_running_orders: list = None):
@@ -2938,12 +3035,10 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
                 # Apply holding_days_mult and TP/SL adjustments via env override
                 # for this date only. get_regime_config reads HOLD_DAYS_MULT each
                 # call, and _adaptive_tp_sl uses the regime's stop_loss_pct.
-                if _hold_mult != 1.0:
-                    os.environ['REVIEW_HOLD_MULT'] = str(_hold_mult)
-                if _tp_agg != 1.0:
-                    os.environ['REVIEW_TP_AGGRESSIVE'] = str(_tp_agg)
-                if _sl_tight != 1.0:
-                    os.environ['REVIEW_SL_TIGHT'] = str(_sl_tight)
+                # The helper also CLEARS each key when the review returns 1.0 —
+                # skipping instead of clearing would let an earlier date's
+                # override leak into every later date (see its docstring).
+                apply_review_env_overrides(_hold_mult, _tp_agg, _sl_tight)
             except Exception as _re:
                 logger.warning(f"[{this_date}] Failed to apply review adjustments: {_re}")
 

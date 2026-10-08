@@ -2859,6 +2859,18 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
         DB = REAL_DB
         logger.warning("Live mode active: Using real imobile.db instead of test database.")
 
+    # Pre-flight: the LHB institutional-flow filter is a PASSTHROUGH for a
+    # candidate with no LHB record, so a cache that does not span the run window
+    # silently removes the flow signal for the uncovered dates and the run then
+    # measures a different strategy. Duplicate cache keys double-count the summed
+    # net-buy. Fail loudly rather than produce a number nobody can compare;
+    # LHB_COVERAGE_GUARD=warn|off relaxes it.
+    if start_date and end_date and src in (
+        'ts_7AZ_96MA_flow_review', 'ts_7AZ_96MA_flow_v2', 'ts_7AZ_96MA_flow',
+    ):
+        from backtest.strategies.ts_7AZ_96MA_flow_v2 import check_lhb_coverage
+        check_lhb_coverage(start_date, end_date)
+
     # Auto discover and white-list working search providers before beginning the backtest
     if backtest_search:
         discover_working_search_providers()

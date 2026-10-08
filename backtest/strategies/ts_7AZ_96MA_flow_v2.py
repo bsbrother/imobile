@@ -366,8 +366,13 @@ def _trend_metrics(ts_code: str, ref_date: str):
     return out
 
 
+_lhb_start = None      # earliest 上榜日期 in the cache (YYYYMMDD int)
+_lhb_end = None        # latest 上榜日期 in the cache
+_lhb_dupes = 0         # duplicate (代码, 上榜日期) rows — they double-count the flow sum
+
+
 def _load_lhb_inst():
-    global _lhb_inst
+    global _lhb_inst, _lhb_start, _lhb_end, _lhb_dupes
     if _lhb_inst is not None:
         return _lhb_inst
     if not os.path.exists(LHB_CACHE):
@@ -379,9 +384,95 @@ def _load_lhb_inst():
     df['上榜日期'] = df['上榜日期'].astype(str)
     df['_d'] = df['上榜日期'].str.replace('-', '').astype(int)
     df['inst_net'] = pd.to_numeric(df['机构买入净额'], errors='coerce').fillna(0.0)
+    _lhb_dupes = int(df.duplicated(subset=['代码', '上榜日期']).sum())
+    _lhb_start = int(df['_d'].min()) if len(df) else None
+    _lhb_end = int(df['_d'].max()) if len(df) else None
     _lhb_inst = df
-    logger.info(f"[ts_7AZ_96MA_flow_v2] loaded LHB institutional cache: {len(df)} records")
+    logger.info(f"[ts_7AZ_96MA_flow_v2] loaded LHB institutional cache: {len(df)} records, "
+                f"covering {_lhb_start}..{_lhb_end}, {_lhb_dupes} duplicate keys")
     return _lhb_inst
+
+
+def lhb_cache_coverage() -> dict:
+    """What the LHB cache actually covers: rows, date span, duplicate keys."""
+    inst = _load_lhb_inst()
+    return dict(rows=int(len(inst)), start=_lhb_start, end=_lhb_end,
+                duplicates=_lhb_dupes, path=LHB_CACHE)
+
+
+LHB_COVERAGE_GUARD = os.getenv('LHB_COVERAGE_GUARD', 'strict').strip().lower()
+
+
+def _edge_trading_day(date_str: str, forward: bool) -> int:
+    """The first (forward) / last (!forward) TRADING day of a window, as YYYYMMDD int.
+
+    A run window is given in calendar days (e.g. 20260101), but the cache can only
+    ever contain trading days — so comparing the two directly would flag every
+    weekend/holiday edge as a coverage gap. Falls back to the calendar date if the
+    trading calendar cannot be consulted.
+    """
+    d = str(date_str).replace('-', '')
+    try:
+        from backtest.utils.trading_calendar import (
+            is_trading_day, get_trading_days_before, get_trading_days_after,
+        )
+        if is_trading_day(d):
+            return int(d)
+        nxt = get_trading_days_after(d, 1) if forward else get_trading_days_before(d, 1)
+        return int(str(nxt).replace('-', ''))
+    except Exception:  # noqa: BLE001 — never let the guard itself break a run
+        return int(d)
+
+
+def check_lhb_coverage(start_date: str, end_date: str, strict: bool | None = None) -> list[str]:
+    """Problems with the LHB cache for a run over [start_date, end_date].
+
+    The flow filter passes a candidate through when it has no LHB record, so a
+    cache that does not span the run window SILENTLY removes the flow signal for
+    the uncovered dates — the run then measures a different strategy. Duplicate
+    keys are a second, quieter error: `_institutional_flow` sums records, so a
+    repeated (代码, 上榜日期) double-counts that stock-day's net-buy.
+
+    `strict` defaults to LHB_COVERAGE_GUARD (default 'strict'): raise instead of
+    returning, so a stale cache cannot produce a number. Set the env to 'warn'
+    to log and continue, or 'off' to skip the check entirely.
+    """
+    if strict is None:
+        strict = LHB_COVERAGE_GUARD != 'warn' and LHB_COVERAGE_GUARD != 'off'
+    if LHB_COVERAGE_GUARD == 'off':
+        return []
+
+    cov = lhb_cache_coverage()
+    want_lo = _edge_trading_day(start_date, forward=True)
+    want_hi = _edge_trading_day(end_date, forward=False)
+    problems: list[str] = []
+
+    if not cov['rows']:
+        problems.append(f"LHB cache missing or empty at {cov['path']} -> the flow filter "
+                        f"is inert, so this run measures a strategy without it")
+    else:
+        if cov['start'] is None or cov['start'] > want_lo:
+            problems.append(f"LHB cache starts {cov['start']}, run starts {want_lo}: "
+                            f"{want_lo}..{cov['start']} has NO flow data")
+        if cov['end'] is None or cov['end'] < want_hi:
+            problems.append(f"LHB cache ends {cov['end']}, run ends {want_hi}: "
+                            f"{cov['end']}..{want_hi} has NO flow data")
+        if cov['duplicates']:
+            problems.append(f"LHB cache has {cov['duplicates']} duplicate (代码, 上榜日期) rows, "
+                            f"which double-count the summed institutional net-buy")
+
+    if problems:
+        msg = ("[ts_7AZ_96MA_flow_v2] LHB cache does not match the run window "
+               f"{want_lo}..{want_hi}:\n  - " + "\n  - ".join(problems) +
+               "\n  rebuild it with: trading_test/fetch_lhb_institutional.py "
+               f"--start <YYYYMMDD> --end <YYYYMMDD> --replace")
+        if strict:
+            raise RuntimeError(msg)
+        logger.error(msg)
+    else:
+        logger.info(f"[ts_7AZ_96MA_flow_v2] LHB coverage OK for {want_lo}..{want_hi} "
+                    f"(cache {cov['start']}..{cov['end']}, {cov['rows']} rows, 0 duplicates)")
+    return problems
 
 
 def _institutional_flow(code6: str, ref_date: str, ts_code: str | None = None) -> float:

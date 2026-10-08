@@ -102,9 +102,24 @@ class TushareDataProvider(DataProvider):
         df = func(**kwargs)
         if df is None or not isinstance(df, pd.DataFrame):
             raise DataProviderError("Invalid response from Tushare API")
-        if df.empty:
-            time.sleep(self.rate_limit_delay)
+
+        # A transient EMPTY response is the failure mode that matters here. During a
+        # multi-hour backtest Tushare occasionally returns an empty frame for a
+        # symbol-day that does have data; a single one of those used to abort the
+        # whole run (`No fundamental data found for 688041.SH in 20240801-20240801`,
+        # raised from generate_daily_report after ~3h of work). The same symbol-day
+        # returned a row on the next invocation, so the answer is to retry, not to
+        # invent defaults. `allow_empty=True` callers (holidays, empty interfaces)
+        # keep their single attempt.
+        attempts = 1
+        max_attempts = 1 if allow_empty else max(1, int(os.getenv("TS_CALL_EMPTY_ATTEMPTS", "4")))
+        while df.empty and attempts < max_attempts:
+            attempts += 1
+            time.sleep(self.rate_limit_delay * attempts)
+            logger.warning(f"Tushare returned an empty frame (attempt {attempts}/{max_attempts}); retrying")
             df = func(**kwargs)
+            if df is None or not isinstance(df, pd.DataFrame):
+                raise DataProviderError("Invalid response from Tushare API")
 
         if required_columns:
             missing = [c for c in required_columns if c not in df.columns]

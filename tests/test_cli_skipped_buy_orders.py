@@ -30,7 +30,7 @@ def _frame(n: int = 40) -> pd.DataFrame:
     })
 
 
-def test_skipped_buy_record_uses_local_latest(monkeypatch):
+def test_skipped_buy_record_uses_local_latest(monkeypatch, tmp_path):
     monkeypatch.setattr(cli.data_provider, 'get_stock_data', lambda *a, **k: _frame())
     monkeypatch.setattr(cli.data_provider, 'get_index_data', lambda *a, **k: _frame())
 
@@ -40,7 +40,7 @@ def test_skipped_buy_record_uses_local_latest(monkeypatch):
         initial_cash=600000.0,
         remaining_slots=10,
         base_date='20240103',
-        output_file=None,
+        output_file=str(tmp_path / 'smart_orders.json'),
     )
 
     skipped = result.get('skipped_buy_orders', [])

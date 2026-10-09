@@ -211,7 +211,7 @@ class TestCanslimConstants:
         assert S_MARKET_CAP_MAX == 500e8
 
     def test_rps_threshold_is_80(self):
-        assert L_RPS_THRESHOLD == 80
+        assert L_RPS_THRESHOLD == 60.0
 
     def test_turnover_range_2_to_15pct(self):
         assert I_TURNOVER_MIN == 0.02

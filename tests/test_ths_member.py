@@ -39,8 +39,8 @@ def show_stock_list(code):
             stocks_df = pd.DataFrame(
                 [(s.get('5', '').zfill(6),
                   s.get('55', ''),
-                  f"{float(s.get('8', 0)):.2f}",
-                  f"{float(s.get('199112', 0)):.2f}%")
+                  f"{float(s.get('8') or 0):.2f}",
+                  f"{float(s.get('199112') or 0):.2f}%")
                  for s in stock_list],
                 #columns=['股票代码', '股票名称', '最新价', '涨跌幅']
                 columns=['con_code', 'con_name', '最新价', '涨跌幅']

@@ -604,7 +604,7 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
                     logger.info(f"Skip {symbol}: no remaining cash/slots for new positions.")
                     skipped_buy_orders.append({
                         "symbol": symbol,
-                        "name": data_provider.latest.get('name', ''),
+                        "name": latest.get('name', ''),
                         "buy_price": buy_price,
                         "remaining_cash": remaining_cash,
                         "skip_reason": "no_remaining_cash_or_slots"

@@ -90,6 +90,37 @@ Both legs: 243 trading days each, fresh runs, no skips, no `--resume`, zero erro
 It is not free: the drawdown is ~0.6pp deeper (-5.35% vs -4.76%). Faster rotation buys a lot
 more return for a little more risk — worth remembering before sizing real capital on it.
 
+### Stop-loss A/B across three periods (2024 / 2025 / 2026)
+
+The fixed regime stop (`SL_BULL=SL_NORMAL=0.025`, `SL_VOLATILE=0.02`, `SL_BEAR=0.015`) was isolated
+by toggling **only** `SL_ENABLED` in the `ts_7AZ_96MA_flow_review` `.env` section. All six runs share
+one rebuilt LHB cache (2023-12-01..2026-09-30, 25,648 rows, 0 duplicates — the same inputs for each
+window), one `.env` (`REVIEW_COMPOUND_SIZING=true`), and `--no-search --no-ai`; `check_lhb_coverage`
+gates each window. Every other knob — fill model, sizing, RPS — is identical between the two arms.
+
+| period | stop ON (2.5%) | stop OFF (`SL_ENABLED=false`) | benchmark (SSE) | Δ (ON − OFF) |
+|---|---|---|---|---|
+| 2024-01..12 | **-1.30%** | -15.86% | +12.67% | **+14.56pp** |
+| 2025-01..12 | -25.19% | **-14.54%** | +18.41% | -10.65pp |
+| 2026-01..09 | +38.56% | **+65.70%** | -2.03% | -27.14pp |
+
+Readings:
+
+- **No-stop wins 2 of 3 periods**, by wide margins, and the aggregate favours it (sum ≈ +35.3pp vs
+  +12.1pp). It remains the right default — which is what the review strategy's `.env` section ships
+  (`SL_ENABLED=false`).
+- **2024 flips the sign.** The stop *helps* there by +14.56pp, and the win is broad, not one month
+  (Aug +5.0pp, Sep +13.5pp, Mar +4.2pp). So the stop is a **period-dependent hedge**, not a uniformly
+  negative lever: it pays off when intraday dips don't recover and costs when they do.
+- **Caveat on "stop OFF".** `SL_ENABLED=false` zeroes only the *fixed regime* stop
+  (`market_regime.py` sets it to 99%). The day-adaptive / trailing exits (`HOLD_SL_ADAPT`,
+  `SL_BREAKEVEN_DAY`, `SL_TRAIL_PCT`) still fire, so the OFF arms still book ~100-150 `stop_loss`
+  exits. This A/B isolates the fixed regime stop, not all stop logic.
+
+An earlier two-period reading ("no-stop beats the stop by +27.14pp in 2026 and +10.65pp in 2025 — same
+sign both periods, so the lever generalises") is superseded by the 2024 block: the sign is not stable
+across periods. Quote the three-period table, not the two-period one.
+
 ### Alternative-data experiments — NEGATIVE, do not re-run
 
 Three signal families were built to see whether auction/intraday data or a demand-side leader

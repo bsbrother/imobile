@@ -1,0 +1,20 @@
+# Sweep queue: "src start end"  (# comments allowed). See trading_test/run_sweep.sh.
+# Candidates chosen from docs/STRATEGIES.md's regime guidance so both a bull year
+# (2025: SSE +18.41%) and a mixed/crash year (2024: SSE +12.67% with a Jan microcap
+# crash) get the strategy the docs recommend for that character — plus ts_7AZ, the
+# "just works" default. Reference points (default ts_7AZ_96MA_flow_review, stop OFF):
+#   2024 -15.86%   |   2025 -14.56%
+ts_7AZ                   20240101 20241231
+ts_7AZ                   20250101 20251231
+ts_longup                20240101 20241231
+ts_longup                20250101 20251231
+ts_7AZ_96MA              20240101 20241231
+ts_7AZ_96MA              20250101 20251231
+ts_hma                   20240101 20241231
+ts_hma                   20250101 20251231
+ts_ao_er                 20240101 20241231
+ts_ao_er                 20250101 20251231
+ts_multi_swing_defensive 20240101 20241231
+ts_multi_swing_defensive 20250101 20251231
+ts_7AZ_96MA_flow_v2      20240101 20241231
+ts_7AZ_96MA_flow_v2      20250101 20251231

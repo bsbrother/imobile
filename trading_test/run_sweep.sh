@@ -79,15 +79,27 @@ run_one() {  # $1 src  $2 start  $3 end
   t1=$(date +%s)
   period=$(ls "$res"/report_period_*.md 2>/dev/null | head -1)
   tot=$(grep -m1 "Total Return" "$period" 2>/dev/null | sed -E 's/[^0-9.+-]//g')
-  bench=$(grep -m2 "Total Return" "$period" 2>/dev/null | tail -1 | cut -d'|' -f3 | tr -d ' *')
+  bench=$(grep -m2 "Total Return" "$period" 2>/dev/null | tail -1 | cut -d'|' -f4 | tr -d ' *')
   rm -rf "$bkp"; cp -r "$res" "$bkp" 2>/dev/null
   printf '%s\t%s-%s\t%s\t%s\t%s\t%s\n' "$src" "$start" "$end" "$rc" "${tot:-NA}" "${bench:-NA}" "$((t1-t0))" >> "$SUM"
   echo "[sweep] $src $start-$end rc=$rc return=${tot:-NA} elapsed=$(( (t1-t0)/60 ))m"
 }
 
+# Never run a backtest alongside LIVE trading: they share /tmp/tmp and the
+# review-state file, so an overlap corrupts both — and the live path places real
+# orders. Wait for any live process to clear before each run.
+wait_for_live_clear() {
+  local waited=0
+  while pgrep -f "trading/runner\.py|pre_market_run\.py" >/dev/null 2>&1; do
+    (( waited == 0 )) && echo "[sweep] live trading process up — waiting to avoid a collision" >&2
+    sleep 60; waited=$((waited+60))
+  done
+  (( waited > 0 )) && echo "[sweep] live clear after ${waited}s — resuming" >&2
+}
 while read -r src start end; do
   [[ -z "${src:-}" ]] && continue
   case "$src" in \#*) continue;; esac
+  wait_for_live_clear
   run_one "$src" "$start" "$end"
 done < "$QD"
 

@@ -7,7 +7,12 @@
 # Why this exists: no strategy except the default has EVER been backtested, so
 # choosing one per market regime needs a sweep.
 #
-# SEQUENTIAL, not parallel. An engine run is NOT safe to run alongside another:
+# Parallel-safe since the PICK_OUTPUT fix (commit d511f1f): every run now writes its
+# OWN pick file, so concurrent runs no longer share /tmp/tmp. Two residual
+# constraints: do not queue the same (start,end,src) twice at once (the results dir
+# is keyed on range+src), and keep *_review* strategies serial (they share
+# /tmp/review_adjustments.json). Historical note — an engine run WAS unsafe to run
+# alongside another:
 # EVERY strategy writes its picks to the SAME path (`/tmp/tmp`, with a shared
 # `/tmp/ts_7AZ_tmp.json`-style fallback), and the engine renames that shared file to
 # a per-run name afterwards. Two runs therefore clobber each other — either silently
@@ -96,12 +101,16 @@ wait_for_live_clear() {
   done
   (( waited > 0 )) && echo "[sweep] live clear after ${waited}s — resuming" >&2
 }
+n=0
 while read -r src start end; do
   [[ -z "${src:-}" ]] && continue
   case "$src" in \#*) continue;; esac
   wait_for_live_clear
-  run_one "$src" "$start" "$end"
+  run_one "$src" "$start" "$end" &
+  n=$((n+1))
+  (( n % WORKERS == 0 )) && wait
 done < "$QD"
+wait
 
 echo "[sweep] done — summary $SUM"
 cat "$SUM"

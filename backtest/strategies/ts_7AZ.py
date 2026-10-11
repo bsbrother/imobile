@@ -553,7 +553,7 @@ def _write_pick_output(df: pd.DataFrame) -> None:
                 'score': float(f"{row['score']:.1f}")
             })
 
-    output_file = '/tmp/tmp'
+    output_file = os.environ.get('PICK_OUTPUT') or '/tmp/tmp'
     # If /tmp/tmp is a directory (pip residue), use alternative
     if os.path.isdir(output_file):
         output_file = '/tmp/ts_7AZ_tmp.json'

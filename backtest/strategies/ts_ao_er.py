@@ -335,7 +335,7 @@ if __name__ == "__main__":
     df = pick_ao_er_stocks(end_date=date)
 
     # Output to /tmp/tmp in standard format
-    output_file = '/tmp/tmp'
+    output_file = os.environ.get('PICK_OUTPUT') or '/tmp/tmp'
     if os.path.isdir(output_file):
         output_file = '/tmp/ts_ao_er_tmp.json'
 

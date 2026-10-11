@@ -76,7 +76,7 @@ def _write_output(df: pd.DataFrame) -> None:
                 'name': row.get('name', ''),
                 'score': float(row.get('score', 0) or 0),
             })
-    output_file = '/tmp/tmp'
+    output_file = os.environ.get('PICK_OUTPUT') or '/tmp/tmp'
     if os.path.isdir(output_file):
         output_file = '/tmp/ts_7AZ_tmp.json'
     with open(output_file, 'w') as f:
@@ -167,7 +167,7 @@ if __name__ == "__main__":
         try:
             os.makedirs(_review_dir, exist_ok=True)
             import shutil
-            src = '/tmp/tmp' if os.path.isfile('/tmp/tmp') else '/tmp/ts_7AZ_tmp.json'
+            src = os.environ.get('PICK_OUTPUT') or ('/tmp/tmp' if os.path.isfile('/tmp/tmp') else '/tmp/ts_7AZ_tmp.json')
             dst = os.path.join(_review_dir, f'pick_stocks_{target_date}.json')
             if os.path.exists(src):
                 shutil.copy2(src, dst)

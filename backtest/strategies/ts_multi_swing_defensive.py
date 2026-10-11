@@ -273,7 +273,7 @@ if __name__ == "__main__":
 
     df = pick_multi_swing_defensive(end_date=date)
 
-    output_file = '/tmp/tmp'
+    output_file = os.environ.get('PICK_OUTPUT') or '/tmp/tmp'
     if os.path.isdir(output_file):
         output_file = '/tmp/ts_multi_swing_defensive_tmp.json'
 

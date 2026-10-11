@@ -261,6 +261,13 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ_96MA_flow_review', ba
         'ts_multi_skills':    ('backtest/strategies/ts_multi_skills.py', []),
     }
 
+    # Per-run pick output path. Every strategy used to write the SHARED /tmp/tmp, so
+    # two concurrent runs clobbered each other — one silently consuming the other's
+    # picks, or FileNotFoundError on the move below. Each strategy now reads
+    # PICK_OUTPUT (falling back to /tmp/tmp only if it is unset).
+    tmp_file = f'/tmp/tmp_{src}_{this_date}_{os.getpid()}'
+    os.environ['PICK_OUTPUT'] = tmp_file
+
     if src in _STRATEGY_SCRIPTS:
         script, extra_args = _STRATEGY_SCRIPTS[src]
         _run_strategy_script(script, this_date, *extra_args, *_flags)
@@ -277,21 +284,24 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ_96MA_flow_review', ba
     else:
         # Default: ts_ths_dc with src as the strategy name
         _run_strategy_script('backtest/strategies/ts_ths_dc.py', this_date, src, *_flags)
-    # Rename /tmp/tmp to per-date file to allow parallel backtests
-    tmp_file = f'/tmp/tmp_{src}_{this_date}_{os.getpid()}'
-    try:
-        os.rename('/tmp/tmp', tmp_file)
-    except OSError:
-        # ts_7AZ / ts_ao_er fallback paths
-        fallback = '/tmp/ts_7AZ_tmp.json'
-        if not os.path.exists(fallback):
-            fallback = '/tmp/ts_7AZ_grok_tmp.json'
-        if not os.path.exists(fallback):
-            fallback = '/tmp/ts_ao_er_tmp.json'
-        if os.path.exists(fallback):
-            os.rename(fallback, tmp_file)
-        else:
-            pass  # already renamed by another process
+    # The strategy was told to write tmp_file (PICK_OUTPUT, set above). If it did,
+    # there is nothing to move. Only a legacy script that ignored PICK_OUTPUT leaves
+    # a SHARED /tmp/tmp — and moving that while another run is writing it is exactly
+    # the corruption this per-run path removes.
+    if not os.path.exists(tmp_file):
+        try:
+            os.rename('/tmp/tmp', tmp_file)
+        except OSError:
+            # ts_7AZ / ts_ao_er fallback paths
+            fallback = '/tmp/ts_7AZ_tmp.json'
+            if not os.path.exists(fallback):
+                fallback = '/tmp/ts_7AZ_grok_tmp.json'
+            if not os.path.exists(fallback):
+                fallback = '/tmp/ts_ao_er_tmp.json'
+            if os.path.exists(fallback):
+                os.rename(fallback, tmp_file)
+            else:
+                pass  # already renamed by another process
     with open(tmp_file, 'r') as f:
         strong_stocks = json.load(f)
     # Apply CANSLIM score filter from env (SCORE_MIN=5 keeps only top quality)

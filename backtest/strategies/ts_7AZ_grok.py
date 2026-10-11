@@ -474,7 +474,7 @@ def pick_strong_stocks_grok(end_date: str) -> pd.DataFrame:
             "score": float(p["grok_score"]) / 10.0,  # scale 0-100 → 0-10 for engine compat
         })
 
-    output_file = "/tmp/tmp"
+    output_file = os.environ.get('PICK_OUTPUT') or "/tmp/tmp"
     if os.path.isdir(output_file):
         output_file = "/tmp/ts_7AZ_grok_tmp.json"
     with open(output_file, "w") as f:

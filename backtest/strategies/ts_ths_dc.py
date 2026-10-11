@@ -656,7 +656,7 @@ if __name__ == "__main__":
         exit(1)
 
     # Save to /tmp/tmp: {"selected_stocks": [{"rank": 1, "symbol": "603085.SH", "score": 0.94},...]}
-    output_file = '/tmp/tmp'
+    output_file = os.environ.get('PICK_OUTPUT') or '/tmp/tmp'
     date = get_trading_days_before(date, 1)
     start_date = get_trading_days_before(date, RECENT_DAYS-1)
     end_date = date

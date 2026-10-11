@@ -404,7 +404,7 @@ if __name__ == "__main__":
     df = pick_hma_stocks(end_date=date)
     
     # Output to standard format
-    output_file = '/tmp/tmp'
+    output_file = os.environ.get('PICK_OUTPUT') or '/tmp/tmp'
     selected_stocks = []
     
     for _, stock in df.iterrows():

@@ -889,7 +889,7 @@ def main():
     args = parser.parse_args()
     
     if not args.output:
-        args.output = '/tmp/tmp'
+        args.output = os.environ.get('PICK_OUTPUT') or '/tmp/tmp'
         
     # Pick stocks
     picks = pick_stocks(args.date, args.lookahead, no_search=args.no_search, no_ai=args.no_ai)

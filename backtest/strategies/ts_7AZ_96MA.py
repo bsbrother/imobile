@@ -144,7 +144,7 @@ def _write_output(df: pd.DataFrame) -> None:
                 'name': row.get('name', ''),
                 'score': float(row.get('score', 0) or 0),
             })
-    output_file = '/tmp/tmp'
+    output_file = os.environ.get('PICK_OUTPUT') or '/tmp/tmp'
     if os.path.isdir(output_file):
         output_file = '/tmp/ts_7AZ_tmp.json'
     with open(output_file, 'w') as f:

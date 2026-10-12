@@ -537,3 +537,59 @@ News-driven catalyst?          → ts_daily (needs AI)
 Trend extreme (uptrend/crash)? → ts_7AZ_96MA
 Just want it to work?          → ts_7AZ
 ```
+
+> **This guide is contradicted by measurement.** A full 2024/2025 sweep of every runnable
+> strategy (below) found the opposite: `ts_ao_er` and `ts_hma`, filed here under "BEAR + sharp
+> drop", were the only picks that made money in the *bull* years 2024/2025, and the default lost
+> both. The guide records intent, not measured behaviour.
+
+---
+
+## Strategy Selection by Tape — the 2024–2026 sweep
+
+Every runnable strategy was re-run on 2024 and 2025 (plus the strongest reversal picks on 2026) on
+one engine config — stop-loss off (`SL_ENABLED=false`), compounding on, `--no-search --no-ai` — so
+the only variable is the stock-picker. Results sit in `backtest/results_backups/<range>_<src>_sweep/`.
+
+| strategy | family | 2024 | 2025 | 2026* |
+|---|---|---|---|---|
+| `ts_hma` | reversal | **+10.68%** | **+2.16%** | -7.79% |
+| `ts_multi_swing_defensive` | defensive | **+10.06%** | -3.55% | — |
+| `ts_ao_er` | divergence | -5.51% | **+5.16%** | +3.20% |
+| `ts_longup` | trend | -3.31% | -6.20% | — |
+| `ts_7AZ_96MA` | regime-switch | -6.95% | -22.19% | — |
+| `ts_7AZ` | fundamental | -12.38% | -16.33% | — |
+| `ts_7AZ_96MA_flow_v2` | regime+flow | -22.41% | -7.78% | — |
+| **default** `ts_7AZ_96MA_flow_review` | regime+flow | -15.86% | -14.56% | **+65.70%** |
+| *SSE benchmark* | | +12.67% | +18.41% | -2.03% |
+
+\* 2026 is Jan–Sep YTD. No strategy beat the index in any year.
+
+**The tape, not the strategy, separates the winners.** Every positive 2024/2025 cell belongs to
+the reversal/divergence/defensive family (`ts_hma`, `ts_ao_er`, `ts_multi_swing_defensive`); the
+momentum/flow family owns every worst cell in those years — and then wins 2026 outright
+(+65.70% vs -7.79% / +3.20%).
+
+**The rule, ex post.** Reversal picks when the year's index rises; the momentum/flow default when
+it falls. With hindsight that is 2024 → `ts_hma` (+10.68%), 2025 → `ts_ao_er` (+5.16%),
+2026 → default (+65.70%) ⇒ **≈ +93% compounded**, vs ≈ **+19%** for the static default.
+
+**The rule does NOT survive its causal test.** Read at each period start from the trailing signal
+only (SSE vs its 200-day MA and trailing 6-month return — see `market_indices` / the index cache),
+a selector would have seen:
+
+| period | trailing signal | gate picks | realized | right? |
+|---|---|---|---|---|
+| 2024 | BELOW MA, 6m -7.3% | default (momentum) | -15.86% | ✗ (needed `ts_hma` +10.68%) |
+| 2025 | ABOVE MA, 6m +10.1% | reversal | +2.16% / +5.16% | ✓ |
+| 2026 | ABOVE MA, 6m +16.4% | reversal | -7.79% / +3.20% | ✗ (default made +65.70%) |
+
+The trailing signal called 2024 "down" (it ended +12.67%) and 2026 "up" (it ended -2.03%): the
+year's character flipped at two of three boundaries. Compounded, the causal gate lands at
+**≈ -18%** — worse than doing nothing (the static default, ≈ +19%) and nowhere near the ex-post
++93%.
+
+**Conclusion.** Selecting the strategy per period does separate the returns, but only in hindsight.
+A period-start trend gate fails here because it cannot tell whether the coming year turns. Do not
+wire strategy-switching into dispatch until a causal rule is validated on more boundaries; treat
+the tape mapping as a hypothesis, not a rule.

@@ -593,3 +593,32 @@ year's character flipped at two of three boundaries. Compounded, the causal gate
 A period-start trend gate fails here because it cannot tell whether the coming year turns. Do not
 wire strategy-switching into dispatch until a causal rule is validated on more boundaries; treat
 the tape mapping as a hypothesis, not a rule.
+
+### A faster signal: re-picking monthly
+
+The annual gate is a *timing* failure, so the natural fix is to let the selector re-pick every
+month. `trading_test/gate_sim.py` does this offline — it rebuilds each run's own daily equity
+curve from its `report_period_*.md` (verified: every total reproduces the report exactly), turns
+it into monthly returns, and lets a selector choose a strategy per month from trailing data only.
+
+| selector (causal) | total | 2024 | 2025 | 2026 |
+|---|---|---|---|---|
+| always default (no switching) | **+19.1%** | -15.9% | -14.6% | +65.7% |
+| annual gate (period-start trend) | -18.4% | -15.9% | +5.2% | -7.8% |
+| monthly gate: SSE vs 6-month MA | +9.9% | +1.6% | -4.8% | +13.6% |
+| monthly gate: engine's own regime | -15.9% | +3.9% | -7.8% | -12.2% |
+| *ex-post monthly oracle* | *+573.6%* | | | |
+
+- **Monthly beats annual decisively** (-18.4% → +9.9%): the annual failure was mostly timing, not
+  a wrong idea — re-evaluating more often genuinely helps.
+- **But no causal selector beats doing nothing** (+19.1%). Both pre-registered gates lose. The two
+  variants that do beat it (+53.1% 3-month-momentum, +47.7% inverted-regime) are the best of nine
+  tried on 33 months, and their mirror images are the worst of the nine — selection bias, not
+  signal. The annual winner (up-tape → reversal) and the monthly winner (bear → reversal) even
+  contradict each other.
+- **The ceiling is enormous**: the ex-post monthly oracle is +573.6% vs +19.1%. Which strategy runs
+  matters hugely; none of the tested signals can see it.
+
+Method caveat: the gate composes real per-month returns from each year's own run — no cross-strategy
+capital continuity and no switch costs. A true switching portfolio needs a month-by-month runner
+that re-invokes the engine; treat these as an upper-ish bound on a causal selector, not ground truth.

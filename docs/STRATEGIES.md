@@ -596,6 +596,9 @@ the tape mapping as a hypothesis, not a rule.
 
 ### A faster signal: re-picking monthly
 
+*(3-boundary figures. Superseded by the 2023 result below: with 2023 included the MA6 gate drops
+to -35.3% and even the "monthly beats annual" edge shrinks to ~8pp.)*
+
 The annual gate is a *timing* failure, so the natural fix is to let the selector re-pick every
 month. `trading_test/gate_sim.py` does this offline — it rebuilds each run's own daily equity
 curve from its `report_period_*.md` (verified: every total reproduces the report exactly), turns
@@ -622,3 +625,42 @@ it into monthly returns, and lets a selector choose a strategy per month from tr
 Method caveat: the gate composes real per-month returns from each year's own run — no cross-strategy
 capital continuity and no switch costs. A true switching portfolio needs a month-by-month runner
 that re-invokes the engine; treat these as an upper-ish bound on a causal selector, not ground truth.
+
+### The fourth boundary (2023) — the rule is falsified
+
+2023 is the test the three-year rule lacked: a down year (SSE -3.70%, CSI300 -11.38%) independent
+of 2026. It needed the LHB institutional cache extended back to 2023-01 (done — now 2023-01-03 ..
+2026-09-30), then the same pickers:
+
+| strategy | 2023 | 2024 | 2025 | 2026 |
+|---|---|---|---|---|
+| `ts_ao_er` | **+28.43%** | -5.51% | +5.16% | +3.20% |
+| `ts_multi_swing_defensive` | -1.05% | +10.06% | -3.55% | — |
+| `ts_hma` | -2.98% | +10.68% | +2.16% | -7.79% |
+| **default** `ts_7AZ_96MA_flow_review` | **-30.61%** | -15.86% | -14.56% | +65.70% |
+| *SSE* | -3.70% | +12.67% | +18.41% | -2.03% |
+
+Four-year compounded:
+
+| rule | total |
+|---|---|
+| ex-post annual oracle (pick the year's best) | **+147.7%** |
+| always `ts_ao_er` (no switching) | +31.7% |
+| always `ts_hma` | +1.2% |
+| **always default — the production config** | **-17.3%** |
+| causal gate, 4 boundaries | -43.4% |
+| monthly MA6 gate, 4 boundaries | -35.3% |
+
+- **The rule is falsified.** 2023 and 2026 were *both* down years with **opposite** winners: 2023's
+  best was `ts_ao_er` (+28.43%) and its worst was the default (-30.61%); 2026's best was the default
+  (+65.70%). Tape direction does not pick the family.
+- **The causal gate is worse than doing nothing** (-43.4% vs -17.3%), and worse with 2023 than
+  without it. Every gate variant that *beats* the default has its mirror among the worst of the set
+  — noise, not signal.
+- **The production default lost money over 2023-2026** (-17.3%) — while the single, non-switched
+  picker `ts_ao_er` made **+31.7%** (positive in 3 of 4 years, never catastrophic).
+- The ex-post ceiling (+147.7% annual; +1016.8% monthly) still shows the choice matters enormously.
+
+So the actionable question is no longer "which condition selects the strategy" — no tested condition
+does — but **why the production default is the worst runnable picker over this window**, and whether
+`ts_ao_er`'s four-year edge is real (4 points; needs validation before any live change).

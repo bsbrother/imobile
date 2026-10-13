@@ -52,7 +52,7 @@ for d in sorted(glob.glob(f'{REP}/*_sweep')):
     if mm:
         for p in glob.glob(f'{d}/report_period_*.md'):
             add(mm.group(3), p)
-for tag in ['nostop_2024OOS', 'nostop_LHBfull', 'nostop_2025clean']:
+for tag in ['nostop_2023', 'nostop_2024OOS', 'nostop_LHBfull', 'nostop_2025clean']:
     for d in sorted(glob.glob(f'{REP}/*_{tag}')):
         for p in glob.glob(f'{d}/report_period_*.md'):
             add('default', p)
@@ -90,7 +90,7 @@ for f in glob.glob('/tmp/regime_sweep_*.txt'):
             reg[p[0]] = p[1]
 reg_dates = sorted(reg)
 
-LM, HM = pd.Timestamp('2024-01-01'), pd.Timestamp('2026-09-30')
+LM, HM = pd.Timestamp('2023-01-01'), pd.Timestamp('2026-09-30')
 allm = sorted({m for s in mon.values() for m in s.index if LM <= m <= HM})
 
 

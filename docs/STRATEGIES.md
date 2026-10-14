@@ -671,9 +671,56 @@ Four-year compounded:
   picker `ts_ao_er` made **+31.7%** (positive in 3 of 4 years, never catastrophic).
 - The ex-post ceiling (+147.7% annual; +1016.8% monthly) still shows the choice matters enormously.
 
-So the actionable question is no longer "which condition selects the strategy" — no tested condition
-does — but **why the production default is the worst runnable picker over this window**, and whether
-`ts_ao_er`'s four-year edge is real (4 points; needs validation before any live change).
+**Corrected 2026-10-14:** no *annual* condition selects the strategy — that part stands — but a
+per-REGIME *daily* switch does. See the next section. The other open question stands: **why the
+production default is the worst runnable picker over this window**, and whether `ts_ao_er`'s
+four-year edge is real.
+
+### The regime switch that DOES work — 3+ bear days → `ts_ao_er`, bull → the default (2026-10-14)
+
+`trading_test/regime_switch_study.py`. State lagged one trading day (no look-ahead); the regime is
+the engine's own `market_pattern` from `pick_stocks_*.json`; the target is each strategy's forward
+21-trading-day return off its own `report_period` daily equity.
+
+Forward-21d mean return by regime:
+
+| regime | best | worst |
+|---|---|---|
+| bear | `ts_ao_er` **+3.05%** (n=195) | default **-3.65%** |
+| bull | **default +2.19%** (n=352) | `ts_multi_swing_defensive` -1.10% |
+| normal | `ts_longup` +1.58% (n=276) | `ts_7AZ_96MA` -1.50% |
+
+By run-length of consecutive bear days — the user's "how many BEAR signals" question: at **0 bear
+days the default is best (+1.45%)**; at **3+ consecutive bear days `ts_ao_er` is best (+3.32%,
+runner-up `ts_multi_swing_defensive` +2.89%) while the default is worst (-3.85%)**. Narrowing to
+`bear_run` ≥ 3 **and** a sharp index drop (5-day SSE ≤ -4%): `ts_ao_er` **+6.50%** vs default
+-0.64% (n=52).
+
+Rule backtest (daily compounding of the picked strategy's daily returns):
+
+| rule | 2023-2026 |
+|---|---|
+| static default (production) | **-15.98%** |
+| static `ts_ao_er` | +31.69% |
+| A: `bear_run` ≥ 3 → `ts_ao_er`, else default | **+78.23%** |
+| B: bear → `ts_ao_er`, bull → default | +76.69% |
+
+Walk-forward (fit the per-regime pick on 2023-24, apply to 2025-26): the fitted map
+`{bear: ts_ao_er, bull: default, normal: ts_longup}` → **+65.18%** vs the static default's
+**+43.90%** — a **+21pp out-of-sample edge**.
+
+Mechanism: `ts_ao_er` is a divergence/mean-reversion picker (it wins the oversold bear tape); the
+production default chases LHB institutional flow, which pays in trending bull tape. That is why the
+*annual* rule above failed: a year's tape mixes both regimes, so an annual pick averages the edge
+away — the switch has to be made per day, not per year. It also means the earlier reading ("every
+gate that beats the default has its mirror among the worst — noise") was too hasty: for a real
+signal, the inverted rule being the worst is expected, and the independent per-day conditional means
+here confirm the direction.
+
+Caveats: overlapping 21-day windows inflate the observation count (effective n is the ~900 days,
+not 4904); the daily switch is a proxy with no carry/turnover cost; 4 years, and the walk-forward's
+hold-out is 2 of them. **Trust the out-of-sample +21pp, not the in-sample +94pp.** Not a live change
+without explicit sign-off.
 
 ### Exit levers are regime-dependent too — the T+1 early-cut A/B (2026-10-14)
 

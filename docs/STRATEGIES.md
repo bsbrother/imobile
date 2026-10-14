@@ -674,3 +674,35 @@ Four-year compounded:
 So the actionable question is no longer "which condition selects the strategy" — no tested condition
 does — but **why the production default is the worst runnable picker over this window**, and whether
 `ts_ao_er`'s four-year edge is real (4 points; needs validation before any live change).
+
+### Exit levers are regime-dependent too — the T+1 early-cut A/B (2026-10-14)
+
+The default's P&L decomposes by exit bucket, and the T+1 early-weakness cut (`backtest/engine.py`:
+gap < -4% at the open / close < -5% vs prev close, fired only when `holding_days == 2`) is the only
+bucket that LOSES money in **every** measured year (2023 -155k, 2024 -97k, 2025 -169k, 2026 -274k),
+at ~-6k per firing. It is now env-gated (`EARLY_CUT_GAP_PCT` / `EARLY_CUT_CLOSE_PCT`, defaults
+unchanged) and A/B'd via `trading_test/early_cut_ab.sh` + `early_cut_ab_2023.sh` — each arm isolated
+with its own `REPORT_DIR` + `REVIEW_ADJUSTMENTS_PATH`, ≤2 engines in flight against the Tushare cap:
+
+| arm | 2023 | 2026 | 2-year compounded |
+|---|---|---|---|
+| control (defaults, -4% / -5%) | **-30.61%** | **+68.42%** | +16.9% |
+| cut OFF (-99 / -99) | -26.34% | +63.97% | +20.8% |
+| cut WIDER (-8% / -10%) | -17.74% | +50.17% | **+23.5%** |
+
+Early-cut days fired: control 27 (2023) / 40 (2026); OFF 0/0; WIDER 1/4.
+
+- **The optimal width flips with the regime.** Bear-heavy 2023 rewards a *looser* cut (+12.9pp
+  wide, +4.3pp off); bull-heavy 2026 rewards the *tight* default (+4.5pp over off, +18.3pp over
+  wide). Same shape as the stop-loss finding (helps the bad years, costs 27pp in 2026) — **exit
+  tightness is regime-dependent**, which is what the engine's `SL_BULL`/`SL_BEAR` + `HOLD_DAYS_MULT`
+  knobs exist for.
+- Do NOT read this as "remove the cut": kept tight it is a genuine safety net in a bull tape.
+- Natural next step: regime-specific early-cut thresholds (`EARLY_CUT_GAP_PCT_<REGIME>`), then a
+  4-year A/B.
+
+> **Consistency note.** The 2026 figure in the four-year table above is the Oct-07 `nostop_LHBfull`
+> run (+65.70%), which predates `REVIEW_COMPOUND_SIZING=true`. Re-run on today's config the same
+> window reads **+68.42%** (`results_backups/20260101_20260930_nostop_dedupcache/`); the
+> always-default four-year total then moves to **-16.0%** and the ex-post annual oracle to
+> **+151.8%**. The table's conclusion is unchanged.

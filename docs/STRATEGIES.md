@@ -722,6 +722,26 @@ not 4904); the daily switch is a proxy with no carry/turnover cost; 4 years, and
 hold-out is 2 of them. **Trust the out-of-sample +21pp, not the in-sample +94pp.** Not a live change
 without explicit sign-off.
 
+**Implemented 2026-10-14 as `ts_switch_by_regime`** (`backtest/strategies/ts_switch_by_regime.py`,
+registered in `backtest/engine.py`). It is a delegating wrapper: it detects the same regime with the
+state LAGGED one trading day (`SWITCH_LAG_DAYS`, matching LIVE — the 08:30 pre-market pick cannot
+see today's close), then runs the chosen strategy as a subprocess with its own `.env` section forced
+in (`apply_strategy_env(..., environ=child_env)`), so a delegate's picks are identical to a native
+run of it. Verified: target 20230718 (state 20230717, `bear_run=3`) → `ts_ao_er`, and its picks
+equal the archived native `ts_ao_er` run's picks for that date (same order; the archived file is the
+raw output minus the engine's `SCORE_MIN` filter). Knobs: `SWITCH_BEAR_STRATEGY`,
+`SWITCH_BULL_STRATEGY`, `SWITCH_NORMAL_STRATEGY`, `SWITCH_BEAR_RUN_MIN`, `SWITCH_BEAR_MODE`
+(`bear_run` | `regime`), `SWITCH_LAG_DAYS`. Decision trail: `/tmp/switch_decisions.csv`.
+
+It needs its own `.env` section (`# ── ts_switch_by_regime ──`, mirrors the production knobs
+`SL_ENABLED=false` + `REVIEW_COMPOUND_SIZING=true`) — the section loader NEUTRALIZES keys owned only
+by another strategy's section, so without it a switch run would silently drop compounding and stop
+being comparable with the baselines.
+
+**It is NOT the default** — `DEFAULT_STRATEGY` is untouched, so the live path is unchanged; it runs
+only when passed as the src. A real 4-year engine run (20230101-20260930, `--no-search --no-ai`) was
+launched 2026-10-14 to validate it against the proxy numbers above.
+
 ### Exit levers are regime-dependent too — the T+1 early-cut A/B (2026-10-14)
 
 The default's P&L decomposes by exit bucket, and the T+1 early-weakness cut (`backtest/engine.py`:

@@ -739,8 +739,37 @@ by another strategy's section, so without it a switch run would silently drop co
 being comparable with the baselines.
 
 **It is NOT the default** — `DEFAULT_STRATEGY` is untouched, so the live path is unchanged; it runs
-only when passed as the src. A real 4-year engine run (20230101-20260930, `--no-search --no-ai`) was
-launched 2026-10-14 to validate it against the proxy numbers above.
+only when passed as the src.
+
+### The real run vs the proxy — the proxy is optimistic (validated 2026-10-15)
+
+A real 4-year engine run (20230101-20260930, `--no-search --no-ai`, SL off + compounding on; 908
+sessions, 698 default / 210 `ts_ao_er` days; results in
+`backtest/results/20230101_20260930_ts_switch_by_regime/`):
+
+| | 2023 | 2024 | 2025 | 2026 | 2023-2026 | 2025-26 (hold-out) |
+|---|---|---|---|---|---|---|
+| **`ts_switch_by_regime` (real run)** | +21.84% | -2.81% | +3.06% | +18.12% | **+44.15%** | **+21.73%** |
+| static default | -30.61% | -15.86% | -14.56% | +68.42% | -15.98%* | +43.90% |
+| proxy (this study, daily compounding) | — | — | — | — | +78.23% | +65.18% |
+
+(*the default's 4-year figure is the product of its own yearly runs; no single continuous run exists.)
+
+- **Full window the switch wins by +60pp** (+44.15% vs -15.98%), beats the SSE's +24.37%, and never has
+  a catastrophic year (worst year -2.81% vs the default's -30.61%). Its own max drawdown is -29.87%
+  (trough Aug 2024) — it is not a low-drawdown profile, just a less catastrophic one.
+- **But out-of-sample it LOSES: +21.73% vs the default's +43.90%, -22pp** — the proxy predicted +21pp
+  the *other* way. 2026 is the whole story: the switch spent 17% of that year in `ts_ao_er` and gave
+  back 50pp of the default's +68.42%. Time spent in the bear delegate is time NOT earning the
+  default's returns, and the default's one good year was the year that mattered.
+- **So the daily-compounding proxy — the same construction as `gate_sim.py` — OVERSTATES.** It splices
+  each strategy's daily returns as if the capital were in both at once; a real switch has ONE
+  portfolio, each delegate reacts to the portfolio the run actually built (the review overlay is
+  path-dependent), and the switch's cost is invisible to the splice. Treat every gate/switch number
+  produced by daily-return splicing as an upper-ish bound that must be re-measured with a real run.
+- **Verdict: built and mechanised, but NOT validated as a live improvement.** Keep it opt-in; do NOT
+  make it the default. The 2023-2025 gains are in-sample (the rule was derived from all four years'
+  conditional means), and the one true hold-out test we have says the default wins there.
 
 ### Exit levers are regime-dependent too — the T+1 early-cut A/B (2026-10-14)
 

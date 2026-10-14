@@ -36,7 +36,17 @@ Complete reference for all stock-picking strategies in iMobile.
 **Best measured result: 157.86%** (2026-01-01 → 2026-08-31), with `max_hold_days: 1` for every
 regime in `backtest/config.json`.
 
-| hold setting | result on 20260101-20260831 |
+> **VINTAGE WARNING (2026-10-14).** These figures predate the LHB-cache dedupe and the
+> fill-realism fixes, so they are **not** comparable to current numbers. The institutional cache
+> carried duplicate `(代码, 上榜日期)` rows while the flow filter SUMS 机构买入净额, so the signal
+> was double-counted and the returns inflated. Re-run on the deduped cache
+> (20260101-20260930, `SL_ENABLED=false` + `REVIEW_COMPOUND_SIZING=true`): **+68.42%**
+> (`results_backups/20260101_20260930_nostop_dedupcache/`); this project's own execution-realism
+> work puts the honest range at **~24-61%** once slippage and retail commission are charged
+> (see `docs/AUCTION_IMPROVE.md`, which already marks the `..._193.54` run "an impossible
+> baseline, not a target"). Read the table below as a RELATIVE hold-setting comparison only.
+
+| hold setting | result on 20260101-20260831 (pre-dedupe) |
 |---|---|
 | `max_hold_days: 1` (current config) | **157.86%** |
 | intended 7/5/4/2 with `HOLD_DAYS_MULT=0.5` | 138.19% |

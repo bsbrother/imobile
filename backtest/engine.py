@@ -1576,8 +1576,8 @@ class OrderAnalyzer:
                     current_gap_pct = ((open_price - prev_close) / prev_close) * 100
                     current_close_pct = ((close_price - prev_close) / prev_close) * 100
 
-                    # 1. Gap Down Cut: Open < -4%
-                    if current_gap_pct < -4.0:
+                    # 1. Gap Down Cut: Open < EARLY_CUT_GAP_PCT (default -4.0%)
+                    if current_gap_pct < float(os.getenv('EARLY_CUT_GAP_PCT', '-4.0')):
                         logger.info(f"Early Weakness Cut (Gap Down) triggered for {symbol}: Gap {current_gap_pct:.2f}%")
                         sell_price = open_price # Sell at Open
                         reason = 'early_cut_gap'
@@ -1616,8 +1616,8 @@ class OrderAnalyzer:
                                 }
                             }
 
-                    # 2. Intraday Drop Cut: Close < -5%
-                    if current_close_pct < -5.0:
+                    # 2. Intraday Drop Cut: Close < EARLY_CUT_CLOSE_PCT (default -5.0%)
+                    if current_close_pct < float(os.getenv('EARLY_CUT_CLOSE_PCT', '-5.0')):
                         logger.info(f"Early Weakness Cut (Big Drop) triggered for {symbol}: Close {current_close_pct:.2f}%")
                         sell_price = close_price # Sell at Close
                         reason = 'early_cut_drop'

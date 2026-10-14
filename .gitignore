@@ -43,6 +43,7 @@ shared/db/kaipanla.cache.db
 *.log
 /backtest/results/
 backtest/results_backups/
+backtest/_results_backups_archive/
 /logs/
 
 # ── IDE & Editor ────────────────────────────────────────────

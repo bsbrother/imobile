@@ -3036,7 +3036,7 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
         # ── Review-based strategy adjustments (ts_7AZ_96MA_flow_review) ──
         # The review strategy writes /tmp/review_adjustments.json after daily
         # analysis. Apply sentiment-driven position/hold-day overrides here.
-        _review_path = '/tmp/review_adjustments.json'
+        _review_path = os.getenv('REVIEW_ADJUSTMENTS_PATH', '/tmp/review_adjustments.json')
         if src in ('ts_7AZ_96MA_flow_review', 'ts_7AZ_96MA_flow_review_longterm') and os.path.exists(_review_path):
             try:
                 with open(_review_path) as _rf:
@@ -3196,7 +3196,7 @@ Examples:
     # makes day 1 start from the strategy's own fresh (no-history) assessment.
     # Not deleted on --resume: a resumed run should keep its own last state.
     if not resume:
-        _stale_review = '/tmp/review_adjustments.json'
+        _stale_review = os.getenv('REVIEW_ADJUSTMENTS_PATH', '/tmp/review_adjustments.json')
         if os.path.exists(_stale_review):
             try:
                 os.unlink(_stale_review)

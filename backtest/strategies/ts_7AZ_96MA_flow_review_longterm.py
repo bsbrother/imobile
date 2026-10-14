@@ -43,7 +43,7 @@ os.environ.setdefault('TS7AZ_RPS_MIN', '60')
 os.environ.setdefault('TS96MA_RPS_MIN', '60')
 os.environ.setdefault('LHB_EXHAUST_RUN5', '30')
 
-REVIEW_OUTPUT = '/tmp/review_adjustments.json'
+REVIEW_OUTPUT = os.environ.get('REVIEW_ADJUSTMENTS_PATH', '/tmp/review_adjustments.json')
 
 
 def _run_review_and_write(target_date: str):

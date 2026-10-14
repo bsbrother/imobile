@@ -23,6 +23,7 @@ import re, glob, os, json, sqlite3, zlib, pickle
 import pandas as pd
 
 REP = 'backtest/results_backups'
+REP2 = 'backtest/_results_backups_archive'  # runs moved here 2026-10-14 (see results_backups/README.txt)
 ME = 'ME'
 
 
@@ -47,13 +48,15 @@ def add(strat, path):
     if s is not None:
         runs.setdefault(strat, {})[yr] = s
 
-for d in sorted(glob.glob(f'{REP}/*_sweep')):
-    mm = re.match(r'(\d{8})_(\d{8})_(.+?)_sweep$', os.path.basename(d))
+for d in sorted(glob.glob(f'{REP}/*_sweep*') + glob.glob(f'{REP2}/*_sweep*')):
+    # dirs may carry a trailing _<return> (the keeper naming convention)
+    mm = re.match(r'(\d{8})_(\d{8})_(.+?)_sweep', os.path.basename(d))
     if mm:
         for p in glob.glob(f'{d}/report_period_*.md'):
             add(mm.group(3), p)
-for tag in ['nostop_2023', 'nostop_2024OOS', 'nostop_LHBfull', 'nostop_2025clean']:
-    for d in sorted(glob.glob(f'{REP}/*_{tag}')):
+for tag in ['nostop_2023', 'nostop_2024OOS', 'nostop_LHBfull', 'nostop_2025clean',
+            'nostop_dedupcache']:
+    for d in sorted(glob.glob(f'{REP}/*_{tag}*') + glob.glob(f'{REP2}/*_{tag}*')):
         for p in glob.glob(f'{d}/report_period_*.md'):
             add('default', p)
 

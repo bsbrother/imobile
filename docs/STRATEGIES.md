@@ -752,6 +752,34 @@ only when passed as the src.
 > — a ¥2k difference. The bear stretches were never the cause; the missing review was. The allowlist
 > now includes `ts_switch_by_regime`, and a 2026-only re-run is in flight. **Treat the verdict below
 > as withdrawn until that lands.**
+>
+> **CONFIRMED 2026-10-15.** With the allowlist fixed, a 2026-only re-run — same rule, *identical*
+> 31 `ts_ao_er` decisions, 181/181 sessions, and 104 review position-raises against the native
+> run's 105 — reads **+66.52% vs the default's +68.42%: a -1.90pp gap, down from -50.30pp**. So the
+> withheld review was the entire story, and the bear delegation is roughly break-even in 2026
+> ~¥11k on ¥600k). The old 4-year dir is archived as
+> `_results_backups_archive/20230101_20260930_ts_switch_by_regime_BROKEN_noreview_44.15`.
+>
+> **FINAL — the clean 4-year run VALIDATES the rule (2026-10-15).** 908/908 sessions, review applied
+> on every one (1 per session; 0 in the broken run):
+>
+> | | 2023 | 2024 | 2025 | 2026 | 2023-26 | 2025-26 (hold-out) |
+> |---|---|---|---|---|---|---|
+> | **`ts_switch_by_regime` (clean)** | +12.66% | +2.18% | -6.58% | +61.55% | **+73.75%** | **+50.93%** |
+> | static default (its own runs) | -30.61% | -15.86% | -14.56% | +68.42% | -15.98% | +43.90% |
+> | study proxy (daily splicing) | — | — | — | — | +78.23% | +65.18% |
+> | SSE Composite | -3.70% | +12.67% | +18.41% | -2.03% | +24.37% | — |
+>
+> - **Full window: +89.7pp over the production default** (+73.75% vs -15.98%), and +49pp over the SSE.
+> - **It beats the default in 3 of 4 years** (+43.27pp in 2023, +18.04pp in 2024, +7.98pp in 2025) and
+>   gives back only -6.87pp in 2026 — the default's one big year.
+> - **It WINS the hold-out: +50.93% vs +43.90%, +7.03pp.** That is the test that matters, since the
+>   rule was fitted on 2023-24 — and it is the opposite of what the broken run reported.
+> - The proxy was mildly optimistic, not wildly: +78.23% predicted vs +73.75% real, a **-4.5pp
+>   haircut**. So daily-splice gating is usable as a first pass; the "the proxy overstates" verdict
+>   was an artifact of the broken run and is withdrawn.
+> - Still a 4-year sample with a 2-year hold-out, and the as-booked fill model is optimistic on top
+>   (apply the slippage/commission ladder). **Not the default; no live change without sign-off.**
 
 A real 4-year engine run (20230101-20260930, `--no-search --no-ai`, SL off + compounding on; 908
 sessions, 698 default / 210 `ts_ao_er` days; results in

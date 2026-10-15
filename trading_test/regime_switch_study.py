@@ -160,9 +160,10 @@ for strat, yrs in runs.items():
 
 
 def run_rule(rule_fn, years, label):
-    tot, picks = 1.0, {}
+    tot, picks, per = 1.0, {}, {}
     for y in years:
         ys = str(y)
+        yr_tot = 1.0
         base = runs['default'][ys].index
         for d in base:
             if d not in lag.index:
@@ -176,9 +177,13 @@ def run_rule(rule_fn, years, label):
                 pick = 'default'
                 if ys not in daily.get('default', {}) or d not in daily['default'][ys].index:
                     continue
-            tot *= (1 + daily[pick][ys].loc[d])
+            r = daily[pick][ys].loc[d]
+            tot *= (1 + r)
+            yr_tot *= (1 + r)
             picks[pick] = picks.get(pick, 0) + 1
-    print(f"  {label:44s} {years[0]}-{years[-1]}: {(tot-1)*100:+8.2f}%   days={sum(picks.values())} {picks}")
+        per[y] = (yr_tot - 1) * 100
+    print(f"  {label:44s} {years[0]}-{years[-1]}: {(tot-1)*100:+8.2f}%   "
+          + " ".join(f"{y}:{v:+6.1f}%" for y, v in per.items()) + f"   days={sum(picks.values())} {picks}")
     return tot
 
 
@@ -186,9 +191,12 @@ print("\n=== rule backtest (daily compounding of the picked strategy's daily ret
 RULES = {
     'static default':                              lambda s: 'default',
     'static ts_ao_er':                             lambda s: 'ts_ao_er',
-    'A: bear_run>=3 -> ao_er, bull -> default':    lambda s: 'ts_ao_er' if s['bear_run'] >= 3 else 'default',
+    'A: bear_run>=3 -> ao_er, else default':       lambda s: 'ts_ao_er' if s['bear_run'] >= 3 else 'default',
     'B: bear -> ao_er, bull -> default':           lambda s: 'ts_ao_er' if s['regime'] == 'bear' else 'default',
-    'C: bear->ao_er, normal->ts_hma, bull->def':   lambda s: 'ts_ao_er' if s['regime'] == 'bear' else ('ts_hma' if s['regime'] == 'normal' else 'default'),
+    'D: A + normal -> ts_longup':                  lambda s: 'ts_ao_er' if s['bear_run'] >= 3 else ('ts_longup' if s['regime'] == 'normal' else 'default'),
+    'E: A + normal -> ts_hma':                     lambda s: 'ts_ao_er' if s['bear_run'] >= 3 else ('ts_hma' if s['regime'] == 'normal' else 'default'),
+    'F: A + bull -> ts_hma':                       lambda s: 'ts_ao_er' if s['bear_run'] >= 3 else ('ts_hma' if s['regime'] == 'bull' else 'default'),
+    'G: D + bull -> ts_hma':                       lambda s: 'ts_ao_er' if s['bear_run'] >= 3 else ('ts_hma' if s['regime'] in ('bull', 'normal') else 'default'),
 }
 for lbl, fn in RULES.items():
     run_rule(fn, [2023, 2024, 2025, 2026], lbl)

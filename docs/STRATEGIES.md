@@ -781,6 +781,29 @@ only when passed as the src.
 > - Still a 4-year sample with a 2-year hold-out, and the as-booked fill model is optimistic on top
 >   (apply the slippage/commission ladder). **Not the default; no live change without sign-off.**
 
+**Why 2025 is the weak year (measured 2026-10-15).** Its regime mix was bull 175 / normal 49 / bear 19,
+so the bear rule fired on only 17 of 243 sessions (7%) and the switch ran the default almost all year.
+The default's 2025 damage is *not* the bull tape — bull days were **+¥50,523** — it is **normal
+(¥-104,811 over 49 days) and bear (¥-33,863)**. And the bear branch did work: `ts_ao_er` was **+2.36%/21d**
+where the default was **-7.70%**, which is exactly the +7.98pp the switch gained that year. So 2025 is a
+*family*-level trap — every momentum/flow pick lost in the +18.41% up-tape year, the same trap that makes
+the annual pick unfixable — not something the rule got wrong.
+
+Rule variants, 4-year daily-splice proxy (self-checked: static default reads -15.98% ✓):
+
+| rule | 2023 | 2024 | 2025 | 2026 | total |
+|---|---|---|---|---|---|
+| **A (shipped)**: 3+ bear → `ts_ao_er`, else default | +25.7% | -17.4% | -6.5% | +83.6% | **+78.23%** |
+| D: A + normal → `ts_longup` | +25.7% | -9.7% | -7.6% | +83.6% | **+92.53%** |
+| F: A + bull → `ts_hma` | +6.0% | -13.6% | **+0.7%** | +71.5% | +58.10% |
+| G: D + bull → `ts_hma` | +14.7% | +7.7% | **+5.7%** | +11.2% | +45.29% |
+
+- **D is the best total — it confirms the study's own fitted map — but it makes 2025 slightly worse.**
+- **F and G are the only variants that turn 2025 positive, and both pay for it**: -20pp and -33pp over the
+  window, with G giving back most of 2026's +83.6%. F's +0.7% is inside the splice's noise.
+- No variant fixes 2025 for free, and every env knob already exists (`SWITCH_NORMAL_STRATEGY`,
+  `SWITCH_BULL_STRATEGY`), so any of these is a config change, not code.
+
 A real 4-year engine run (20230101-20260930, `--no-search --no-ai`, SL off + compounding on; 908
 sessions, 698 default / 210 `ts_ao_er` days; results in
 `backtest/results/20230101_20260930_ts_switch_by_regime/`):

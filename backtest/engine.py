@@ -3037,8 +3037,18 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
         # ── Review-based strategy adjustments (ts_7AZ_96MA_flow_review) ──
         # The review strategy writes /tmp/review_adjustments.json after daily
         # analysis. Apply sentiment-driven position/hold-day overrides here.
+        #
+        # ts_switch_by_regime is in this allowlist because it DELEGATES to a review
+        # strategy: the delegate writes the very same file. Gating on the src name
+        # alone left every review adjustment unapplied in a switch run — and the
+        # review is a big lever (on the 2026 default run it RAISED MAX_POSITIONS 105
+        # times, LOWERED it 58), so the switch traded under the base cap the whole
+        # way and lost ~35pp of its 2026 window against the un-switched default.
+        # Non-review srcs are deliberately absent: for them the file is another
+        # strategy's state and applying it would be a cross-strategy leak.
         _review_path = os.getenv('REVIEW_ADJUSTMENTS_PATH', '/tmp/review_adjustments.json')
-        if src in ('ts_7AZ_96MA_flow_review', 'ts_7AZ_96MA_flow_review_longterm') and os.path.exists(_review_path):
+        if src in ('ts_7AZ_96MA_flow_review', 'ts_7AZ_96MA_flow_review_longterm',
+                   'ts_switch_by_regime') and os.path.exists(_review_path):
             try:
                 with open(_review_path) as _rf:
                     _review = json.load(_rf)

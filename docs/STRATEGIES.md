@@ -743,6 +743,16 @@ only when passed as the src.
 
 ### The real run vs the proxy — the proxy is optimistic (validated 2026-10-15)
 
+> **CORRECTION (2026-10-15): this run is INVALID as a test of the rule.** `backtest/engine.py:3041`
+> applies the review overlay behind an allowlist on the **src name**, so a `ts_switch_by_regime` run
+> silently ignored every review adjustment — and the review is a large lever (on the native 2026
+> default run it RAISED `MAX_POSITIONS` 105 times and lowered it 58). The decomposition proves it:
+> of the 36.93pp 2026 gap, **+35.15pp came from days the switch was running the *same* strategy as
+> the default**, while on the 31 days it delegated to `ts_ao_er` the two earned ¥145,929 vs ¥143,956
+> — a ¥2k difference. The bear stretches were never the cause; the missing review was. The allowlist
+> now includes `ts_switch_by_regime`, and a 2026-only re-run is in flight. **Treat the verdict below
+> as withdrawn until that lands.**
+
 A real 4-year engine run (20230101-20260930, `--no-search --no-ai`, SL off + compounding on; 908
 sessions, 698 default / 210 `ts_ao_er` days; results in
 `backtest/results/20230101_20260930_ts_switch_by_regime/`):

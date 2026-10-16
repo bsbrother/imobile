@@ -815,6 +815,19 @@ sign is unproven; a re-run with a private `REVIEW_ADJUSTMENTS_PATH` is in flight
 dir is archived as `_results_backups_archive/20250101_20251231_ts_switch_by_regime_CONTAMINATED_cronreview_5.13`.
 The 4-year clean run is unaffected — it ran 16:42→~05:4x, never crossing a 09:2x tick.
 
+**Clean re-run: rule G turns 2025 positive — VERIFIED (2026-10-16).** 243/243 sessions, **0 review
+applications** (the correct positive control for a rule whose delegates include no review strategy),
+same delegate mix (175 bull + 49 normal → `ts_hma`, 17 bear ≥3 → `ts_ao_er`): **2025 = +7.97%** —
+**+14.55pp on rule A's -6.58%** and **+22.53pp on the production default's -14.56%**, and above both the
+proxy's +5.7% and the contaminated run's +5.13% (the cron's review state was a drag, not a help). Still
+behind the SSE's +18.41%.
+
+Cost, from the proxy: rule G's 4-year is +45.29% vs rule A's +78.23% — a **-33pp** give-back, mostly
+2026 (+11.2% vs +83.6%). A real 4-year rule-G run is in flight to price that properly, since the proxy
+has run *conservative* on the `ts_hma` branch (-2.3pp on 2025) while being -4.5pp optimistic on rule A.
+The validated rule-A dir is archived (reversibly) as
+`_results_backups_archive/20230101_20260930_ts_switch_by_regime_ruleA_validated_73.75`.
+
 A real 4-year engine run (20230101-20260930, `--no-search --no-ai`, SL off + compounding on; 908
 sessions, 698 default / 210 `ts_ao_er` days; results in
 `backtest/results/20230101_20260930_ts_switch_by_regime/`):

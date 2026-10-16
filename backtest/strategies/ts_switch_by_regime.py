@@ -31,6 +31,9 @@ pass through untouched):
     SWITCH_BEAR_RUN_MIN     default 3
     SWITCH_BEAR_MODE        bear_run | regime   (default bear_run)
     SWITCH_LAG_DAYS         default 1
+    SWITCH_DROP_TRIGGER_PCT e.g. -4 — ALSO fire the bear delegate when the trailing 5-session
+                            index change is at or below this (default: unset = off, rule unchanged)
+    SWITCH_DROP_LOOKBACK    default 5 (the framing of that drop)
     SWITCH_AUDIT_CSV        default /tmp/switch_decisions.csv
 
 Usage:
@@ -63,6 +66,10 @@ NORMAL_STRATEGY = os.getenv('SWITCH_NORMAL_STRATEGY', 'ts_7AZ_96MA_flow_review')
 BEAR_RUN_MIN = int(os.getenv('SWITCH_BEAR_RUN_MIN', '3'))
 BEAR_MODE = os.getenv('SWITCH_BEAR_MODE', 'bear_run')
 LAG_DAYS = int(os.getenv('SWITCH_LAG_DAYS', '1'))
+# Optional second trigger. Unset (the default) keeps the decision byte-identical to the
+# validated rule — this is an opt-in bolt-on, not a change to the shipped behaviour.
+DROP_TRIGGER_PCT = os.getenv('SWITCH_DROP_TRIGGER_PCT')      # e.g. '-4' == a -4% drop
+DROP_LOOKBACK = int(os.getenv('SWITCH_DROP_LOOKBACK', '5'))  # sessions framed by that drop
 
 REGIME_CACHE = os.getenv('SWITCH_REGIME_CACHE', '/tmp/switch_regime_cache.json')
 AUDIT_CSV = os.getenv('SWITCH_AUDIT_CSV', '/tmp/switch_decisions.csv')
@@ -119,23 +126,42 @@ def _bear_run_ending(date: str, cache: dict) -> int:
     return n
 
 
-def _choose(regime: str, bear_run: int) -> str:
+def _index_drop_pct(date: str) -> "float | None":
+    """Trailing DROP_LOOKBACK-session SSE change (%) at `date`, or None if unavailable."""
+    from backtest import data_provider
+    try:
+        start = get_trading_days_before(date, DROP_LOOKBACK + 5)
+        df = data_provider.get_index_data('000001.SH', start, date)
+        if df is None or len(df) <= DROP_LOOKBACK:
+            return None
+        close = df['close'].astype(float)
+        return (close.iloc[-1] / close.iloc[-(DROP_LOOKBACK + 1)] - 1) * 100
+    except Exception as e:
+        logger.warning(f"[switch] index drop lookup failed for {date}: {e}")
+        return None
+
+
+def _choose(regime: str, bear_run: int, drop_pct: "float | None" = None) -> str:
     if BEAR_MODE == 'regime':
         if regime == 'bear':
             return BEAR_STRATEGY
         return BULL_STRATEGY if regime == 'bull' else NORMAL_STRATEGY
     if bear_run >= BEAR_RUN_MIN:
         return BEAR_STRATEGY
+    if DROP_TRIGGER_PCT is not None and drop_pct is not None and drop_pct <= float(DROP_TRIGGER_PCT):
+        return BEAR_STRATEGY
     return BULL_STRATEGY if regime == 'bull' else NORMAL_STRATEGY
 
 
-def _audit(target_date: str, state_date: str, regime: str, bear_run: int, delegate: str) -> None:
+def _audit(target_date: str, state_date: str, regime: str, bear_run: int, delegate: str,
+           drop_pct: "float | None" = None) -> None:
     try:
         fresh = not os.path.exists(AUDIT_CSV)
+        drop = '' if drop_pct is None else f'{drop_pct:.2f}'
         with open(AUDIT_CSV, 'a') as f:
             if fresh:
-                f.write('target_date,state_date,regime,bear_run,delegate,mode\n')
-            f.write(f'{target_date},{state_date},{regime},{bear_run},{delegate},{BEAR_MODE}\n')
+                f.write('target_date,state_date,regime,bear_run,delegate,mode,drop_pct\n')
+            f.write(f'{target_date},{state_date},{regime},{bear_run},{delegate},{BEAR_MODE},{drop}\n')
     except Exception as e:
         logger.debug(f"[switch] audit write failed: {e}")
 
@@ -197,10 +223,11 @@ if __name__ == "__main__":
 
     regime = _regime_for(state_date, cache)
     bear_run = _bear_run_ending(state_date, cache)
-    delegate = _choose(regime, bear_run)
+    drop_pct = _index_drop_pct(state_date) if DROP_TRIGGER_PCT is not None else None
+    delegate = _choose(regime, bear_run, drop_pct)
 
     logger.info(f"[switch] {this_date}: state={state_date} regime={regime} "
-                f"bear_run={bear_run} mode={BEAR_MODE} -> {delegate}")
+                f"bear_run={bear_run} drop={drop_pct} mode={BEAR_MODE} -> {delegate}")
 
     picks = run_delegate(delegate, this_date, flags)
 

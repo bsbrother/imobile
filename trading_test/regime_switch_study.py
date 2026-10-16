@@ -197,6 +197,13 @@ RULES = {
     'E: A + normal -> ts_hma':                     lambda s: 'ts_ao_er' if s['bear_run'] >= 3 else ('ts_hma' if s['regime'] == 'normal' else 'default'),
     'F: A + bull -> ts_hma':                       lambda s: 'ts_ao_er' if s['bear_run'] >= 3 else ('ts_hma' if s['regime'] == 'bull' else 'default'),
     'G: D + bull -> ts_hma':                       lambda s: 'ts_ao_er' if s['bear_run'] >= 3 else ('ts_hma' if s['regime'] in ('bull', 'normal') else 'default'),
+    # --- improvement search (2026-10-16) — the sharp-drop trigger the descriptive table liked ---
+    'J: bear_run>=2 -> ao_er, else default':       lambda s: 'ts_ao_er' if s['bear_run'] >= 2 else 'default',
+    'K: bear_run>=3 -> ts_multi, else default':    lambda s: 'ts_multi_swing_defensive' if s['bear_run'] >= 3 else 'default',
+    'O: A + (drop5<=-4 -> ao_er)':                 lambda s: 'ts_ao_er' if (s['bear_run'] >= 3 or s['drop5'] <= -4) else 'default',
+    'P: D + (drop5<=-4 -> ao_er)':                 lambda s: 'ts_ao_er' if (s['bear_run'] >= 3 or s['drop5'] <= -4) else ('ts_longup' if s['regime'] == 'normal' else 'default'),
+    'Q: D but normal -> ts_ao_er':                 lambda s: 'ts_ao_er' if (s['bear_run'] >= 3 or s['regime'] == 'normal') else 'default',
+    'R: A but bear uses ts_multi':                 lambda s: 'ts_multi_swing_defensive' if s['bear_run'] >= 3 else 'default',
 }
 for lbl, fn in RULES.items():
     run_rule(fn, [2023, 2024, 2025, 2026], lbl)

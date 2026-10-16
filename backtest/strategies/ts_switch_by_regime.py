@@ -235,5 +235,5 @@ if __name__ == "__main__":
         json.dump({'selected_stocks': picks}, f)
 
     _save_cache(cache)
-    _audit(this_date, state_date, regime, bear_run, delegate)
+    _audit(this_date, state_date, regime, bear_run, delegate, drop_pct)
     logger.info(f"[switch] saved {len(picks)} picks to {output_file} (via {delegate})")

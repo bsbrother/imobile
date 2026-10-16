@@ -804,6 +804,17 @@ Rule variants, 4-year daily-splice proxy (self-checked: static default reads -15
 - No variant fixes 2025 for free, and every env knob already exists (`SWITCH_NORMAL_STRATEGY`,
   `SWITCH_BULL_STRATEGY`), so any of these is a config change, not code.
 
+**Real 2025 verification of rule G — INCONCLUSIVE, contaminated (2026-10-16).**
+`env SWITCH_BULL_STRATEGY=ts_hma SWITCH_NORMAL_STRATEGY=ts_hma` over 20250101-20251231 (243/243
+sessions; wiring confirmed in the audit trail: 175 bull + 49 normal → `ts_hma`, 17 bear ≥3 → `ts_ao_er`)
+returned **+5.13%**, against the proxy's +5.7% — but it is NOT a clean test: the run crossed the 09:2x
+cron tick, the daily paper-sim rewrote `/tmp/review_adjustments.json`, and the engine applied that
+foreign review state from session `20250407` onward (**183 of 243 sessions**). Split: the clean 60
+sessions (to 2025-04-03) were **-1.51%**, the contaminated 183 contributed **+6.74%**. So the positive
+sign is unproven; a re-run with a private `REVIEW_ADJUSTMENTS_PATH` is in flight, and the contaminated
+dir is archived as `_results_backups_archive/20250101_20251231_ts_switch_by_regime_CONTAMINATED_cronreview_5.13`.
+The 4-year clean run is unaffected — it ran 16:42→~05:4x, never crossing a 09:2x tick.
+
 A real 4-year engine run (20230101-20260930, `--no-search --no-ai`, SL off + compounding on; 908
 sessions, 698 default / 210 `ts_ao_er` days; results in
 `backtest/results/20230101_20260930_ts_switch_by_regime/`):

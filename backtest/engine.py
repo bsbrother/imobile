@@ -1577,9 +1577,13 @@ class OrderAnalyzer:
                     current_gap_pct = ((open_price - prev_close) / prev_close) * 100
                     current_close_pct = ((close_price - prev_close) / prev_close) * 100
 
-                    # 1. Gap Down Cut: Open < EARLY_CUT_GAP_PCT (default -4.0%)
-                    if current_gap_pct < float(os.getenv('EARLY_CUT_GAP_PCT', '-4.0')):
-                        logger.info(f"Early Weakness Cut (Gap Down) triggered for {symbol}: Gap {current_gap_pct:.2f}%")
+                    # 1. Gap Down Cut: Open < early-cut gap threshold (default -4.0%).
+                    # Regime-specific first: EARLY_CUT_GAP_PCT_<REGIME> -> EARLY_CUT_GAP_PCT -> default.
+                    # Unset everywhere = byte-identical to the previous behaviour.
+                    _cut_gap = float(os.getenv(f'EARLY_CUT_GAP_PCT_{str(self.market_pattern).upper()}',
+                                               os.getenv('EARLY_CUT_GAP_PCT', '-4.0')))
+                    if current_gap_pct < _cut_gap:
+                        logger.info(f"Early Weakness Cut (Gap Down) triggered for {symbol}: Gap {current_gap_pct:.2f}% < {_cut_gap}%")
                         sell_price = open_price # Sell at Open
                         reason = 'early_cut_gap'
 
@@ -1617,9 +1621,12 @@ class OrderAnalyzer:
                                 }
                             }
 
-                    # 2. Intraday Drop Cut: Close < EARLY_CUT_CLOSE_PCT (default -5.0%)
-                    if current_close_pct < float(os.getenv('EARLY_CUT_CLOSE_PCT', '-5.0')):
-                        logger.info(f"Early Weakness Cut (Big Drop) triggered for {symbol}: Close {current_close_pct:.2f}%")
+                    # 2. Intraday Drop Cut: Close < early-cut close threshold (default -5.0%).
+                    # Regime-specific first: EARLY_CUT_CLOSE_PCT_<REGIME> -> EARLY_CUT_CLOSE_PCT -> default.
+                    _cut_close = float(os.getenv(f'EARLY_CUT_CLOSE_PCT_{str(self.market_pattern).upper()}',
+                                                 os.getenv('EARLY_CUT_CLOSE_PCT', '-5.0')))
+                    if current_close_pct < _cut_close:
+                        logger.info(f"Early Weakness Cut (Big Drop) triggered for {symbol}: Close {current_close_pct:.2f}% < {_cut_close}%")
                         sell_price = close_price # Sell at Close
                         reason = 'early_cut_drop'
 
@@ -3063,6 +3070,15 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
                         f"[{this_date}] Review sentiment={_sentiment}: "
                         f"positions {MAX_POSITIONS}→{_pos_override}"
                     )
+                    # Optional regime cap on the review's breadth (POS_REGIME_CAP=true).
+                    # Off by default = unchanged. The per-regime limits already exist as
+                    # MAX_POS_<REGIME>; the review supersedes them, so CAP rather than replace.
+                    if os.getenv('POS_REGIME_CAP', 'false').lower() in ('true', '1', 'yes'):
+                        _regime_cap = regime_max_positions.get(regime, 10)
+                        if _pos_override > _regime_cap:
+                            logger.info(f"[{this_date}] POS_REGIME_CAP (regime {regime}): "
+                                        f"positions {_pos_override}→{_regime_cap}")
+                        _pos_override = min(_pos_override, _regime_cap)
                     MAX_POSITIONS = _pos_override
 
                 # Apply holding_days_mult and TP/SL adjustments via env override

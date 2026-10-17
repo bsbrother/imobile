@@ -156,11 +156,14 @@ for s, sub in df.groupby('state'):
 daily = {}
 for strat, yrs in runs.items():
     for yr, eq in yrs.items():
-        daily.setdefault(strat, {})[yr] = eq.pct_change().dropna()
+        # fillna(0.0), not dropna(): dropping the series' first row made every year's
+        # first session look like a missing delegate day (reported as MISSING <strat>:<year>).
+        daily.setdefault(strat, {})[yr] = eq.pct_change().fillna(0.0)
 
 
 def run_rule(rule_fn, years, label):
-    tot, picks, per = 1.0, {}, {}
+    tot, picks, per, missing = 1.0, {}, {}, set()
+    used = 0
     for y in years:
         ys = str(y)
         yr_tot = 1.0
@@ -174,16 +177,22 @@ def run_rule(rule_fn, years, label):
             pick = rule_fn(s)
             has = pick in daily and ys in daily[pick] and d in daily[pick][ys].index
             if not has:
-                pick = 'default'
-                if ys not in daily.get('default', {}) or d not in daily['default'][ys].index:
-                    continue
+                # NEVER substitute another strategy here. A delegate that never ran this
+                # year has no daily path, so borrowing the default's returns INVENTS a
+                # result: this is how rule P's proxy read +99% while the real run made
+                # +8.77%. Leave the day out and report the coverage instead.
+                missing.add(f'{pick}:{ys}')
+                continue
             r = daily[pick][ys].loc[d]
             tot *= (1 + r)
             yr_tot *= (1 + r)
+            used += 1
             picks[pick] = picks.get(pick, 0) + 1
         per[y] = (yr_tot - 1) * 100
+    miss = f"  MISSING {sorted(missing)}" if missing else ""
     print(f"  {label:44s} {years[0]}-{years[-1]}: {(tot-1)*100:+8.2f}%   "
-          + " ".join(f"{y}:{v:+6.1f}%" for y, v in per.items()) + f"   days={sum(picks.values())} {picks}")
+          + " ".join(f"{y}:{v:+6.1f}%" for y, v in per.items())
+          + f"   days={used} {picks}{miss}")
     return tot
 
 

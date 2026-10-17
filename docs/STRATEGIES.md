@@ -828,6 +828,28 @@ has run *conservative* on the `ts_hma` branch (-2.3pp on 2025) while being -4.5p
 The validated rule-A dir is archived (reversibly) as
 `_results_backups_archive/20230101_20260930_ts_switch_by_regime_ruleA_validated_73.75`.
 
+### Rule P (the improvement candidate) FAILED — and it exposed a proxy bug (2026-10-17)
+
+Real 4-year run (`SWITCH_NORMAL_STRATEGY=ts_longup SWITCH_DROP_TRIGGER_PCT=-4`; 908/908 sessions,
+0 review applications, audit `drop_pct` populated, 18 drop-trigger firings):
+
+| | 2023 | 2024 | 2025 | 2026 | 2023-26 |
+|---|---|---|---|---|---|
+| rule P (REAL) | -3.07% | +32.60% | -19.83% | +5.56% | **+8.77%** |
+| rule P (proxy) | +25.7% | -7.4% | -5.6% | +81.3% | +99.11% |
+| rule A (REAL) | +12.66% | +2.18% | -6.58% | +61.55% | **+73.75%** |
+
+**The proxy's +99.11% was an artifact.** `ts_longup` never ran in 2023 or 2026, and `run_rule`
+silently substituted the *default* on those days — inventing the default's returns exactly where
+the delegate was missing. Fixed: the tool now SKIPS any day whose delegate has no daily path and
+reports the coverage plus the missing (strategy, year) pairs. After the fix D reads +48.03% on
+774/904 days and P +52.98% on 777/904 — neither is a 4-year number at all, and the real run
+settles it at +8.77%.
+
+**Verdict: no improvement found.** Among the variants whose delegates DID run every year (valid
+proxies): J `bear_run>=2` +79.61%, O +76.89%, A +78.23%, B +76.69% — all within ±1.4pp of A, i.e.
+noise. **Rule A at +73.75% remains the best real 2023-2026 result.**
+
 A real 4-year engine run (20230101-20260930, `--no-search --no-ai`, SL off + compounding on; 908
 sessions, 698 default / 210 `ts_ao_er` days; results in
 `backtest/results/20230101_20260930_ts_switch_by_regime/`):

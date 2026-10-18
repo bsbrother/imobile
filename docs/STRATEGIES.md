@@ -850,6 +850,28 @@ settles it at +8.77%.
 proxies): J `bear_run>=2` +79.61%, O +76.89%, A +78.23%, B +76.69% — all within ±1.4pp of A, i.e.
 noise. **Rule A at +73.75% remains the best real 2023-2026 result.**
 
+### Regime exit/sizing levers — implemented and measured NEGATIVE (2026-10-18)
+
+Rule A + `EARLY_CUT_GAP_PCT_BEAR=-8` / `EARLY_CUT_CLOSE_PCT_BEAR=-10` + `POS_REGIME_CAP=true`,
+real 4-year run (908/908 sessions):
+
+| | 2023 | 2024 | 2025 | 2026 | 2023-26 | 2025-26 |
+|---|---|---|---|---|---|---|
+| levers on | +10.80% | -3.10% | -9.54% | +73.73% | **+68.74%** | +57.16% |
+| rule A | +12.66% | +2.18% | -6.58% | +61.55% | **+73.75%** | +50.93% |
+| delta | -1.86 | -5.28 | -2.96 | **+12.18** | **-5.01** | +6.23 |
+
+- **The goal (beat +73.75%) was NOT met: -5.01pp.**
+- **Which lever fired:** the breadth cap did the work — **237 firings, 214 of them `bear 10→5`**
+  (the review's override is `int(10 × pos_scale)`, so it genuinely exceeds the bear cap of 5). The
+  early-cut lever was near-inert: only **1** cut used the wide -8/-10 threshold against 115 at the
+  default -4/-5. Widening a cut threshold *suppresses* cuts, and bear sessions seldom show a gap
+  between -4% and -8% — so `EARLY_CUT_*_BEAR` is a weaker lever than the 2023 A/B suggested.
+- The package's -5.01pp is therefore essentially the cap: +12.18pp in 2026 paid for by
+  -1.86/-5.28/-2.96 in 2023/2024/2025 — the same year-dependent instability that has defeated every
+  other lever here. It does improve the 2025-26 hold-out (+57.16% vs +50.93%).
+- Knobs kept (env-gated, off by default). **Rule A at +73.75% remains the best real 4-year result.**
+
 A real 4-year engine run (20230101-20260930, `--no-search --no-ai`, SL off + compounding on; 908
 sessions, 698 default / 210 `ts_ao_er` days; results in
 `backtest/results/20230101_20260930_ts_switch_by_regime/`):

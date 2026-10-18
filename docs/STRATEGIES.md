@@ -872,6 +872,42 @@ real 4-year run (908/908 sessions):
   other lever here. It does improve the 2025-26 hold-out (+57.16% vs +50.93%).
 - Knobs kept (env-gated, off by default). **Rule A at +73.75% remains the best real 4-year result.**
 
+### Why the default wins 2026 and loses 2023-2025 — day-by-day decomposition (2026-10-18)
+
+Its own four runs, decomposed by exit reason (the skill's `exit_bucket_pnl.py`) and by regime
+(per-day P&L off each run's own report):
+
+| | 2023 | 2024 | 2025 | 2026 |
+|---|---|---|---|---|
+| realized | -160,224 | -59,133 | -57,418 | **+435,447** |
+| win rate / win days | 42% / 37% | 39% / 33% | 41% / 38% | **49% / 43%** |
+| mean/day | -742 | -398 | -363 | **+2,268** |
+| best day | +40,436 | +34,240 | +26,058 | **+91,357** |
+| worst day | -36,628 | -24,055 | -27,792 | -68,199 |
+| `STRICT_MAX_HOLD_CLOSE` avg/trade | +790 | +734 | +521 | **+2,939** |
+| `ORDER_EXPIRED_BEFORE_SELL` | **-292,347** | **-183,564** | -95,059 | +69,986 |
+| `EARLY_CUT_*` combined | -154,816 | -97,213 | -162,318 | -267,828 |
+
+- **The win rate barely moves (39-49%); the WIN SIZE moves 4-6x.** 2026 is not a better picker, it is
+  a tape where the right tail exists: the same max-hold exit averages ¥2,939 against ¥521-790, and the
+  best day is 2-3x any other year. A momentum/flow chaser's payoff IS its right tail — and its worst
+  day was also the biggest in 2026 (-68,199).
+- **The losses are regime-concentrated, differently each year.** 2023: bear **-222,784 over 106 days**
+  — the single largest bucket in the dataset, and exactly what the regime switch rescues (+43.27pp that
+  year). 2025: normal **-104,811 over 49 days** (-2,139/day, the worst per-day bleed). 2024: spread
+  (bear -67,272, bull -36,250, normal +7,275). 2026 is positive in EVERY regime (normal +219,591,
+  bull +154,777, bear +36,168).
+- **The two big loss lines** are `ORDER_EXPIRED_BEFORE_SELL` (≈390 trades/yr whose TP/SL never
+  triggered: -292k/-184k/-95k in 23/24/25, but **+70k in 2026**) and the `EARLY_CUT_*` pair, which
+  loses in the good year too (-268k in 2026) — that pair is insurance, and the A/B showed removing it
+  is worse.
+- **Improvement ledger for 2023-2025, all measured:** the regime switch **works** (2023 +43.27pp,
+  2024 +18.04pp, 2025 +7.98pp). A normal-regime branch **fails** (ts_longup has no 2023/2026 data —
+  the proxy invented it). Wider BEAR-only early cuts **fail** (-1.86pp in 2023; the A/B's 2023 benefit
+  came from widening GLOBALLY, which the per-regime knob cannot reproduce without also loosening the
+  good years). The breadth cap **fails** (-5.01pp net). The one untouched bucket is the expired-sell
+  carry — and note it flips sign with the tape, like everything else here.
+
 A real 4-year engine run (20230101-20260930, `--no-search --no-ai`, SL off + compounding on; 908
 sessions, 698 default / 210 `ts_ao_er` days; results in
 `backtest/results/20230101_20260930_ts_switch_by_regime/`):

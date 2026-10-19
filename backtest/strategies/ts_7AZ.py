@@ -387,12 +387,21 @@ def _is_index_stressed(end_date: str, index_code: str, threshold: float) -> bool
         return False
 
 
-def _load_repeat_sl_blacklist(end_date: str, cooldown_days: int = 5) -> set:
+def _load_repeat_sl_blacklist(end_date: str, cooldown_days: int = 5,
+                              results_dir: str | None = None) -> set:
     """Load blacklist of stocks with 2+ stop-loss hits in last cooldown_days.
 
     Only blocks REPEAT offenders (death spiral pattern), not one-time SL stocks.
     One-time SL stocks often recover and become winners — blocking them hurts returns.
     But stocks that hit SL 2+ times in 5 days are in a downtrend and should be avoided.
+
+    Reads BOTH report formats:
+      * live pipeline  -> daily/post_market_YYYYMMDD.md  (Chinese "触发止损")
+      * backtest runs  -> **/report_orders_YYYYMMDD.md   (token "STOP_LOSS")
+
+    The live format was previously ignored, so in production this blacklist was
+    always empty: 603268 松发股份 was stopped out on 2026-10-12 and re-bought on
+    10-14, then stopped out again (-4,846) — a repeat it should have blocked.
     """
     from collections import defaultdict
     blacklist = set()
@@ -401,17 +410,35 @@ def _load_repeat_sl_blacklist(end_date: str, cooldown_days: int = 5) -> set:
         import re as re_mod
         from datetime import datetime, timedelta
 
-        results_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'results')
+        if results_dir is None:
+            results_dir = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'results')
         if not os.path.isdir(results_dir):
             return blacklist
 
         end_dt = datetime.strptime(end_date, '%Y%m%d')
 
-        # Collect SL hits per stock per day
-        sl_by_symbol = defaultdict(list)
+        # Collect SL hits per stock per day (set: one entry per symbol per day)
+        sl_by_symbol = defaultdict(set)
         for days_back in range(1, cooldown_days + 1):
             check_dt = end_dt - timedelta(days=days_back)
             check_date = check_dt.strftime('%Y%m%d')
+
+            # (a) LIVE pipeline report — "  松发股份 603268 400股 @¥200.88 触发止损 盈亏¥-7,668"
+            pattern = os.path.join(results_dir, '**', f'post_market_{check_date}.md')
+            for filepath in glob_mod.glob(pattern, recursive=True):
+                try:
+                    with open(filepath, encoding='utf-8') as f:
+                        for line in f:
+                            if '触发止损' not in line:
+                                continue
+                            match = re_mod.search(r'(\d{6})\s+\d+股', line)
+                            if match:
+                                sl_by_symbol[match.group(1)].add(check_date)
+                except Exception:
+                    pass
+
+            # (b) BACKTEST report — "### 603268.SH ... STOP_LOSS"
             pattern = os.path.join(results_dir, '**', f'report_orders_{check_date}.md')
             for filepath in glob_mod.glob(pattern, recursive=True):
                 try:
@@ -422,11 +449,11 @@ def _load_repeat_sl_blacklist(end_date: str, cooldown_days: int = 5) -> set:
                         if 'STOP_LOSS' in section:
                             match = re_mod.match(r'(\d{6}\.S[HZ])', section)
                             if match:
-                                sl_by_symbol[match.group(1)].append(check_date)
+                                sl_by_symbol[match.group(1)].add(check_date)
                 except Exception:
                     pass
 
-        # Only blacklist stocks with 2+ SL hits in the cooldown window
+        # Only blacklist stocks with 2+ SL hits on DISTINCT days in the window
         for sym, dates in sl_by_symbol.items():
             if len(dates) >= 2:
                 blacklist.add(sym)

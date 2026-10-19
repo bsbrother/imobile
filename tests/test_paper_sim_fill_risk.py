@@ -143,3 +143,60 @@ def test_missing_bar_leaves_order_pending():
     res = sim.simulate_trading_day("20261009", st)
     assert res["buys"] == []
     assert "603268.SH" in st["paper"]["orders"]
+
+
+# ── Regime percentage units ──────────────────────────────────────────────────
+
+def test_regime_percent_units_are_normalised():
+    """detect_market_regime mixes units: sl 0.015 (fraction), tp 2.0 (percent).
+
+    Read naively, tp 2.0 becomes a +200% take-profit — the unreachable target
+    the placeholder fix was supposed to remove.
+    """
+    assert sim._as_fraction(2.0, 0.02) == pytest.approx(0.02)
+    assert sim._as_fraction(0.015, 0.015) == pytest.approx(0.015)
+    assert sim._as_fraction(2.5, 0.015) == pytest.approx(0.025)
+    assert sim._as_fraction(None, 0.02) == pytest.approx(0.02)
+    assert sim._as_fraction(0, 0.02) == pytest.approx(0.02)
+    assert sim._as_fraction("junk", 0.02) == pytest.approx(0.02)
+
+
+def test_plan_price_gates_entry_not_the_submitted_limit_up():
+    """Submitted at limit-up 228.80, CLI plan 189.97 — the PLAN gates the entry.
+
+    Testing the limit against the submitted limit-up would never reject
+    anything, so the sim chased and paid +7.8% over plan.
+    """
+    BARS["603268.SH"] = _bar(228.00, 230.00, 226.00, 228.50, pre_close=228.00)
+    order = _make_order(qty=400, bp=228.80)
+    order["plan_price"] = 189.97
+    order["sl"], order["tp"] = 187.12, 569.91
+    st = _state({"603268.SH": order})
+
+    res = sim.simulate_trading_day("20260922", st)
+
+    assert res["buys"] == []
+    assert "603268.SH" in st["paper"]["orders"]
+    assert st["paper"]["cash"] == pytest.approx(200000.0)
+
+
+def test_geometry_anchors_on_plan_price_when_the_plan_is_reached():
+    """Reaching the plan fills there and carries the INTENDED risk geometry.
+
+    sl/tp were computed against the CLI plan (187.12 = -1.5%, 569.91 = +200%).
+    Anchoring on the limit-up would read that stop as -18.2%.
+    """
+    BARS["603268.SH"] = _bar(188.00, 190.00, 187.00, 189.00, pre_close=188.00)
+    order = _make_order(qty=400, bp=228.80)
+    order["plan_price"] = 189.97
+    order["sl"], order["tp"] = 187.12, 569.91
+    st = _state({"603268.SH": order})
+
+    res = sim.simulate_trading_day("20260922", st)
+
+    assert len(res["buys"]) == 1
+    _, _, qty, fill, tp, sl = res["buys"][0]
+    assert qty == 400
+    assert fill == pytest.approx(188.00)
+    assert (sl / fill - 1.0) == pytest.approx(-0.015, abs=1e-3)
+    assert (tp / fill - 1.0) == pytest.approx(0.02, abs=1e-3)

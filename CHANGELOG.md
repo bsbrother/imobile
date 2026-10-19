@@ -2,6 +2,21 @@
 
 Key changes and milestones in iMobile development.
 
+## 2026-10 (paper-sim fill/risk integrity — the October drawdown explained)
+
+The live paper account went **+12.02% (Sep 18 peak) → −5.28% (Oct 16)**. All of the loss was October, and it traces to three fill/risk defects plus one dead risk filter — not to the strategy's selection.
+
+- **Fills ignored the limit; stops were not re-based on the fill.** `simulate_trading_day()` filled BUYs at ANY open price and stored `sl`/`tp` from the plan's absolute prices. 603268 was planned at 203.94, filled at the 219.90 open (+7.8%), and carried the 200.88 stop → realised risk **−8.65% instead of −1.5%** (10-12, −7,668). Re-bought 10-14 at 199.10 with a 189.55 stop → −4,846 (10-15).
+  - Fills now require the price to reach the **plan price** (open at/below it, or the intraday low tagging it); `buy_price` is the submitted limit-up and must not gate the entry, or nothing is ever rejected.
+  - `sl`/`tp` are re-based on the actual fill, preserving the plan's pct geometry (anchor = `plan_price`, the CLI price the levels were computed against). `plan_price` is now persisted with the order.
+  - **TP was a 3× (+200%) placeholder** in every order and could never trigger, so exits were stop-loss-or-clock only. Placeholder TPs are rejected in favour of the regime take-profit.
+  - Replay on real OHLC, actual October entries: **−13,057 → −1,305 (+11,753)**; period return would have been **+6.47%**.
+- **Repeat-SL blacklist was dead code in production.** `_load_repeat_sl_blacklist()` only scanned `report_orders_*.md` for the token `STOP_LOSS`; the live pipeline writes `daily/post_market_*.md` using `触发止损`, so the blacklist was always empty. 603268 was stopped out on 10-12 and re-bought on 10-14 — exactly the repeat it exists to block. Reads both formats now.
+- **Cash reservation used a lower price than the order was charged.** Pre-market reserved `prev_close × 1.02` while the order is stored and settled at `limit_up` (`×1.10` main board, `×1.20` ChiNext/STAR). Orders the planner approved were rejected for cash at settlement and **silently stayed pending forever** — 2026-09-22 reserved ¥106,080 for 500×603268, the auction charged ¥114,000 against ¥111,013 cash, and a 5-candidate day traded nothing. Sizing is now a pure helper (`_plan_buy_qty`) reserving the submitted price and flooring to lots.
+- **Push auto-flush gate read a frozen log.** `push_weixin.py --flush` gated on the newest inbound in `gateway.log`; that log stopped receiving weixin inbound lines after the 2026-10-19 gateway restart, so the gate compared against a stale timestamp and never fired — queued notifications piled up undelivered (the operator asked "today?" repeatedly while every phase ran fine). Now reads the session DB (`messages` JOIN `sessions` where `source='weixin'`), falling back to the log.
+- **Regime percentages arrive in mixed units.** `detect_market_regime` returns `stop_loss_pct` as a fraction (0.015) but `take_profit_pct` as a percent (2.0). Read naively, 2.0 becomes a +200% target — the same unreachable TP the fix above removes. Normalised via `_as_fraction()`.
+- **Tests:** `tests/test_paper_sim_fill_risk.py`, `tests/test_buy_order_sizing.py`, `tests/test_repeat_sl_blacklist.py`, `tests/test_push_inbound_gate.py` (27 tests, offline, stubbed OHLC/regime).
+
 ## 2026-09 (V2 entry levers → 134.98%)
 
 - **ts_7AZ_96MA_flow_review: 132.15% → 134.98%** (20260101–20260831, max drawdown −2.44% → −1.63%). Tag `v134.98`.

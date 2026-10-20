@@ -124,9 +124,13 @@ def _base_state():
 
 def test_simulate_charges_buy_fee(monkeypatch):
     state = _base_state()
+    # Realistic levels: the settlement now REJECTS a placeholder take-profit
+    # (tp=20.0 on a 10.0 entry is +100%) and substitutes the regime target,
+    # which would fire inside this bar and add a sell fee. Keep tp above the
+    # bar high and sl below the bar low so this test isolates the BUY fee.
     state["paper"]["orders"]["000001.SZ"] = {
         "name": "PINGAN", "code": "000001", "qty": 1000, "buy_price": 10.0,
-        "tp": 20.0, "sl": 5.0,
+        "plan_price": 10.0, "tp": 10.6, "sl": 9.5,
     }
     monkeypatch.setattr(sct, "_get_daily_ohlc",
                         lambda codes, day: {"000001": _bar(10.0, 10.5, 9.8, 10.2)})

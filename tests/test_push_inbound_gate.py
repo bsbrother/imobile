@@ -85,3 +85,44 @@ def test_live_db_reports_a_recent_inbound():
     assert db_ts > 0, "live DB should contain weixin inbounds"
     # The DB timestamp must be at least as new as the (frozen) log's.
     assert db_ts >= push._last_inbound_from_log("default")
+
+# ── OS-isolated profile (friend-bot) ─────────────────────────────────────────
+
+class _FakeRun:
+    def __init__(self, stdout="", returncode=0):
+        self.stdout = stdout
+        self.returncode = returncode
+
+
+def test_isolated_profile_reads_through_its_owning_user(monkeypatch):
+    """friend-bot's home is drwxr-x--- friendbot, so kasm-user cannot read its
+    state DB directly — the query must be delegated to the owning user."""
+    assert "friend-bot" in push.DB_READ_PREFIX
+    seen = {}
+
+    def fake_run(cmd, **kwargs):
+        seen["cmd"] = cmd
+        return _FakeRun(stdout="1700000000.5\n")
+
+    monkeypatch.setattr(push.subprocess, "run", fake_run)
+
+    assert push._last_inbound_from_db("friend-bot") == 1700000000.5
+    assert seen["cmd"][:4] == ["sudo", "-n", "-u", "friendbot"]
+    assert "sqlite3" in seen["cmd"][-1]
+    assert "mode=ro" in seen["cmd"][-1]
+
+
+def test_isolated_profile_sudo_failure_is_not_fatal(monkeypatch):
+    """No sudo / dead DB must degrade to 0.0, not raise."""
+    def boom(cmd, **kwargs):
+        raise OSError("sudo: a password is required")
+
+    monkeypatch.setattr(push.subprocess, "run", boom)
+
+    assert push._last_inbound_from_db("friend-bot") == 0.0
+
+
+def test_isolated_profile_empty_result_is_zero(monkeypatch):
+    monkeypatch.setattr(push.subprocess, "run",
+                        lambda cmd, **kw: _FakeRun(stdout="0\n"))
+    assert push._last_inbound_from_db("friend-bot") == 0.0

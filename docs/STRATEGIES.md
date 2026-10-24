@@ -14,6 +14,7 @@ Complete reference for all stock-picking strategies in iMobile.
 | `ts_ths_dc` | Technical | No | No | Bull/Normal | Medium |
 | `ts_hma` | Technical | No | No | Sharp Bear | Fast |
 | `ts_longup` | Technical | No | No | Strong Bull | Fast |
+| `ts_turning_point` | Technical | No | No | Confirmed breakouts out of consolidation | Medium |
 | `ts_daily` | AI | No | Yes | Any | Slow |
 
 > ⚠ `ts_7AZ_96MA_flow_longterm` exists on disk (`backtest/strategies/`) but is **not registered** in `engine.py`'s dispatch table. It cannot be called via `python backtest/engine.py`. See [Unregistered Strategies](#unregistered-strategies) below.
@@ -480,6 +481,55 @@ Config: `HOLD_DAYS_MULT=1.0`, `BUY_OPEN_PRICE=true`, `SL_WITH_RE_PICK=false`
 - Bear/volatile markets (catches bottoms before price confirms)
 - Divergence trading strategies
 | Counter-trend plays
+---
+
+## `ts_turning_point` — 转折K线 + One-Day Confirmation
+
+**Type:** Technical breakout confirmation
+**File:** `backtest/strategies/ts_turning_point.py`
+**Full note:** `docs/strategies/ts_turning_point.md` (source article mapping)
+
+### How It Works
+
+1. Finds a **turning candle** (T): fat bullish body (≥60% of range), gain ≥3%,
+   closing above MA5/MA10/MA20, volume ≥1.5× the prior 5-bar mean, MACD golden
+   cross within 2 bars, Bollinger width expanding out of a squeeze (≤35th pct).
+2. Requires the 20 bars **before** T to be a glued-MA, narrow box (MA5/10/20
+   median spread ≤3%, 20-day range ≤18%) — the article's 低位横盘.
+3. Requires the **next** bar (the reference date) to hold: `close > close_T`,
+   `low ≥ MA5`, volume ≥0.8× the turning bar, and not over-extended vs MA20.
+   This is the whole point: no confirmation → no buy.
+4. Ranks by a regime-weighted composite (body, gain, volume expansion, squeeze
+   depth, breakout over the box high, confirmation gap). 0–2 picks per session is
+   normal — the conjunctive pattern is rare.
+
+All gates are env-gated (`TP_*`), documented in the note and the `.env` section.
+
+### When To Use
+
+- You want a low-frequency, high-selectivity entry module rather than a daily
+  full-slot strategy
+- As a T+1 confirmation filter layered on a breakout signal (future work)
+
+### Measured (20260101-20260930)
+
+| Metric | ts_turning_point | `ts_7AZ_96MA_flow_review` |
+|---|---|---|
+| Total return | +1.24% | +68.42% |
+| Max drawdown | -5.59% | -12.00% |
+| Round trips / win rate | 148 / 41.9% | — |
+| Mean trade return | +0.07% | — |
+
+154 picks across 181 sessions (52% of sessions pick nothing) → ~10% capital
+deployment. At the engine's 1-day hold the signal has no measurable edge.
+
+### Caveats
+
+- The engine's exit model (`max_hold_days: 1`, `take_profit_pct: 2.0` read as a
+  fraction → a ×3 nominal TP that never triggers) truncates the article's
+  multi-week 主升浪 thesis; the measurement is a next-day entry test.
+- Low deployment: fewer than one pick a day against 20 slots.
+
 ---
 
 ## `ts_daily` — News-Driven Daily Picks

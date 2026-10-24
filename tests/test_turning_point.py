@@ -160,3 +160,17 @@ def test_panel_head_backfill_covers_an_earlier_window(monkeypatch):
     dates = panel["000001.SZ"]["trade_date"]
     assert len(dates) >= tp.LOOKBACK_DAYS * 0.9
     assert dates.min() < "20251101"
+
+
+def test_tp_skip_regime_returns_empty(monkeypatch):
+    """Bear regime should return empty DataFrame when 'bear' in TP_SKIP_REGIMES."""
+    monkeypatch.setattr(tp, "TP_SKIP_REGIMES", {"bear"})
+    monkeypatch.setattr("backtest.utils.market_regime.detect_market_regime",
+                        lambda *a, **k: {"regime": "bear"})
+    monkeypatch.setattr("backtest.strategies.ts_turning_point.data_provider.get_basic_information_api",
+                        lambda: __import__("pandas").DataFrame({"ts_code": ["000001.SZ"], "name": ["x"]}))
+    monkeypatch.setattr("backtest.strategies.ts_turning_point.no_risky_stocks",
+                        lambda *a, **k: ["000001.SZ"])
+    monkeypatch.setattr(tp, "load_panel", lambda d: {})
+    df = tp.pick_turning_point_stocks("20260105")
+    assert df.empty, "bear regime with skip should return empty"

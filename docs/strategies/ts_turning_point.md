@@ -149,10 +149,53 @@ Trade-level (FIFO, from the run's own `transactions`):
    the same churn: +0.5% Jan, -1.4% Mar, +2.9% Apr, -1.7% Sep — the two bad months
    are what erase the four good ones.
 
+### A/B: multi-day hold (2026-10-24)
+
+One lever, same picker, same window, same `.env`: `HOLD_DAYS_MULT=5` → the regime's
+`max_hold_days` goes 1 → 5. **The pick files are byte-identical across the two arms
+(181/181)**, so the exit setting is the only difference.
+
+| Metric | hold=1 | hold=5 |
+|---|---|---|
+| Total return | **+1.24%** | **-2.07%** |
+| Final equity | ¥607,412 | ¥587,585 |
+| Max drawdown | -5.59% | -7.56% |
+| Transactions | 296 | 292 |
+| Round trips | 148 | 146 |
+| Win rate | 41.9% | **32.2%** |
+| Mean / median trade | +0.07% / -0.07% | -0.09% / -0.07% |
+| Total trade P&L | ¥7,412 | ¥-12,415 |
+
+Monthly (hold=5): Jan -3,054 · Feb -6,736 · Mar -19,278 · Apr **+13,286** ·
+May **+36,495** · Jun +2,423 · Jul -201 · Aug +12,694 · Sep **-48,044**.
+
+Backups: `results_backups/20260101_20260930_ts_turning_point_hold1_1.24` and
+`..._hold5_-2.07` (the latter carries its `ledger.db`).
+
+**Why it got worse — and why this is NOT yet a test of "let it run".** Actual holding
+periods are median 2 days / mean 4.2 days even with a 5-day cap, because the engine
+cuts trades before the cap binds:
+
+```
+stagnation_days = max(3, holding_days // 2 + 1)          # engine.py:590
+days_held >= stagnation_days and return < STAGNATION_CUT_LIMIT (1.0%)  -> force sell
+```
+
+So on day 3 any position up less than 1% is cut. Exit mix in the hold=5 arm
+(live run DB): `stop_loss 57 (+¥31,667)`, `stagnation_cut 46 (**-¥96,180**, avg -¥2,091)`,
+`gap_exit 24 (-¥5,340)`, `order_expired_before_sell 12 (+¥60,048)`, `early_cut_* 5
+(-¥25,186)`, `er_trend_exit 2 (+¥22,577)`. The stagnation rule is the largest single
+drain and it is what converts "hold longer" into "hold long enough to be mediocre".
+
+(The hold=1 arm's exit mix is not recoverable: those reasons live only in the run's
+DB, which the next run overwrote. Snapshot `shared/db/test_imobile.db` with each arm.)
+
 ### Honest next options (not run)
 
-- **Multi-day exit variant** (`HOLD_DAYS_MULT` / a hold-days override): the only
-  way to actually test the article's thesis.
+- **Cap that actually binds**: `HOLD_DAYS_MULT=5` **with** `STAGNATION_CUT_LIMIT`
+  pushed out (e.g. `-100` disables the condition) so the 5-day cap is the exit, not
+  the day-3 stagnation cut. This is the arm the A/B above still needs; the current
+  result is "longer cap + unchanged stagnation rule", not "let a 主升浪 run".
 - **Looser gates** (`TP_BODY_MIN=0.5`, `TP_VOL_MULT=1.3`, `TP_SQUEEZE_PCT=0.5`):
   raises frequency/deployment, but confounds "the pattern works" with "more shots".
 - **As a confirmation filter** on the production CANSLIM/7AZ picks (the code's

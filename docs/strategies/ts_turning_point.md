@@ -190,6 +190,94 @@ drain and it is what converts "hold longer" into "hold long enough to be mediocr
 (The hold=1 arm's exit mix is not recoverable: those reasons live only in the run's
 DB, which the next run overwrote. Snapshot `shared/db/test_imobile.db` with each arm.)
 
+## Improvement sweep — 20260101→20260930
+
+Nine arms, one lever each (or one coherent group), every arm run with an isolated
+`REPORT_DIR`, its own `DBTEST_IMOBILE_FILE` and a private `REVIEW_ADJUSTMENTS_PATH`.
+Compare with `python trading_test/ab_compare.py <arm dirs...>`.
+
+| # | arm | knobs | ret% | maxDD% | trades | win% | avg trade% |
+|---|---|---|---|---|---|---|---|
+| 0 | baseline | strict, hold 1, TP inert | +1.24 | -5.59 | 148 | 41.9 | +0.07 |
+| 1 | hold5+nostag | `HOLD_DAYS_MULT=5 STAGNATION_CUT_LIMIT=-100` | -6.09 | -9.87 | 137 | 35.0 | +0.07 |
+| 2 | loose | body .5, gain 2%, vol 1.3, squeeze .5, spread .04, range .22, score 40 | -2.10 | -8.58 | 330 | 38.5 | -0.22 |
+| 3 | loose+hold5+nostag | 1+2 | -1.18 | -12.24 | 292 | 33.6 | -0.29 |
+| 4 | bear-skip | `TP_SKIP_REGIMES=bear` | +1.05 | -5.05 | 125 | 40.0 | +0.12 |
+| 5 | TP 4% | `CONFIG_FILE` with `take_profit_pct=0.04`, trailing off | **+1.54** | -5.19 | 135 | 45.2 | +0.14 |
+| 6 | TP 4% + bear-skip | 4+5 | +1.52 | **-3.17** | 114 | 43.0 | **+0.18** |
+| 7 | tight | gain 4%, vol 1.8, extended 1.08, score 50 | +0.19 | -3.41 | 43 | 41.9 | +0.23 |
+| 8 | top-1 only | `TP_MAX_PICKS=1` | -0.59 | -4.00 | 73 | 47.9 | -0.17 |
+
+What each lever taught:
+
+- **Longer hold is worse, in every pairing** (-6.09 strict, -1.18 loose). With the
+  stagnation cut disabled, `order_expired_before_sell` (the cap binding) lost
+  -¥25,669 over 44 exits: these entries do not trend, they mean-revert.
+- **Looser gates are worse**, not just diluted: 330 trades at -0.22% mean vs 148 at
+  +0.07%. The strict body/volume/squeeze conjunction is what little signal exists.
+- **Tighter gates are worse too** (+0.19% on 43 trades): past a point the filter
+  removes the winners, not the losers.
+- **Ranking has no information, possibly negative**: taking only the top-scored pick
+  each day produced the worst per-trade mean of the sweep (-0.17%). Do not size up
+  the composite score without a separate test.
+- **A real take-profit is the one lever that paid**: `take_profit_pct=0.04` (the
+  shipped value is read as a fraction, so it lands at ×3 price and never fires)
+  lifted return +0.30pp and turned 45% of trades into wins, with `take_profit` firing
+  24 times.
+- **Skipping the bear regime mostly buys drawdown**: return -0.19pp, DD +0.54pp on
+  its own; combined with the 4% TP it gives the same return as TP alone with DD
+  -3.17% vs -5.19%.
+
+Three refinements of the winner (all worse, 2026 window):
+
+| arm | knobs on top of TP4+bear | ret% | maxDD% | trades | avg trade% |
+|---|---|---|---|---|---|
+| b2_tp4_bear (winner) | — | **+1.52** | **-3.17** | 114 | +0.18 |
+| b3_h3 | `HOLD_DAYS_MULT=3` | -0.60 | -5.01 | 125 | +0.04 |
+| b3_vol | `TP_VOL_MULT=1.8` | +0.22 | -4.06 | 105 | +0.08 |
+| b3_squeeze | `TP_SQUEEZE_PCT=0.50` | -1.45 | -6.01 | 155 | -0.17 |
+
+### Out-of-sample: 2025 hold-out
+
+Same winning knobs (strict gates + TP 4% + skip bear), run on 20250101–20251231
+(243 sessions, its own panel-cache key so it could not thrash the 2026 arms):
+
+| Metric | Value |
+|---|---|
+| Total return | **+11.43%** |
+| Max drawdown | -3.92% |
+| Transactions | 820 (408 round trips) |
+| Win rate | 42.2% |
+| Mean trade | +0.35% |
+| Total trade P&L | ¥69,227 |
+| SSE Composite / CSI 300 / CSI 500 | +18.41% / +17.66% / +30.39% |
+
+So the configuration is positive in both windows (+11.43% in a strong bull year,
++1.52% in a flat-to-down partial year) — mild evidence the per-trade edge is not
+pure overfit. But it did **not** beat the index in 2025 (-6.98pp vs SSE, -18.96pp vs
+CSI 500) and it only deploys ~8–10% of capital, so the returns are small in
+absolute terms. Per-trade means (+0.18% / +0.35%) are thin enough that slippage and
+retail commission could erase them — the same realism caveat as the production
+strategy.
+
+### Recommended configuration (best found)
+
+```bash
+# strict gates (defaults) + a real 4% take-profit + no bear-regime entries
+CONFIG_FILE=<config with take_profit_pct=0.04, trailing_stop_enabled=false> \
+TP_SKIP_REGIMES=bear \
+python backtest/engine.py 20260101 20260930 ts_turning_point --no-search --no-ai
+```
+
+Generate the config without hand-editing the shared one:
+
+```bash
+env -u PYTHONPATH .venv/bin/python trading_test/make_tp_config.py --tp 0.04 --out /tmp/tp4_config.json
+```
+
+`TP_SKIP_REGIMES=bear` is set in this strategy's `.env` section; the TP variant is
+NOT (it is a shared-config change, so it stays an explicit per-run choice).
+
 ### Honest next options (not run)
 
 - **Cap that actually binds**: `HOLD_DAYS_MULT=5` **with** `STAGNATION_CUT_LIMIT`

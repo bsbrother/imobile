@@ -88,6 +88,9 @@ TP_MIN_PRICE = float(os.getenv("TP_MIN_PRICE", "3.0"))
 TP_MIN_AMOUNT = float(os.getenv("TP_MIN_AMOUNT", "50000"))   # tushare amount in 千元 => 5000万
 TP_MAX_PICKS = int(os.getenv("TP_MAX_PICKS", "12"))
 TP_MIN_SCORE = float(os.getenv("TP_MIN_SCORE", "45"))
+# Regimes in which the picker emits nothing, e.g. TP_SKIP_REGIMES=bear,volatile.
+# Default empty = every regime trades (the shipped behaviour).
+TP_SKIP_REGIMES = {r.strip().lower() for r in os.getenv("TP_SKIP_REGIMES", "").split(",") if r.strip()}
 
 # ── Regime weights ─────────────────────────────────────────────
 REGIME_WEIGHTS = {
@@ -307,7 +310,7 @@ def score_pick(m: dict, regime: str) -> float:
 # window. Keep a rolling long-format panel in the cross-process pickle cache and
 # extend it by the single NEW date each session (~0.7s). Only bars <= the
 # reference date ever enter the panel, so the cache cannot leak future data.
-PANEL_CACHE_KEY = 'tp_ohlcv_panel_v1'
+PANEL_CACHE_KEY = os.getenv('TP_PANEL_CACHE_KEY', 'tp_ohlcv_panel_v1')
 TP_PANEL_CACHE = os.getenv('TP_PANEL_CACHE', 'true').lower() in ('1', 'true', 'yes')
 PANEL_COLS = ['ts_code', 'trade_date', 'open', 'high', 'low', 'close', 'pre_close', 'vol', 'amount']
 
@@ -438,6 +441,9 @@ def pick_turning_point_stocks(end_date: str, max_picks: int | None = None) -> pd
     regime_data = detect_market_regime(end_date)
     regime = regime_data.get('regime', 'normal')
     logger.info(f"[ts_turning_point] Market Regime: {regime}")
+    if regime in TP_SKIP_REGIMES:
+        logger.info(f"[ts_turning_point] TP_SKIP_REGIMES={sorted(TP_SKIP_REGIMES)} -> no picks in {regime}")
+        return pd.DataFrame()
 
     stock_basic = data_provider.get_basic_information_api()
     if stock_basic.empty:

@@ -518,11 +518,11 @@ Shipped config = the `.env` section defaults (`TAKE_PROFIT_PCT=0.04`,
 
 | Metric | 20260101-20260930 | 2025 (hold-out) |
 |---|---|---|
-| Total return | +1.52% | +11.43% |
-| Max drawdown | -3.17% | -3.92% |
-| Round trips / win rate | 114 / 43.0% | 408 / 42.2% |
-| Mean trade return | +0.18% | +0.35% |
-| Baseline arm (inert TP, no skip) | +1.24% / -5.59% | -0.30% / -6.24% |
+| Total return | +1.78% | +11.43% |
+| Max drawdown | -3.90% | -3.92% |
+| Round trips / win rate | 125 / 44.8% | 408 / 43.4% |
+| Mean trade return | +0.27% | +0.43% |
+| Baseline (inert TP, no skip) | +1.24% / -5.59% | -0.30% / -6.24% |
 
 2025 index context: SSE +18.41%, CSI 300 +17.66%, CSI 500 +30.39% — the strategy
 underperformed the index in that bull year, on ~8–10% deployment.

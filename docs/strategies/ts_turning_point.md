@@ -334,3 +334,77 @@ env -u PYTHONPATH .venv/bin/python backtest/engine.py 20260101 20260930 \
 # tests
 env -u PYTHONPATH .venv/bin/python -m pytest tests/test_turning_point.py -q
 ```
+
+## Can it match `ts_7AZ_96MA_flow_review`? (gap decomposition, measured)
+
+20260101→20260930, same window, same account size:
+
+| | `ts_7AZ_96MA_flow_review` | `ts_turning_point` (shipped) |
+|---|---|---|
+| Total return | **+68.42%** | **+1.78%** |
+| Max drawdown | -12.00% | -3.90% |
+| Average equity | ¥821,828 | ¥613,665 |
+| Average deployed | ¥354,948 (**43.2%**) | ¥93,163 (**15.2%**) |
+| Capital turnover | 52.0× | 10.6× |
+| Round trips | 647 | 125 |
+| Edge per round trip | **+0.96%** | **+0.27%** |
+| Notional per trip ÷ equity | 8.0% | 8.5% |
+
+`return ≈ trips × edge × (notional per trip ÷ equity)`
+
+The two strategies put the **same fraction of equity into each trade** (8.0% vs
+8.5%). The 38× return gap is 5.2× more round trips × 3.6× better edge; the
+deployment gap (43% vs 15%) is a *consequence* of holding ~5 concurrent names
+instead of ~1.8, not a cause. Sizing was never the missing multiplier.
+
+### Arms (all solo runs, own panel-cache key)
+
+| arm | change | ret% | maxDD% | trips | edge% | dep% |
+|---|---|---|---|---|---|---|
+| shipped | — | +1.78 | -3.90 | 125 | 0.27 | 15.2 |
+| hold 5 + TP 6% | `HOLD_DAYS_MULT=5 STAGNATION_CUT_LIMIT=-100 TP_*=0.06` | -4.87 | -7.98 | 116 | 0.34 | 24.0 |
+| hold 5 + 4 slots | both | -4.15 | -7.43 | 111 | 0.29 | 22.7 |
+| limit entry | `BUY_OPEN_PRICE=false` | +1.78 | -3.90 | 125 | 0.27 | 15.2 (inert) |
+| 4 slots (knob fixed) | `MAX_POS_*=4`, 23%/pick | +3.99 | -13.73 | 101 | 0.22 | 34.9 |
+| **2 slots (knob fixed)** | `MAX_POS_*=2`, 23%/pick | **+6.86** | -12.44 | 98 | **0.47** | 32.6 |
+
+Two of those arms (`MAX_POS_*`) originally measured 1.38 / 2.62% because the knob
+was inert — see the defect below. With the knob wired, concentration is worth
+~4× the return at ~3× the drawdown: **+6.86% at -12.4% DD**, i.e. return/DD 0.55
+against the flow strategy's 5.7. The 2-slot arm also picks up edge (0.27 → 0.47%):
+with only two slots only the top-ranked names get filled, so rank does carry some
+information — just not enough.
+
+### The ceiling, in arithmetic
+
+- The engine's hard cap is 25% of the sizing base per position. At that cap,
+  ~100 trips × ~0.5% edge ≈ **7%** — what the 2-slot arm measured.
+- Matching 68% at 125 trips × 0.27% would need **~160% of equity per trade**.
+- Matching it at 8.5% per trade needs **~8× (trips × edge)**: e.g. 1,000 trades at
+  0.5%, or 125 trades at 2.1%.
+
+Nothing in the picker's knob space produces 8× edge, and the two levers that could
+have raised frequency or edge were measured negative: looser gates -2.10% (330
+trades at -0.22% mean), longer holds -4.87%. **Parity with the flow strategy is a
+signal gap, not a tuning gap.**
+
+### Recommendation
+
+1. Use it as what it is: a low-frequency module. Shipped default = +1.78% / -3.90%
+   DD; aggressive concentration (`MAX_POS_*=2`) = +6.86% / -12.44% DD. The
+   aggressive form has the production strategy's drawdown for a tenth of its
+   return, so it only makes sense as a small satellite allocation.
+2. To actually bank these entries, **merge them into the flow pipeline** (flow
+   picks first, turning-point picks filling free slots). That is the only path
+   where they add to the 68% base instead of competing with it. Not built here —
+   it is a new strategy wrapper, not a knob.
+
+### Defect found and fixed on the way
+
+`backtest/cli.py` computed `per_slot_cash = sizing_base / slots` from a hardcoded
+regime map (12/10/8/5) while `engine.py` logged its limit from
+`MAX_POS_BULL/NORMAL/VOLATILE/BEAR`. A run with `MAX_POS_BULL=4` therefore logged
+"4 positions" and still bought 600k/12 ≈ ¥50k per name. The CLI map now reads the
+same env knobs with the same defaults (no behaviour change when unset), verified
+by order size (¥50k → ¥150k inside the 25% cap) and guarded by
+`tests/test_position_limit_knob.py`.

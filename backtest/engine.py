@@ -261,6 +261,7 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ_96MA_flow_review', ba
         'ts_multi_skills':    ('backtest/strategies/ts_multi_skills.py', []),
         'ts_switch_by_regime': ('backtest/strategies/ts_switch_by_regime.py', []),
         'ts_turning_point':  ('backtest/strategies/ts_turning_point.py', []),
+        'ts_flow_turning':   ('backtest/strategies/ts_flow_turning.py', []),
     }
 
     # Per-run pick output path. Every strategy used to write the SHARED /tmp/tmp, so
@@ -3056,7 +3057,7 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
         # strategy's state and applying it would be a cross-strategy leak.
         _review_path = os.getenv('REVIEW_ADJUSTMENTS_PATH', '/tmp/review_adjustments.json')
         if src in ('ts_7AZ_96MA_flow_review', 'ts_7AZ_96MA_flow_review_longterm',
-                   'ts_switch_by_regime') and os.path.exists(_review_path):
+                   'ts_switch_by_regime', 'ts_flow_turning') and os.path.exists(_review_path):
             try:
                 with open(_review_path) as _rf:
                     _review = json.load(_rf)
@@ -3140,7 +3141,7 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
 if __name__ == '__main__':
     _valid_sources = ['ts_go', 'ts_daily',
                       'ts_longup', 'ts_hma', 'ts_96MA', 'ts_7AZ_96MA', 'ts_7AZ_96MA_flow', 'ts_7AZ_96MA_flow_v2', 'ts_7AZ_96MA_flow_review', 'ts_7AZ_96MA_flow_review_longterm', 'ts_7AZ', 'ts_7AZ_grok', 'ts_ao_er', 'ts_multi_swing_defensive', 'ts_multi_skills',
- 'ts_switch_by_regime', 'ts_turning_point']
+ 'ts_switch_by_regime', 'ts_turning_point', 'ts_flow_turning']
 
     parser = argparse.ArgumentParser(
         description='Backtest Trading Script — A-Shares T+1 backtesting engine.\n'

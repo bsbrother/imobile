@@ -2,6 +2,18 @@
 
 Key changes and milestones in iMobile development.
 
+## 2026-10 (ts_turning_point merged into the flow pipeline — built, measured, disabled)
+
+The strategy note's open recommendation was "merge the turning-point picks into the flow pipeline; that is the only path where they add to the base". Built (`ts_flow_turning`) and measured — it does not add.
+
+- **Why the obvious design could not work:** funding follows **list order** (`cli.py` builds `symbols` straight from the pick file, `score` is never read for sizing) and cash runs out before the list does — 2026 baseline: 8.17 picks/day vs **6.24 funded orders/day**, fewer orders than picks on **120 of 181 sessions**. Appending extras, or swapping them into the tail, parks them where no money reaches them (2-day smoke: 12 picks → 10 orders, and the 2 dropped names were exactly the appended extras).
+- **A/B 20260101→20260930**, deterministic floor, sequential arms, review active 181/181 in both:
+  - control (shipped flow) **+65.93% / −10.01% DD / 671 trips / +0.92% per trip**
+  - `TURN_MODE=insert TURN_INSERT_AT=7` **+43.32% / −14.16% DD / 683 trips / +0.60%** → **−22.61pp**
+  - `TURN_MODE=fill` (free slots only) **+61.03% / −11.39% DD** — merge touched 9 of 181 sessions / 15 picks, i.e. **no gain**, inside the ±2.5pp vintage drift measured for an unchanged config.
+- **Attribution:** 85 turning extras were funded against 37 displaced flow picks; extras earned **+¥372/lot** vs **+¥1,055/lot** for the flow names they displaced. The merge's placement was fine — the second picker's edge is a third of the first's, which is what its standalone numbers already said.
+- **Ships disabled** (`TURN_EXTRA_MAX` defaults to 0, guarded by a test) with `trading_test/merge_attribution.py` and the two A/B launchers kept as the harness. Doc corrected in place: the "merge into the flow pipeline" recommendation is now marked falsified rather than left standing.
+
 ## 2026-10 (paper-sim fill/risk integrity — the October drawdown explained)
 
 The live paper account went **+12.02% (Sep 18 peak) → −5.28% (Oct 16)**. All of the loss was October, and it traces to three fill/risk defects plus one dead risk filter — not to the strategy's selection.

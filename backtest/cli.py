@@ -444,11 +444,16 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
         take_profit_ratio = regime_data.get('take_profit_pct', 0.10)
         
         regime = regime_data.get('regime', 'normal')
+        # Same knobs (and defaults) as engine.py's per-session limit. This map used
+        # to be hardcoded while engine.py logged a line built from MAX_POS_<REGIME>
+        # and position_sizing.max_positions — so the log said "4 positions" while
+        # per_slot_cash below was still initial_cash / 12, i.e. the knob was inert
+        # and every position stayed at ~8.5% of equity.
         regime_max_positions = {
-            'bull': 12,
-            'normal': 10,
-            'volatile': 8,
-            'bear': 5
+            'bull': int(os.getenv('MAX_POS_BULL', '12')),
+            'normal': int(os.getenv('MAX_POS_NORMAL', '10')),
+            'volatile': int(os.getenv('MAX_POS_VOLATILE', '8')),
+            'bear': int(os.getenv('MAX_POS_BEAR', '5')),
         }
         max_positions = regime_max_positions.get(regime, max_positions)
         

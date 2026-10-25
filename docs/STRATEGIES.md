@@ -527,6 +527,14 @@ Shipped config = the `.env` section defaults (`TAKE_PROFIT_PCT=0.04`,
 2025 index context: SSE +18.41%, CSI 300 +17.66%, CSI 500 +30.39% — the strategy
 underperformed the index in that bull year, on ~8–10% deployment.
 
+**Versus `ts_7AZ_96MA_flow_review` (+68.42% same window):** the gap is 5.2× the
+round trips at 3.6× the edge per trip — per-trade capital is identical (8.5% vs 8.0%
+of equity), so sizing was never the multiplier. Concentrating to 2 slots
+(`MAX_POS_*=2`, ~23%/pick) multiplies the return ~4× but takes the drawdown with
+it: **+6.86% / -12.44% DD**. Matching 68% would need ~8× (trips × edge); looser
+gates (-2.10%) and longer holds (-4.87%) both measured negative. Full
+decomposition: `docs/strategies/ts_turning_point.md`.
+
 ### Caveats
 
 - ~10% capital deployment (154 picks over 181 sessions, 52% of sessions pick

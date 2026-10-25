@@ -320,6 +320,74 @@ better than one but is not a track record — if 2027 behaves differently, revis
 - **As a confirmation filter** on the production CANSLIM/7AZ picks (the code's
   gates are already exposed as pure functions) rather than as a standalone picker.
 
+## Merging into the flow pipeline — measured NEGATIVE (2026-10-25)
+
+`backtest/strategies/ts_flow_turning.py` is the wrapper that was proposed above
+("flow picks first, turning-point picks filling free slots"). It is built, tested and
+**measured to lose**, so it ships default-off. The measurement is the interesting part,
+because the first design could not have worked even in principle.
+
+### Funding follows list order, and the list is longer than the money
+
+- `cli.py` builds `symbols` straight from the pick file (`symbol_scores` is computed
+  and never read), so **list position alone decides what gets bought**, in order,
+  until cash runs out.
+- On the 2026 baseline: 8.17 picks/day vs **6.24 funded orders/day**, and fewer orders
+  than picks on **120 of 181 sessions**. The engine's "All position slots filled" line
+  is about allocation, not about every pick being reachable.
+- Consequence: `fill` (append the extras) and `replace` (swap them into the tail) both
+  park the turning picks **behind the funding frontier**. A 2-day smoke made it visible:
+  12 picks → 10 buy orders, and the 2 dropped names were exactly the appended extras.
+
+That is why the wrapper grew a third mode, `insert` (`TURN_INSERT_AT`, default 7): the
+extras take slots at the funding frontier, the base continues behind them, and the
+wrapper stops truncating to the static `MAX_POS_*` map — the engine's *review-adjusted*
+budget does that, identically for both arms.
+
+### A/B — 20260101→20260930, deterministic floor (`--no-search --no-ai`)
+
+Same window, same warm OHLCV panel cache (arms run sequentially), private
+`REVIEW_ADJUSTMENTS_PATH` per arm. Review applied on 181/181 sessions in both arms
+(`grep -c 'Review sentiment='`), so the overlay is not a confounder.
+
+| arm | return | maxDD | round trips | win% | edge/trip | avg position |
+|---|---|---|---|---|---|---|
+| control: shipped flow | **+65.93%** | -10.01% | 671 | 46.2% | +0.92% | ¥65,735 |
+| `ts_flow_turning` insert@7, ≥2 extras | **+43.32%** | -14.16% | 683 | 44.7% | +0.60% | ¥60,680 |
+
+-22.61pp. Round-trip counts are within 2% of each other, so this is not "fewer shots":
+the per-trade edge fell from 0.92% to 0.60%. Noise floor for this comparison: the same
+shipped config read **68.42%** on the 2026-10-14 vintage, i.e. -2.49pp of pure vintage
+drift versus this control — an order of magnitude smaller than the effect measured.
+
+### Attribution (`trading_test/merge_attribution.py`, then the ledgers)
+
+| statistic | value |
+|---|---|
+| sessions where the merge changed the pick file | 110 / 181 |
+| sessions where it changed what was actually **bought** | 64 / 181 |
+| turning extras emitted → funded | 104 → 85 |
+| flow picks displaced out of the funded set | 37 |
+| realized P&L, funded extras | +¥50,918 over 137 lots (**+¥372/lot**) |
+| realized P&L, flow picks they displaced | +¥135,040 over 128 lots (**+¥1,055/lot**) |
+
+The turning picks earned about **a third** of what the flow names at the same rank
+earned. That is the same ordering the standalone numbers predicted (turning edge
+0.27–0.47%/trip vs flow 0.96%) — the merge tested the one hypothesis under which it
+could still have helped, "maybe the flow's 7th pick is weak", and the answer is no.
+
+### What is left, and why it is not promising
+
+`fill` mode is the only variant that can add exposure **without** displacing anything,
+and the merged arm's own log gives its ceiling: base picks < regime limit on **49 of
+183** sessions (bear 29, normal 19, bull 1). At ≤2 extras on those sessions the wrapper
+touches a quarter of the calendar, so even a good outcome is a fraction of a point.
+Measured separately — see the `fill` arm below.
+
+Verdict: turning-point picks are **not** additive to the flow pipeline at the funding
+frontier. Do not spend another window re-inserting them higher in the list; the
+mechanism is the edge, not the placement.
+
 ## Usage
 
 ```bash
@@ -394,10 +462,20 @@ signal gap, not a tuning gap.**
    DD; aggressive concentration (`MAX_POS_*=2`) = +6.86% / -12.44% DD. The
    aggressive form has the production strategy's drawdown for a tenth of its
    return, so it only makes sense as a small satellite allocation.
-2. To actually bank these entries, **merge them into the flow pipeline** (flow
+2. ~~To actually bank these entries, **merge them into the flow pipeline** (flow
    picks first, turning-point picks filling free slots). That is the only path
    where they add to the 68% base instead of competing with it. Not built here —
-   it is a new strategy wrapper, not a knob.
+   it is a new strategy wrapper, not a knob.~~
+   **FALSIFIED 2026-10-25 — do not merge them.** The wrapper was built
+   (`ts_flow_turning`) and measured on 20260101→20260930: the flow pipeline read
+   **+65.93%** alone and **+43.32%** with two turning picks inserted at the funding
+   frontier (-22.61pp, DD -10.01% → -14.16%). The turning picks earned +¥372/lot
+   against +¥1,055/lot for the flow names they displaced. Every merge placement that
+   can be funded displaces a flow pick, and the flow pick is better; every placement
+   that does not displace one (appending behind the funding frontier) is never bought.
+   Details and the ledger attribution: "Merging into the flow pipeline — measured
+   NEGATIVE" above. This was the last hypothesis under which the entries could have
+   been banked inside the production pipeline.
 
 ### Defect found and fixed on the way
 

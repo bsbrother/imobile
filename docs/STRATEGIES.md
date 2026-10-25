@@ -511,24 +511,31 @@ All gates are env-gated (`TP_*`), documented in the note and the `.env` section.
   full-slot strategy
 - As a T+1 confirmation filter layered on a breakout signal (future work)
 
-### Measured (20260101-20260930)
+### Measured
 
-| Metric | ts_turning_point | `ts_7AZ_96MA_flow_review` |
+Shipped config = the `.env` section defaults (`TAKE_PROFIT_PCT=0.04`,
+`TP_SKIP_REGIMES=bear`), i.e. what a plain run gets:
+
+| Metric | 20260101-20260930 | 2025 (hold-out) |
 |---|---|---|
-| Total return | +1.24% | +68.42% |
-| Max drawdown | -5.59% | -12.00% |
-| Round trips / win rate | 148 / 41.9% | — |
-| Mean trade return | +0.07% | — |
+| Total return | +1.52% | +11.43% |
+| Max drawdown | -3.17% | -3.92% |
+| Round trips / win rate | 114 / 43.0% | 408 / 42.2% |
+| Mean trade return | +0.18% | +0.35% |
+| Baseline arm (inert TP, no skip) | +1.24% / -5.59% | -0.30% / -6.24% |
 
-154 picks across 181 sessions (52% of sessions pick nothing) → ~10% capital
-deployment. At the engine's 1-day hold the signal has no measurable edge.
+2025 index context: SSE +18.41%, CSI 300 +17.66%, CSI 500 +30.39% — the strategy
+underperformed the index in that bull year, on ~8–10% deployment.
 
 ### Caveats
 
-- The engine's exit model (`max_hold_days: 1`, `take_profit_pct: 2.0` read as a
-  fraction → a ×3 nominal TP that never triggers) truncates the article's
-  multi-week 主升浪 thesis; the measurement is a next-day entry test.
-- Low deployment: fewer than one pick a day against 20 slots.
+- ~10% capital deployment (154 picks over 181 sessions, 52% of sessions pick
+  nothing), so absolute returns are small even when the per-trade edge is positive.
+- Per-trade means (+0.18% / +0.35%) are thin against slippage and commission.
+- The 4%-TP + bear-skip pair was selected on the 2026 window and confirmed on one
+  out-of-sample window (2025). Two windows is not a track record.
+- The engine's 1-day `max_hold_days` still truncates the article's multi-week
+  主升浪 thesis; every measurement here is a short-hold entry test.
 
 ---
 

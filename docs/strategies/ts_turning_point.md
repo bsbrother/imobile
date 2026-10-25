@@ -260,23 +260,39 @@ absolute terms. Per-trade means (+0.18% / +0.35%) are thin enough that slippage 
 retail commission could erase them — the same realism caveat as the production
 strategy.
 
-### Recommended configuration (best found)
+### Shipped configuration = the winner
+
+The `.env` section `ts_turning_point` now ships the configuration that won both
+windows, so a plain run gets it:
 
 ```bash
-# strict gates (defaults) + a real 4% take-profit + no bear-regime entries
-CONFIG_FILE=<config with take_profit_pct=0.04, trailing_stop_enabled=false> \
-TP_SKIP_REGIMES=bear \
+# TAKE_PROFIT_PCT=0.04   (real +4% bracket; shared config.json's 2.0 never fires)
+# TP_SKIP_REGIMES=bear   (no entries in a bear regime)
 python backtest/engine.py 20260101 20260930 ts_turning_point --no-search --no-ai
 ```
 
-Generate the config without hand-editing the shared one:
+| config | 2026-01→09 | 2025 |
+|---|---|---|
+| baseline (inert TP, no skip) | +1.24% / -5.59% DD | -0.30% / -6.24% DD |
+| **shipped (TP 4% + bear-skip)** | **+1.52% / -3.17% DD** | **+11.43% / -3.92% DD** |
+
+Why it is not baked into `config.json`: `take_profit_pct` is shared by every
+strategy, and the shipped 2.0 is deliberately inert for the ones that exit on
+max_hold. `TAKE_PROFIT_PCT` (and `TP_{REGIME}`) are the strategy-scoped override
+read by `utils/market_regime.py`, next to the existing `SL_{REGIME}`. Sections are
+forced into the environment for their own strategy and neutralised for the others
+(`utils/strategy_env.py`), so this strategy's 4% bracket cannot leak into another.
+
+For a one-off variant without touching `.env`:
 
 ```bash
-env -u PYTHONPATH .venv/bin/python trading_test/make_tp_config.py --tp 0.04 --out /tmp/tp4_config.json
+env -u PYTHONPATH .venv/bin/python trading_test/make_tp_config.py --tp 0.06 --out /tmp/tp6.json
+CONFIG_FILE=/tmp/tp6.json python backtest/engine.py ... ts_turning_point --no-search --no-ai
 ```
 
-`TP_SKIP_REGIMES=bear` is set in this strategy's `.env` section; the TP variant is
-NOT (it is a shared-config change, so it stays an explicit per-run choice).
+Caveat on promoting it: the 4%-TP + bear-skip pair was chosen on the 2026 window
+(9 arms) and confirmed on exactly one out-of-sample window (2025). Two windows is
+better than one but is not a track record — if 2027 behaves differently, revisit.
 
 ### Honest next options (not run)
 

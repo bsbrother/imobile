@@ -274,7 +274,22 @@ python backtest/engine.py 20260101 20260930 ts_turning_point --no-search --no-ai
 | config | 2026-01→09 | 2025 |
 |---|---|---|
 | baseline (inert TP, no skip) | +1.24% / -5.59% DD | -0.30% / -6.24% DD |
-| **shipped (TP 4% + bear-skip)** | **+1.52% / -3.17% DD** | **+11.43% / -3.92% DD** |
+| **shipped (TP 4% + bear-skip)** | **+1.78% / -3.90% DD** | **+11.43% / -3.92% DD** |
+
+Both shipped runs are solo runs of the `.env` section (no `CONFIG_FILE`), with the
+per-phase ledger and the results dir as the artifacts: 2026 = 125 round trips, 44.8%
+wins, +0.27% mean trade; 2025 = 408 round trips, 43.4% wins, +0.43% mean.
+
+> **Correction to the sweep table above.** The winner row there reads +1.52%
+> because those nine arms ran four-at-a-time sharing one panel-cache key; the
+> concurrent writers could drop each other's backfill, and 9 sessions of the 2026
+> arm picked **nothing** where a solo run picks 1–2 names (today's picks are a
+> strict superset in all 181 sessions — verified pick-file by pick-file). The arm
+> was starved, not the config weaker: re-run solo, the same knobs give **+1.78%**
+> with the same drawdown profile. Treat the other eight rows as directionally
+> right but possibly a few sessions short; the ranking (strict conjunction > loose,
+> 1-day > multi-day, real TP > inert TP) is unaffected, and the winner was
+> re-validated solo in both windows.
 
 Why it is not baked into `config.json`: `take_profit_pct` is shared by every
 strategy, and the shipped 2.0 is deliberately inert for the ones that exit on

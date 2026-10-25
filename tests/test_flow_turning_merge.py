@@ -84,6 +84,13 @@ def _engine_src() -> str:
     return (REPO / "backtest" / "engine.py").read_text(encoding="utf-8")
 
 
+def test_ships_disabled():
+    """The merge measured -22.61pp (insert) and a wash (fill) on 2026. If someone
+    re-enables it by default, this test should be the thing that argues with them."""
+    from backtest.strategies import ts_flow_turning as mod
+    assert mod.EXTRA_MAX == 0, "TURN_EXTRA_MAX default must stay 0 — see the module docstring"
+
+
 def test_registered_in_the_dispatch_table():
     assert "'ts_flow_turning':" in _engine_src(), "not in _STRATEGY_SCRIPTS — engine cannot run it"
 

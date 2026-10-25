@@ -376,17 +376,41 @@ earned. That is the same ordering the standalone numbers predicted (turning edge
 0.27–0.47%/trip vs flow 0.96%) — the merge tested the one hypothesis under which it
 could still have helped, "maybe the flow's 7th pick is weak", and the answer is no.
 
-### What is left, and why it is not promising
+### The non-displacing variant (`fill`): a wash, and outside what the run can resolve
 
-`fill` mode is the only variant that can add exposure **without** displacing anything,
-and the merged arm's own log gives its ceiling: base picks < regime limit on **49 of
-183** sessions (bear 29, normal 19, bull 1). At ≤2 extras on those sessions the wrapper
-touches a quarter of the calendar, so even a good outcome is a fraction of a point.
-Measured separately — see the `fill` arm below.
+`fill` adds an extra only when the base picker emitted **fewer** names than the regime
+limit — the only placement that takes a slot nobody else wanted. Ceiling, from the
+merged arm's own log: base picks < limit on **49 of 183** sessions (bear 29, normal 19,
+bull 1), and with `TURN_EXTRA_MAX=2` it actually fired on **9 of 181** sessions for 15
+picks (the base had to be short *and* the turning picker had to return one).
 
-Verdict: turning-point picks are **not** additive to the flow pipeline at the funding
-frontier. Do not spend another window re-inserting them higher in the list; the
-mechanism is the edge, not the placement.
+| arm | return | maxDD | trips | edge/trip |
+|---|---|---|---|---|
+| control | +65.93% | -10.01% | 671 | +0.92% |
+| `fill` (no displacement) | +61.03% | -11.39% | 677 | +0.72% |
+
+-4.90pp, but the merge itself touched 9 sessions and 15 picks, and the project's own
+measured vintage drift for an **unchanged** config is -2.49pp across 11 days. This arm
+cannot separate its own effect from that noise, so it is recorded as **no gain**, not as
+a loss. Its arithmetic ceiling is a fraction of a point anyway.
+
+### Reproducibility, measured on the way
+
+The wrapper's fidelity was checked with `TURN_EXTRA_MAX=0` (merge disabled): its pick
+files matched the native control's on 20260105, 20260107, 20260108 and on 10 of 10
+re-run sessions of a fresh `det1`/`det2` pair, so the subprocess plumbing is faithful and
+the control strategy is **deterministic run-to-run**. One date (20260106) differed
+between the 2026-10-25 18:45 control run and every later run, including both `det` runs —
+so that is an **input-vintage** difference (the shared OHLCV/LHB cache moved), not process
+noise. Practical rule: pick files can change under you when the cache is refreshed, so
+quote a delta only against a control measured in the same batch, and treat anything
+within a couple of points as unresolved.
+
+Verdict: turning-point picks are **not** additive to the flow pipeline — not at the
+funding frontier (-22.61pp, attributed to their edge being a third of the flow's) and
+not in a free slot (no gain, 9 sessions). `ts_flow_turning` ships with `TURN_EXTRA_MAX=0`
+and a test that keeps it there. Do not spend another window re-inserting these picks
+higher in the list; the mechanism is the edge, not the placement.
 
 ## Usage
 

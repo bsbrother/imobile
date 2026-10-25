@@ -1,27 +1,37 @@
 """ts_flow_turning: the production flow picks, with turning-point picks as a filler.
 
-Why: `ts_turning_point` measured only +1.78% standalone, and the gap decomposition
-(docs/strategies/ts_turning_point.md) showed it is a real but small edge — ~0.27%
-per round trip on ~125 trips, versus the flow strategy's 0.96% on 647. As a rival
-it cannot compete; as an EXTRA ENTRY into a portfolio that already holds the flow
-edge, its ~1-2 picks/day cost nothing when the flow strategy has already filled
-every slot, and add exposure on the ~36% of 2026 sessions where it had not
-(65 of 181 days saw fewer than 10 flow picks, 19 days saw none).
+STATUS: measured and DISABLED (TURN_EXTRA_MAX defaults to 0). The hypothesis was
+that `ts_turning_point`'s entries (~0.27%/trip, 1-2 picks/day) cost nothing when the
+flow strategy has already filled every slot; the 2026 A/B says they do not pay:
 
-RULE: run the base strategy first. Fill the free slots with the extra strategy's
-picks, deduped against the base list, capped at `TURN_EXTRA_MAX` (default 2). The
-base picks keep their order and rank; extras are appended with ranks continuing
-the sequence and scores mapped BELOW the base minimum, so any score- or
-rank-weighted sizing downstream still treats them as fringe positions.
+  * insert@7, 2 extras: +43.32% vs the flow's +65.93% (-22.61pp, DD -10.01% ->
+    -14.16%). 85 extras were funded against 37 displaced flow picks and earned
+    +372/lot against +1,055/lot for what they displaced. In the very same run the
+    flow's 7th-ranked name was the better buy.
+  * fill (append into a FREE slot, no displacement): +61.03%, and the merge itself
+    touched 9 of 181 sessions / 15 picks — a wash inside the project's own vintage
+    noise (+/-2.5pp for an unchanged config across 11 days), not a gain.
+
+The wrapper is kept as the harness for that measurement (and the modes are reusable
+for a second picker that actually carries edge). Everything below still works; it is
+just off. Full numbers and attribution: docs/strategies/ts_turning_point.md,
+"Merging into the flow pipeline — measured NEGATIVE", and
+references/merge-wrapper-funding-frontier.md in the real-trading-pipeline skill.
+
+RULE when enabled: run the base strategy first, then merge the extra strategy's
+picks by `TURN_MODE`. Base picks keep their order and rank; extras never duplicate a
+base name, and their scores are mapped BELOW the base minimum.
 
 Both delegates run as SUBPROCESSES with their own `.env` section forced in
 (`apply_strategy_env(..., environ=child_env)`), so each behaves exactly as in a
-native run of that strategy — picks are byte-identical for the same date.
+native run of that strategy — verified: with the merge disabled the wrapper's pick
+files matched the native control's on 10 of 10 re-run sessions, and differed only on
+dates where the input vintage itself had moved.
 
 Env knobs (read at the point of use; no `.env` section needed):
     TURN_BASE_STRATEGY   default ts_7AZ_96MA_flow_review
     TURN_EXTRA_STRATEGY  default ts_turning_point
-    TURN_EXTRA_MAX       default 2   (extras per session, 0 disables the merge)
+    TURN_EXTRA_MAX       default 0   (extras per session; 0 = the wrapper is a pass-through)
     TURN_EXTRA_REGIME    default all  e.g. 'bull,normal' to skip extras in a weak tape
     TURN_MODE            fill | replace | insert (default fill)
                          fill    = append extras only when the base list is SHORTER than the
@@ -66,7 +76,7 @@ configure_logger(log_level=os.getenv("LOG_LEVEL", default="INFO"),
 
 BASE_STRATEGY = os.getenv('TURN_BASE_STRATEGY', 'ts_7AZ_96MA_flow_review')
 EXTRA_STRATEGY = os.getenv('TURN_EXTRA_STRATEGY', 'ts_turning_point')
-EXTRA_MAX = int(os.getenv('TURN_EXTRA_MAX', '2'))
+EXTRA_MAX = int(os.getenv('TURN_EXTRA_MAX', '0'))     # 0 = disabled; measured negative, see module docstring
 EXTRA_REGIMES = [r.strip().lower() for r in os.getenv('TURN_EXTRA_REGIME', '').split(',') if r.strip()]
 MODE = os.getenv('TURN_MODE', 'fill').strip().lower()
 INSERT_AT = int(os.getenv('TURN_INSERT_AT', '7'))

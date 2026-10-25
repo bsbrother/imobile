@@ -140,6 +140,23 @@ def get_regime_config(regime: MarketRegime, config_manager) -> dict:
         except ValueError:
             logger.warning(f"Invalid SL_{regime.upper()}={_sl_env}, using config value")
 
+    # Override take_profit_pct from env (TP_{REGIME}, else TAKE_PROFIT_PCT).
+    # Mirrors the SL_{REGIME} override above. Needed because take_profit_pct lives
+    # in the shared config.json (every strategy), while a strategy may want its own
+    # bracket: the shipped value is 2.0, which the engine reads as a FRACTION, so the
+    # nominal TP lands at x3 the entry price and never fires. A strategy section in
+    # .env can now set TAKE_PROFIT_PCT=0.04 for itself without touching the shared
+    # config — sections are forced into os.environ per strategy and neutralized for
+    # the ones that do not own the key (see utils/strategy_env.py).
+    _tp_env = _os.getenv(f'TP_{regime.upper()}') or _os.getenv('TAKE_PROFIT_PCT')
+    if _tp_env is not None:
+        try:
+            _tp_val = float(_tp_env)
+            logger.info(f"TAKE_PROFIT={_tp_val:.1%} (from .env, overriding config)")
+            config['take_profit_pct'] = _tp_val
+        except ValueError:
+            logger.warning(f"Invalid TAKE_PROFIT={_tp_env}, using config value")
+
     # Review-based SL tightness (from ts_7AZ_96MA_flow_review)
     # REVIEW_SL_TIGHT = 0.5 -> halve SL (= tighter, exit faster in ice)
     # REVIEW_SL_TIGHT = 1.5 -> widen SL (= looser, allow more room in frenzy)

@@ -115,3 +115,49 @@ def test_late_trend_filter_is_not_shared(monkeypatch, cm):
     filt["ma_threshold"] = 999.0  # mutate what we were given
     fresh = get_regime_config("bull", cm)["late_trend_filter"]
     assert fresh.get("ma_threshold") != 999.0, "late_trend_filter aliases the cache"
+
+# ── take-profit env override ───────────────────────────────────
+# take_profit_pct lives in the shared config.json, so before this a strategy could
+# not have its own bracket: the shipped 2.0 is read as a fraction (TP lands at x3
+# the entry price and never fires), and changing it meant editing the config every
+# other strategy also reads. TAKE_PROFIT_PCT / TP_{REGIME} let a .env section own
+# it the same way SL_{REGIME} already does.
+
+@pytest.mark.parametrize("regime", REGIMES)
+def test_take_profit_pct_overrides_config(monkeypatch, cm, regime):
+    monkeypatch.delenv(f"TP_{regime.upper()}", raising=False)
+    monkeypatch.setenv("TAKE_PROFIT_PCT", "0.04")
+    assert float(get_regime_config(regime, cm)["take_profit_pct"]) == pytest.approx(0.04)
+
+
+def test_per_regime_take_profit_beats_global(monkeypatch, cm):
+    monkeypatch.setenv("TAKE_PROFIT_PCT", "0.04")
+    monkeypatch.setenv("TP_BEAR", "0.06")
+    assert float(get_regime_config("bear", cm)["take_profit_pct"]) == pytest.approx(0.06)
+    assert float(get_regime_config("bull", cm)["take_profit_pct"]) == pytest.approx(0.04)
+
+
+def test_take_profit_override_does_not_leak_into_cache(monkeypatch, cm):
+    """Unsetting the env var must restore the config value, not keep the override."""
+    monkeypatch.setenv("TAKE_PROFIT_PCT", "0.04")
+    assert float(get_regime_config("bull", cm)["take_profit_pct"]) == pytest.approx(0.04)
+    monkeypatch.delenv("TAKE_PROFIT_PCT")
+    assert float(get_regime_config("bull", cm)["take_profit_pct"]) == pytest.approx(2.0)
+
+
+def test_invalid_take_profit_env_falls_back_to_config(monkeypatch, cm):
+    monkeypatch.setenv("TAKE_PROFIT_PCT", "not-a-number")
+    assert float(get_regime_config("bull", cm)["take_profit_pct"]) == pytest.approx(2.0)
+
+
+def test_take_profit_key_is_scoped_to_one_section():
+    """TAKE_PROFIT_PCT must live only in ts_turning_point's section.
+
+    python-dotenv exports every .env line as a global, so a second owner would
+    silently give two strategies the same bracket; apply_strategy_env can only
+    neutralise a key that has exactly one owner.
+    """
+    from backtest.utils.strategy_env import read_sections
+
+    owners = [s for s, kv in read_sections().items() if "TAKE_PROFIT_PCT" in kv]
+    assert owners == ["ts_turning_point"], f"TAKE_PROFIT_PCT owned by {owners}"

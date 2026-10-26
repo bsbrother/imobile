@@ -309,6 +309,66 @@ Caveat on promoting it: the 4%-TP + bear-skip pair was chosen on the 2026 window
 (9 arms) and confirmed on exactly one out-of-sample window (2025). Two windows is
 better than one but is not a track record — if 2027 behaves differently, revisit.
 
+### Concentration: `MAX_POS_*=2` — the best arm on both windows (measured 2026-10-26)
+
+The 2026 sweep's `2slots_conc2` arm (+6.86%) was the only winner that had never been
+tested out of sample, so both windows were re-measured in the same batch (sequential
+arms, own panel key per arm, per-arm ledger snapshot). The 2-slot book is the default
+12/10/8/5 map replaced by 2 everywhere: per-slot cash becomes equity/2, capped at 25%
+of equity, so ¥150k on a ¥600k book instead of ¥48-52k.
+
+| window | config | return | maxDD | round trips | win% | edge/trip | avg position |
+|---|---|---|---|---|---|---|---|
+| 2025 | shipped | +11.43% | -3.92% | 408 | 42.2 | +0.35% | ¥48,223 |
+| 2025 | **2 slots** | **+37.98%** | **-5.33%** | 239 | 43.5 | **+0.64%** | ¥145,869 |
+| 2026-01→09 | shipped | +1.78% | -3.90% | 125 | 44.0 | +0.20% | ¥52,140 |
+| 2026-01→09 | **2 slots** | **+6.86%** | **-12.44%** | 98 | 49.0 | **+0.41%** | ¥143,851 |
+
+Return/DD goes 2.9 → 7.1 on 2025 and 0.46 → 0.55 on 2026. Both arms reproduced their
+previous readings exactly (shipped: +11.43% and +1.78% digit for digit, and all 243
+2025 pick files identical to the 2026-10-25 run), so these are parameter effects, not
+vintage drift.
+
+Monthly shape (equity parsed from the daily reports):
+- 2025: +2.5, +10.9, +0.1, +3.7, +0.5, +1.4, −3.0, +2.4, +5.1, +2.2, +2.4, +5.2 — eleven
+  of twelve months green, worst month −3.0%, max DD −6.80% (2025-07-21 → 08-08).
+- 2026: −1.2, −3.0, −3.7, +6.6, +6.3, +3.1, +1.0, 0.0, −1.8 — the entire −12.4% DD is
+  Q1 (2026-01-09 → 03-30). July is **+1.0%**: the concentrated turning book was not in
+  the flow strategy's July drawdown.
+
+What it costs: 3× the position size, so 3× the damage when the pattern fails — the 2026
+drawdown triples (-3.90% → -12.44%) while the return only quadruples from a small base.
+It is the best arm on both windows and still a satellite, not a replacement for the flow
+strategy.
+
+**How it ships.** The four values are in the `.env` section, so no per-run environment is
+needed:
+
+```
+# ── ts_turning_point ──
+MAX_POS_BULL=2
+MAX_POS_NORMAL=2
+MAX_POS_VOLATILE=2
+MAX_POS_BEAR=2
+# ── end ──
+```
+
+That is only safe because `MAX_POS_*` in a section cannot reach live sizing:
+`engine.py` applies the section and sets `_STRATEGY_ENV_APPLIED`; a standalone
+`python -m backtest.cli` (which `pre_market_run.py` spawns for every live order
+computation) has no such mark and strips section-scoped `MAX_POS_*` via
+`backtest/utils/strategy_env.scope_out_section_sizing`, falling back to 12/10/8/5.
+Without that guard, dotenv's flat read would have divided the real book by two, i.e.
+25% per position instead of ~8.5%. Per-run override still wins when you want it:
+
+```bash
+# 2025, +37.98% (plain run: the section supplies the 2-slot book)
+.venv/bin/python backtest/engine.py 20250101 20251231 ts_turning_point --no-search --no-ai
+
+# wider book for one run
+env MAX_POS_NORMAL=4 .venv/bin/python backtest/engine.py 20260101 20260930 ts_turning_point --no-search --no-ai
+```
+
 ### Honest next options (not run)
 
 - **Cap that actually binds**: `HOLD_DAYS_MULT=5` **with** `STAGNATION_CUT_LIMIT`

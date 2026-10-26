@@ -3202,6 +3202,11 @@ Examples:
         logger.info(f"Strategy taken from .env DEFAULT_STRATEGY: {src}")
     _scoped_out: list[str] = []
     _section_keys = apply_strategy_env(src, neutralized=_scoped_out)
+    # Tell every child process (backtest.cli's per-session sizing, strategy subprocesses)
+    # that the sections were resolved deliberately. Without this mark, cli.py strips
+    # section-scoped MAX_POS_* so a live run can never inherit a backtest's book size.
+    from backtest.utils.strategy_env import ENV_APPLIED_MARK
+    os.environ[ENV_APPLIED_MARK] = src or '1'
     if _section_keys:
         _shown = ", ".join(
             f"{k}=<redacted>" if redact(k) else f"{k}={os.environ.get(k)}"

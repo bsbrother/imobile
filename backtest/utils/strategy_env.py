@@ -46,6 +46,47 @@ _STRATEGY_FILE_SUFFIX = ".py"
 DEFAULT_ENV_PATH = Path("/home/kasm-user/apps/imobile/.env")
 DEFAULT_FALLBACK_STRATEGY = "ts_7AZ_96MA_flow_review"
 
+# Marker set by whoever resolved the sections into the environment (engine.py, before it
+# runs a session, and backtest/cli.py's own `main`). A process that sees the marker knows
+# its MAX_POS_* came from a strategy section on purpose; a process without it only got
+# those values because python-dotenv reads .env flat, so it must not size a book with them.
+ENV_APPLIED_MARK = "_STRATEGY_ENV_APPLIED"
+
+# Keys that decide how much cash one position gets. They live in a strategy section to
+# concentrate a single strategy's book, never to change what a live run sizes.
+SIZING_KEYS = ("MAX_POS_BULL", "MAX_POS_NORMAL", "MAX_POS_VOLATILE", "MAX_POS_BEAR")
+
+
+def scope_out_section_sizing(environ: MutableMapping[str, str] | None = None,
+                             env_path: str | Path | None = None) -> list[str]:
+    """Remove MAX_POS_* that arrived only from a strategy section, and say which.
+
+    python-dotenv has no notion of sections and exports every line of `.env`, so an
+    in-section `MAX_POS_BULL=2` reaches any process that calls `load_dotenv` — including
+    the live `python -m backtest.cli analyze` that pre_market_run.py spawns. There it
+    would divide the real book by a position count we are not running (2 slots caps
+    per-slot cash at 25% of equity instead of ~8.5%), i.e. three times the size on every
+    order. Backtests keep their section values: engine.py applies the section and sets
+    `ENV_APPLIED_MARK`, and this function does nothing when the mark is present.
+    """
+    import os
+
+    env = environ if environ is not None else os.environ
+    if env.get(ENV_APPLIED_MARK):
+        return []
+    try:
+        sections, globals_ = parse_env(env_path)
+    except Exception:
+        return []
+
+    sectional = {k for values in sections.values() for k in values}
+    removed: list[str] = []
+    for key in SIZING_KEYS:
+        if key in env and key in sectional and key not in globals_:
+            del env[key]
+            removed.append(key)
+    return removed
+
 # Keys whose VALUES must never be logged. Kept local so this module has no import
 # cycle with the rest of the package.
 _SECRET_HINT = re.compile(r"TOKEN|KEY|SECRET|PASSWORD|PASSWD|COOKIE|SESSION", re.I)

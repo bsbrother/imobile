@@ -2,6 +2,21 @@
 
 Key changes and milestones in iMobile development.
 
+## 2026-10 (ts_turning_point: 2-slot book validated on both windows, now config-only)
+
+The 2026 sweep's most valuable arm (`MAX_POS_*=2`, +6.86%) had never been tested out of sample. Both windows re-measured in one batch (sequential arms, own panel key each, ledger snapshot each):
+
+- 2025: **+37.98% / -5.33% DD**, 239 round trips, +0.64%/trip, avg position ¥145,869 (shipped config: +11.43% / -3.92%, 408 trips, +0.35%, ¥48,223). Return/DD 2.9 → 7.1, eleven of twelve months green, worst month -3.0%.
+- 2026-01→09: **+6.86% / -12.44% DD**, 98 trips, +0.41%/trip (shipped: +1.78% / -3.90%, 125 trips, +0.20%). The entire drawdown is Q1 (2026-01-09 → 03-30); July is +1.0% while the flow strategy was in its drawdown.
+- Both shipped arms reproduced their previous readings **digit for digit** (+11.43%, +1.78%) and all 243 2025 pick files matched the earlier run, so these are parameter effects, not vintage drift.
+
+Shipping it exposed a config hazard worth fixing:
+
+- `MAX_POS_*` now lives in the `.env` **section** for `ts_turning_point`, so `python backtest/engine.py 20250101 20251231 ts_turning_point --no-search --no-ai` is the whole command — no `env MAX_POS_...` prefix, and no `env -u PYTHONPATH` either (nothing sets PYTHONPATH here).
+- A section value is not automatically contained: python-dotenv exports every line flat, and `pre_market_run.py` spawns `python -m backtest.cli analyze` for live orders. Left alone, that would have divided the real book by two — 25% per position instead of ~8.5%, three times every order. `backtest/utils/strategy_env.scope_out_section_sizing()` now drops section-scoped `MAX_POS_*` in any process without engine's `_STRATEGY_ENV_APPLIED` mark, and `tests/test_sizing_scope.py` locks the behaviour down (plus the blast radius: only the four sizing keys are touched, `TAKE_PROFIT_PCT` and friends are left alone).
+- Verified end to end: a plain run applies `MAX_POS_*=2` from the section and produces byte-identical orders to the `env`-override run (`301189.SZ` 3,200 shares, ¥141,952).
+- `backtest/results/` and `backtest/results_backups/` pruned 128 MB → 43 MB, keeping the best 2025 and 2026 reading per strategy (plus `daily/`, the live pre-market output).
+
 ## 2026-10 (ts_turning_point merged into the flow pipeline — built, measured, disabled)
 
 The strategy note's open recommendation was "merge the turning-point picks into the flow pipeline; that is the only path where they add to the base". Built (`ts_flow_turning`) and measured — it does not add.

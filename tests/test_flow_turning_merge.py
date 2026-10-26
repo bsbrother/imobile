@@ -116,9 +116,26 @@ def test_delegates_resolve_to_real_scripts():
 
 
 @pytest.mark.parametrize("regime,expected", [("bull", 12), ("normal", 10), ("volatile", 8), ("bear", 5)])
-def test_regime_limits_match_the_engine_defaults(regime, expected):
+def test_regime_limits_match_the_engine_defaults(regime, expected, monkeypatch):
+    """Code fallbacks only.
+
+    `.env` scopes MAX_POS_* to the ts_turning_point section (a 2-slot book) and this
+    module reads them at import, so the test has to neutralise the environment instead of
+    asserting whatever the shell or `.env` happens to carry.
+    """
+    import importlib
+    import dotenv
     from backtest.strategies import ts_flow_turning as mod
-    assert mod.REGIME_LIMITS[regime] == expected
+    # The module calls load_dotenv() at import, which would put the section values
+    # straight back; block it and clear the four keys so the reload sees the fallbacks.
+    monkeypatch.setattr(dotenv, "load_dotenv", lambda *a, **k: False)
+    for key in ("MAX_POS_BULL", "MAX_POS_NORMAL", "MAX_POS_VOLATILE", "MAX_POS_BEAR"):
+        monkeypatch.delenv(key, raising=False)
+    importlib.reload(mod)
+    try:
+        assert mod.REGIME_LIMITS[regime] == expected
+    finally:
+        importlib.reload(mod)
 
 
 # ── replace mode ──────────────────────────────────────────────

@@ -826,6 +826,18 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
 
 def main():
     """Main CLI entry point."""
+    # .env sections are resolved by engine.py for a backtest (and it marks the
+    # environment). A standalone/live `python -m backtest.cli` has no such resolution:
+    # drop any MAX_POS_* that only exists inside a strategy section, so a strategy's
+    # concentrated book size can never leak into real-money sizing.
+    try:
+        from .utils.strategy_env import scope_out_section_sizing
+        _dropped = scope_out_section_sizing()
+        if _dropped:
+            logger.info(f"Ignoring strategy-section sizing in a standalone run: {', '.join(_dropped)}")
+    except Exception as e:  # never let config hygiene stop an order computation
+        logger.warning(f"Could not scope .env section sizing: {e}")
+
     parser = create_parser()
     args = parser.parse_args()
 

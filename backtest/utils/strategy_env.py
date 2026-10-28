@@ -363,6 +363,12 @@ def drop_scoped_out(environ: MutableMapping[str, str] | None = None) -> list[str
     return dropped
 
 
+def section_values(strategy: str, env_path: str | Path | None = None) -> dict[str, str]:
+    """The keys a strategy's own `.env` section sets ({} when it has no section)."""
+    sections, _ = _parse_cached(env_path)
+    return dict(sections.get(strategy, {}))
+
+
 def redact(key: str) -> bool:
     """True when a key's value must not be printed."""
     return bool(_SECRET_HINT.search(key))

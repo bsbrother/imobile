@@ -262,6 +262,7 @@ def pick_stocks_to_file(this_date: str, src: str = 'ts_7AZ_96MA_flow_review', ba
         'ts_switch_by_regime': ('backtest/strategies/ts_switch_by_regime.py', []),
         'ts_turning_point':  ('backtest/strategies/ts_turning_point.py', []),
         'ts_flow_turning':   ('backtest/strategies/ts_flow_turning.py', []),
+        'ts_switch_momentum': ('backtest/strategies/ts_switch_momentum.py', []),
     }
 
     # Per-run pick output path. Every strategy used to write the SHARED /tmp/tmp, so
@@ -2955,6 +2956,35 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
         }
         global MAX_POSITIONS
         MAX_POSITIONS = regime_max_positions.get(regime, 10)
+
+        # A delegating strategy also hands over its BOOK SIZE. The turning arm is a 2-slot
+        # book, the flow arm a 12-slot one; with the engine's own cap either arm would trade
+        # at the wrong size, which is not the configuration either was measured at. Read the
+        # delegate for this month from the switch schedule and take ITS .env sizing, exactly
+        # as if it were running natively. No explicit MAX_POS_* in the delegate's section
+        # (the flow arm) -> the engine default stands.
+        _sched = os.getenv('SWITCH_SCHEDULE_CSV')
+        if _sched and src == 'ts_switch_momentum' and os.path.exists(_sched):
+            try:
+                import csv as _csv
+                from backtest.utils.strategy_env import section_values
+                with open(_sched, newline='') as _sf:
+                    _row = {r['month']: r for r in _csv.DictReader(_sf)}.get(this_date[:6])
+                if _row:
+                    _delegate = _row['delegate']
+                    _key = f'MAX_POS_{regime.upper()}'
+                    _vals = section_values(_delegate)
+                    if _key in _vals:
+                        logger.info(f"[{this_date}] Book size from delegate {_delegate}: "
+                                    f"{_vals[_key]} positions (engine {regime.upper()} "
+                                    f"default {MAX_POSITIONS})")
+                        MAX_POSITIONS = int(_vals[_key])
+                    else:
+                        logger.debug(f"[{this_date}] delegate {_delegate} sets no {_key}; "
+                                     f"engine default {MAX_POSITIONS}")
+            except Exception as _exc:
+                logger.warning(f"[{this_date}] schedule sizing failed ({_exc}); "
+                               f"using {MAX_POSITIONS}")
         logger.info(f"[{this_date}] Dynamic position limit: {MAX_POSITIONS} positions (Regime: {regime.upper()})")
 
         report_file = os.path.join(REPORT_PATH, f'report_orders_{this_date}.md')
@@ -3071,7 +3101,8 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
         # strategy's state and applying it would be a cross-strategy leak.
         _review_path = os.getenv('REVIEW_ADJUSTMENTS_PATH', '/tmp/review_adjustments.json')
         if src in ('ts_7AZ_96MA_flow_review', 'ts_7AZ_96MA_flow_review_longterm',
-                   'ts_switch_by_regime', 'ts_flow_turning') and os.path.exists(_review_path):
+                   'ts_switch_by_regime', 'ts_flow_turning',
+                   'ts_switch_momentum') and os.path.exists(_review_path):
             try:
                 with open(_review_path) as _rf:
                     _review = json.load(_rf)
@@ -3155,7 +3186,7 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
 if __name__ == '__main__':
     _valid_sources = ['ts_go', 'ts_daily',
                       'ts_longup', 'ts_hma', 'ts_96MA', 'ts_7AZ_96MA', 'ts_7AZ_96MA_flow', 'ts_7AZ_96MA_flow_v2', 'ts_7AZ_96MA_flow_review', 'ts_7AZ_96MA_flow_review_longterm', 'ts_7AZ', 'ts_7AZ_grok', 'ts_ao_er', 'ts_multi_swing_defensive', 'ts_multi_skills',
- 'ts_switch_by_regime', 'ts_turning_point', 'ts_flow_turning']
+ 'ts_switch_by_regime', 'ts_turning_point', 'ts_flow_turning', 'ts_switch_momentum']
 
     parser = argparse.ArgumentParser(
         description='Backtest Trading Script — A-Shares T+1 backtesting engine.\n'

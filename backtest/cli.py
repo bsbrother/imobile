@@ -449,6 +449,21 @@ def analyze_stocks_and_generate_orders(stocks_file: Optional[str] = None,
         # and position_sizing.max_positions — so the log said "4 positions" while
         # per_slot_cash below was still initial_cash / 12, i.e. the knob was inert
         # and every position stayed at ~8.5% of equity.
+        # Re-strip section sizing here, not only in main(): strategy modules call
+        # load_dotenv() at import and dotenv re-adds whatever it does not find, so a
+        # section value can reappear between main() and this read (measured: importing
+        # the flow picker re-added MAX_POS_BULL=2 from the ts_turning_point section).
+        try:
+            from .utils.strategy_env import (
+                ENV_APPLIED_MARK,
+                export_scoped_out,
+                scope_out_section_sizing,
+            )
+            if not os.environ.get(ENV_APPLIED_MARK):
+                export_scoped_out(scope_out_section_sizing())
+        except Exception:
+            pass
+
         regime_max_positions = {
             'bull': int(os.getenv('MAX_POS_BULL', '12')),
             'normal': int(os.getenv('MAX_POS_NORMAL', '10')),

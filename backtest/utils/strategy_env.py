@@ -254,10 +254,13 @@ def apply_strategy_env(
         text = p.read_text(encoding="utf-8", errors="replace") if p.is_file() else ""
         sections, globals_ = _scan(text, names)
 
+    own = sections.get(strategy, {})
     for other, values in sections.items():
         if other == strategy:
             continue
         for key in values:
+            if key in own:                      # both sections set it — the target wins
+                continue
             if key not in globals_ and key in env:
                 del env[key]
                 if neutralized is not None:
@@ -268,6 +271,96 @@ def apply_strategy_env(
         env[key] = value
         applied.append(key)
     return applied
+
+
+_PARSE_CACHE: dict[str, tuple[float, dict[str, dict[str, str]], dict[str, str]]] = {}
+
+
+def _parse_cached(env_path: str | Path | None = None):
+    """`parse_env` memoised on the file's mtime — reenforce runs every session."""
+    p = Path(env_path) if env_path is not None else DEFAULT_ENV_PATH
+    try:
+        stamp = p.stat().st_mtime
+    except OSError:
+        return {}, {}
+    hit = _PARSE_CACHE.get(str(p))
+    if hit and hit[0] == stamp:
+        return hit[1], hit[2]
+    sections, globals_ = _scan(p.read_text(encoding="utf-8", errors="replace"), known_strategies())
+    _PARSE_CACHE[str(p)] = (stamp, sections, globals_)
+    return sections, globals_
+
+
+def reenforce_strategy_env(strategy: str, environ: MutableMapping[str, str] | None = None,
+                           env_path: str | Path | None = None) -> list[str]:
+    """Re-apply `strategy`'s section and drop other sections' keys — cheaply, repeatedly.
+
+    Needed because python-dotenv is called from many module-level imports (every
+    `backtest/strategies/*.py` does `load_dotenv()`), and dotenv keeps any key it does not
+    already find in the environment. So AFTER `apply_strategy_env` has scoped a key out, the
+    next strategy import puts it straight back. Measured: importing
+    `backtest.strategies.ts_7AZ_96MA_flow_review` inside the engine re-added
+    `MAX_POS_BULL=2` from the ts_turning_point section, and the flow backtest then ran with
+    2 positions/session instead of 12 — a whole window sized by another strategy's config.
+
+    Call this before any read of a section-owned knob. Returns the keys it touched.
+    """
+    import os
+
+    env = environ if environ is not None else os.environ
+    sections, globals_ = _parse_cached(env_path)
+    if not sections:
+        return []
+
+    own = sections.get(strategy, {})
+    touched: list[str] = []
+    for other, values in sections.items():
+        if other == strategy:
+            continue
+        for key in values:
+            if key in own:            # this strategy sets it too — do not thrash it
+                continue
+            if key not in globals_ and key in env:
+                del env[key]
+                touched.append(f"-{key}")
+    for key, value in sections.get(strategy, {}).items():
+        if env.get(key) != value:
+            env[key] = value
+            touched.append(f"+{key}")
+    return touched
+
+
+# Child processes re-read .env flat (every strategy script does load_dotenv() at import),
+# which puts scoped-out keys straight back. The parent therefore exports the list of keys
+# it deliberately removed, and `backtest/__init__.py` pops them again after its own
+# load_dotenv(). Without this a flow backtest inherited MAX_POS_*=2 and TAKE_PROFIT_PCT=0.04
+# from the ts_turning_point section and ran a whole window sized for another strategy.
+SCOPED_OUT_MARK = "IMOB_SCOPED_OUT"
+
+
+def export_scoped_out(keys: Iterable[str], environ: MutableMapping[str, str] | None = None) -> None:
+    """Record, for child processes, the section keys this process scoped out."""
+    import os
+
+    env = environ if environ is not None else os.environ
+    mine = {k for k in keys if not k.startswith(("+", "-"))}
+    merged = {k for k in env.get(SCOPED_OUT_MARK, "").split(",") if k}
+    merged |= mine
+    if merged:
+        env[SCOPED_OUT_MARK] = ",".join(sorted(merged))
+
+
+def drop_scoped_out(environ: MutableMapping[str, str] | None = None) -> list[str]:
+    """Remove the keys the parent said it scoped out. Called after a flat load_dotenv()."""
+    import os
+
+    env = environ if environ is not None else os.environ
+    dropped = []
+    for key in [k for k in env.get(SCOPED_OUT_MARK, "").split(",") if k]:
+        if key in env:
+            del env[key]
+            dropped.append(key)
+    return dropped
 
 
 def redact(key: str) -> bool:

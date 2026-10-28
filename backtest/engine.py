@@ -2933,6 +2933,20 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
         # regime values. Measured 2026-09-13: raising these to 16/14/10/6 changed
         # nothing (log showed "positions 14→10"); setting BACKTEST_MAX_POSITIONS=16
         # produced "positions 12→16" and 135.04% vs 134.98%.
+        # Re-force the strategy's .env section first. Every `backtest/strategies/*.py`
+        # calls `load_dotenv()` at import, and dotenv re-adds any key it does not find —
+        # so importing a strategy module after `apply_strategy_env` has scoped another
+        # section's keys out puts them straight back. This is not hypothetical: importing
+        # ts_7AZ_96MA_flow_review re-added MAX_POS_BULL=2 from the ts_turning_point
+        # section and a flow backtest ran a whole window at 2 positions instead of 12.
+        try:
+            from backtest.utils.strategy_env import reenforce_strategy_env
+            _touched = reenforce_strategy_env(src)
+            if _touched:
+                logger.debug(f"[{this_date}] re-enforced .env section [{src}]: {', '.join(_touched)}")
+        except Exception as _exc:
+            logger.warning(f"[{this_date}] could not re-enforce .env section: {_exc}")
+
         regime_max_positions = {
             'bull': int(os.getenv('MAX_POS_BULL', '12')),
             'normal': int(os.getenv('MAX_POS_NORMAL', '10')),
@@ -3205,8 +3219,10 @@ Examples:
     # Tell every child process (backtest.cli's per-session sizing, strategy subprocesses)
     # that the sections were resolved deliberately. Without this mark, cli.py strips
     # section-scoped MAX_POS_* so a live run can never inherit a backtest's book size.
-    from backtest.utils.strategy_env import ENV_APPLIED_MARK
+    from backtest.utils.strategy_env import ENV_APPLIED_MARK, export_scoped_out
     os.environ[ENV_APPLIED_MARK] = src or '1'
+    # Children re-read .env flat; tell them which keys this run deliberately removed.
+    export_scoped_out(_scoped_out)
     if _section_keys:
         _shown = ", ".join(
             f"{k}=<redacted>" if redact(k) else f"{k}={os.environ.get(k)}"

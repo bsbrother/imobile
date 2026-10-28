@@ -16,6 +16,16 @@ if not os.path.exists('.env'):
     raise FileNotFoundError("Error: .env file not found. Please create it in the home directory.")
 load_dotenv('.env', verbose=False, override=False)
 
+# dotenv reads .env flat, so strategy-section keys belonging to OTHER strategies land here
+# too. The parent process applied its section and recorded what it scoped out (engine.py:
+# apply_strategy_env + export_scoped_out); honour that list, or a child inherits another
+# strategy's sizing/TP values. Safe when the marker is absent.
+try:
+    from .utils.strategy_env import drop_scoped_out as _drop_scoped_out
+    _dropped_section_keys = _drop_scoped_out()
+except Exception:                                    # a config guard must never break import
+    _dropped_section_keys = []
+
 # Log level
 LOG_LEVEL = os.getenv("LOG_LEVEL", default="DEBUG")
 

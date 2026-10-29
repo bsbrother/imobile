@@ -2957,31 +2957,37 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
         global MAX_POSITIONS
         MAX_POSITIONS = regime_max_positions.get(regime, 10)
 
-        # A delegating strategy also hands over its BOOK SIZE. The turning arm is a 2-slot
-        # book, the flow arm a 12-slot one; with the engine's own cap either arm would trade
-        # at the wrong size, which is not the configuration either was measured at. Read the
-        # delegate for this month from the switch schedule and take ITS .env sizing, exactly
-        # as if it were running natively. No explicit MAX_POS_* in the delegate's section
-        # (the flow arm) -> the engine default stands.
+        # A delegating strategy also hands over its BOOK SIZE and decides whether the
+        # review file applies at all. The turning arm is a 2-slot book and writes no review;
+        # the flow arm is a 12-slot book and does. Resolve the delegate ONCE here and use it
+        # for both decisions.
+        _switch_delegate = None
         _sched = os.getenv('SWITCH_SCHEDULE_CSV')
         if _sched and src == 'ts_switch_momentum' and os.path.exists(_sched):
             try:
                 import csv as _csv
-                from backtest.utils.strategy_env import section_values
                 with open(_sched, newline='') as _sf:
                     _row = {r['month']: r for r in _csv.DictReader(_sf)}.get(this_date[:6])
                 if _row:
-                    _delegate = _row['delegate']
-                    _key = f'MAX_POS_{regime.upper()}'
-                    _vals = section_values(_delegate)
-                    if _key in _vals:
-                        logger.info(f"[{this_date}] Book size from delegate {_delegate}: "
-                                    f"{_vals[_key]} positions (engine {regime.upper()} "
-                                    f"default {MAX_POSITIONS})")
-                        MAX_POSITIONS = int(_vals[_key])
-                    else:
-                        logger.debug(f"[{this_date}] delegate {_delegate} sets no {_key}; "
-                                     f"engine default {MAX_POSITIONS}")
+                    _switch_delegate = _row['delegate']
+                else:
+                    logger.warning(f"[{this_date}] {this_date[:6]} not in the switch schedule")
+            except Exception as _exc:
+                logger.warning(f"[{this_date}] schedule read failed ({_exc})")
+
+        if _switch_delegate:
+            try:
+                from backtest.utils.strategy_env import section_values
+                _key = f'MAX_POS_{regime.upper()}'
+                _vals = section_values(_switch_delegate)
+                if _key in _vals:
+                    logger.info(f"[{this_date}] Book size from delegate {_switch_delegate}: "
+                                f"{_vals[_key]} positions (engine {regime.upper()} "
+                                f"default {MAX_POSITIONS})")
+                    MAX_POSITIONS = int(_vals[_key])
+                else:
+                    logger.debug(f"[{this_date}] delegate {_switch_delegate} sets no {_key}; "
+                                 f"engine default {MAX_POSITIONS}")
             except Exception as _exc:
                 logger.warning(f"[{this_date}] schedule sizing failed ({_exc}); "
                                f"using {MAX_POSITIONS}")
@@ -3100,9 +3106,13 @@ def pick_orders_trading(start_date: Optional[str]=None, end_date: Optional[str]=
         # Non-review srcs are deliberately absent: for them the file is another
         # strategy's state and applying it would be a cross-strategy leak.
         _review_path = os.getenv('REVIEW_ADJUSTMENTS_PATH', '/tmp/review_adjustments.json')
-        if src in ('ts_7AZ_96MA_flow_review', 'ts_7AZ_96MA_flow_review_longterm',
-                   'ts_switch_by_regime', 'ts_flow_turning',
-                   'ts_switch_momentum') and os.path.exists(_review_path):
+        # For a delegating wrapper the review belongs to the DELEGATE: the turning arm
+        # writes none, so a stale flow review must not resize a 2-slot book. `_switch_delegate`
+        # is resolved above from the same schedule that picks tonight's arm.
+        _review_src = _switch_delegate or src
+        if _review_src in ('ts_7AZ_96MA_flow_review', 'ts_7AZ_96MA_flow_review_longterm',
+                           'ts_switch_by_regime', 'ts_flow_turning') \
+                and os.path.exists(_review_path):
             try:
                 with open(_review_path) as _rf:
                     _review = json.load(_rf)

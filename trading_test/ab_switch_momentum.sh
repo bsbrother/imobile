@@ -36,7 +36,7 @@ PYTHONPATH= \
 REPORT_DIR="$OUTDIR" \
 SWITCH_SCHEDULE_CSV="$SCHEDULE" \
 REVIEW_ADJUSTMENTS_PATH="$REVIEW" \
-REVIEW_OUTPUT="/tmp/review_out_switch_${STAMP}.json" \
+REVIEW_OUTPUT="$REVIEW" \
 TP_PANEL_CACHE_KEY="switch_momentum_${STAMP}" \
 SWITCH_AUDIT_CSV="/tmp/momentum_decisions_${STAMP}.csv" \
     .venv/bin/python backtest/engine.py 20250101 20260930 ts_switch_momentum --no-search --no-ai

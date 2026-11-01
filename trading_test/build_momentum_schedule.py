@@ -30,14 +30,30 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RESULTS = os.path.join(ROOT, 'backtest', 'results')
 
-# Explicit windows, one dir per (strategy, year): a `_prev*` / `_fill` / `_insert7` sibling is
-# a different reading of the same window and must never be mixed in.
-ARMS = {
-    'ts_7AZ_96MA_flow_review': ['20250101_20251231_ts_7AZ_96MA_flow_review',
-                                '20260101_20260930_ts_7AZ_96MA_flow_review'],
-    'ts_turning_point':        ['20250101_20251231_ts_turning_point_conc2',
-                                '20260101_20260930_ts_turning_point_conc2'],
+# One dir per (strategy, year). A `_prev*` / `_fill` / `_insert7` sibling is a different
+# reading of the same window and must never be mixed in. Turning's shipped 2025/2026 readings
+# carry a `_conc2` suffix (the 2-slot arm); the 2024 arm is plain, so try both.
+WINDOW_ENDS = {'2024': '20241231', '2025': '20251231', '2026': '20260930'}
+ARM_SUFFIXES = {
+    'ts_7AZ_96MA_flow_review': ['ts_7AZ_96MA_flow_review'],
+    'ts_turning_point': ['ts_turning_point_conc2', 'ts_turning_point'],
 }
+
+
+def windows_for(years: list[str]) -> dict[str, list[str]]:
+    """Resolve one result dir per (arm, year) for the requested years."""
+    arms: dict[str, list[str]] = {}
+    for arm, suffixes in ARM_SUFFIXES.items():
+        dirs = []
+        for year in years:
+            start, end = f'{year}0101', WINDOW_ENDS.get(year, f'{year}1231')
+            for suffix in suffixes:
+                name = f'{start}_{end}_{suffix}'
+                if os.path.isdir(os.path.join(RESULTS, name)):
+                    dirs.append(name)
+                    break
+        arms[arm] = dirs
+    return arms
 
 
 def monthly_equity(directory: str) -> dict[str, float]:
@@ -76,9 +92,15 @@ def main() -> None:
     ap.add_argument('--out', default='/tmp/momentum_schedule.csv')
     ap.add_argument('--default', default='ts_turning_point',
                     help='delegate for the first month and any month without history')
+    ap.add_argument('--years', default='2025,2026',
+                    help='result years to include, comma separated (2024,2025,2026)')
     args = ap.parse_args()
 
-    per_arm = {name: arm_months(dirs) for name, dirs in ARMS.items()}
+    arms = windows_for([y.strip() for y in args.years.split(',') if y.strip()])
+    missing = [name for name, dirs in arms.items() if not dirs]
+    if missing:
+        raise SystemExit(f'no result dirs for {missing} — run those arms first')
+    per_arm = {name: arm_months(dirs) for name, dirs in arms.items()}
     months = sorted(set().union(*per_arm.values()))
     if not months:
         raise SystemExit('no monthly equity found — run the standalone arms first')
@@ -86,7 +108,7 @@ def main() -> None:
     rows = []
     for i, month in enumerate(months):
         prev = months[i - 1] if i else None
-        trail = {name: per_arm[name].get(prev) for name in ARMS} if prev else {}
+        trail = {name: per_arm[name].get(prev) for name in per_arm} if prev else {}
         if not prev or any(v is None for v in trail.values()):
             delegate = args.default
             why = 'no history'

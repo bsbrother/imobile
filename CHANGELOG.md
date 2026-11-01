@@ -2,6 +2,33 @@
 
 Key changes and milestones in iMobile development.
 
+## 2026-11 (ts_switch_momentum measured on a window it never saw — born in-sample, dies out-of-sample)
+
+The momentum switch (delegate each month to whichever arm won the trailing month) was derived
+on 2025-01..2026-09. Replayed on 2024, where the rule had no fitting:
+
+- **2024 (242 sessions):** switch **−13.42% / −23.65% DD** vs `ts_turning_point` **+18.16% / −8.74%**
+  and `ts_7AZ_96MA_flow_review` −20.18% / −27.63%. It loses 31.6 pp to the arm it was picking
+  between, and 40.5 pp of monthly oracle. The damage is selection, not execution: 2024-08 it
+  held flow (−14.68%) while turning made −1.35%, 2024-12 it held turning (−7.52%) while flow
+  made +0.45%, and its "no history" January default was flow (−6.11% vs turning 0.00%).
+- **2025-01→2026-09 (in-sample, with flatten):** **+56.56% / −12.38% DD**, return/DD 4.57, vs
+  always-turning +47.46% / −13.27% and always-flow +40.89% / −28.37%. The +9.1 pp edge is real
+  on the fitted window (2025 +14.83%, 2026 +35.66%) and vanishes when the tape mean-reverts.
+- **Decision:** `ts_7AZ_96MA_flow_review` stays the default; the switch stays opt-in. The
+  in-sample gain is smaller than the out-of-sample loss and the failure mode is structural —
+  a trailing-month selector has no defence against regime mean-reversion.
+- Tooling: `trading_test/compare_runs.py` (total/maxDD/monthly from `report_orders_*.md`, works
+  on a half-finished run), `trading_test/decompose_switch.py` (arm attribution + oracle regret
+  per month), `trading_test/run_switch.sh` (holdout / flatten / **resume**), `ab_2024_arms.sh`,
+  `queue_switch_runs.sh`. `run_switch.sh resume` reuses the schedule, review-state file, panel
+  cache key and the append-only decisions csv, so a resumed run decides as the original did.
+- Fixed while resuming: a killed switch run re-fired the boundary flatten on its first resumed
+  session (mid-month liquidation of a book the boundary had already reset). The trigger now
+  checks the current month's existing reports before firing; pinned by
+  `tests/test_switch_flatten.py`.
+- Full write-up: `docs/strategies/ts_switch_momentum.md`.
+
 ## 2026-10 (ts_turning_point: 2-slot book validated on both windows, now config-only)
 
 The 2026 sweep's most valuable arm (`MAX_POS_*=2`, +6.86%) had never been tested out of sample. Both windows re-measured in one batch (sequential arms, own panel key each, ledger snapshot each):

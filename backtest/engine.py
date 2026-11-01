@@ -108,6 +108,62 @@ DRAWDOWN_BUDGET = {
 }
 
 
+# ── switch flatten ──────────────────────────────────────────────────────────
+# When a delegating strategy changes arm at a month boundary, the book it inherits is the
+# previous arm's: a 2-slot book leaves two ¥300k positions that cannot become twelve ¥50k ones
+# until they exit on their own rules. SWITCH_FLATTEN=1 closes them on the first session of the
+# new arm (at the auction price, through the existing force-sell path) so the new arm starts
+# from cash instead of from a book built for a different strategy.
+_FLATTEN_STATE: dict = {}
+
+
+def _switch_flatten_today(this_date: str) -> bool:
+    """True on the first session of a month whose scheduled delegate differs from the last."""
+    if os.getenv('SWITCH_FLATTEN', '0').strip().lower() not in ('true', '1', 'yes'):
+        return False
+    cache = _FLATTEN_STATE.setdefault('by_date', {})
+    if this_date in cache:
+        return cache[this_date]
+
+    sched = _FLATTEN_STATE.get('sched')
+    if sched is None:
+        import csv as _csv
+        path = os.getenv('SWITCH_SCHEDULE_CSV', 'trading_test/momentum_schedule.csv')
+        try:
+            with open(path, newline='') as f:
+                sched = {r['month']: r['delegate'] for r in _csv.DictReader(f)}
+        except Exception as exc:
+            logger.warning(f"[switch] flatten: cannot read schedule {path} ({exc}); disabled")
+            sched = {}
+        _FLATTEN_STATE['sched'] = sched
+
+    month = this_date[:6]
+    months = sorted(sched)
+    changed = False
+    if month in sched:
+        idx = months.index(month)
+        changed = idx > 0 and sched[months[idx - 1]] != sched[month]
+    first_of_month = not any(d[:6] == month and d < this_date for d in cache)
+    if first_of_month:
+        # Resume safety: a run killed mid-month leaves reports for the earlier sessions of
+        # that same month, i.e. this month's boundary was already handled. Without this a
+        # resumed run re-fires the flatten on its first resumed session and liquidates a
+        # book the boundary already reset.
+        try:
+            done = [n[14:22] for n in os.listdir(REPORT_PATH)
+                    if n.startswith(f'report_orders_{month}') and n.endswith('.md')]
+        except OSError:
+            done = []
+        first_of_month = not any(d < this_date for d in done)
+
+    result = bool(changed and first_of_month)
+    cache[this_date] = result
+    if result:
+        logger.warning(f"[{this_date}] switch flatten: closing the inherited book "
+                       f"({sched.get(months[months.index(month) - 1])} -> {sched[month]})")
+    return result
+
+
 def _drawdown_cap(base_max: int, nav: float) -> int:
     """Apply max-drawdown de-risking to a base position limit using prior NAV."""
     global PEAK_NAV
@@ -618,7 +674,11 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
                     except Exception:
                         pass
 
-                if days_held > holding_days:
+                if _switch_flatten_today(this_date):
+                    is_force_sell = True
+                    reason_of_ending = 'switch_flatten'
+                    pos_name_suffix = '_expired'
+                elif days_held > holding_days:
                     is_force_sell = True
                     reason_of_ending = 'order_expired_before_sell'
                     pos_name_suffix = '_expired'
@@ -787,7 +847,11 @@ def create_smart_orders_from_picks(pick_input_file: str, user_id: int = 1, curre
                     except Exception as e:
                         logger.error(f"Failed to check ER exit for {pos_code}: {e}")
 
-                if days_held > holding_days:
+                if _switch_flatten_today(this_date):
+                    is_force_sell = True
+                    reason_of_ending = 'switch_flatten'
+                    pos_name_suffix = '_expired'
+                elif days_held > holding_days:
                     is_force_sell = True
                     reason_of_ending = 'order_expired_before_sell'
                     pos_name_suffix = '_expired'

@@ -1,0 +1,13 @@
+month,delegate,trailing_month,trail_flow_pct,trail_turn_pct,reason
+202401,ts_7AZ_96MA_flow_review,,,,no history
+202402,ts_turning_point,202401,-6.11,0.00,trailing 1m
+202403,ts_7AZ_96MA_flow_review,202402,2.58,0.00,trailing 1m
+202404,ts_7AZ_96MA_flow_review,202403,2.52,-0.46,trailing 1m
+202405,ts_turning_point,202404,-0.61,2.84,trailing 1m
+202406,ts_turning_point,202405,-12.19,0.45,trailing 1m
+202407,ts_7AZ_96MA_flow_review,202406,5.88,-1.20,trailing 1m
+202408,ts_7AZ_96MA_flow_review,202407,-1.76,-1.81,trailing 1m
+202409,ts_turning_point,202408,-14.68,-1.35,trailing 1m
+202410,ts_turning_point,202409,5.08,11.70,trailing 1m
+202411,ts_turning_point,202410,-1.33,6.62,trailing 1m
+202412,ts_turning_point,202411,0.22,9.03,trailing 1m
